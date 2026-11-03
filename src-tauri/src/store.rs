@@ -721,7 +721,7 @@ pub fn create_project_document(
     }
     let doc = ProjectDocument {
         id: id.clone(),
-        title,
+        title: title.clone(),
         slug: id,
         body: default_doc_body(&title),
         updated_at: now_secs(),
