@@ -8,9 +8,16 @@ import {
 } from "@xyflow/react";
 import type { FlowEdgeData } from "./flowModel";
 
-const STUB = 14;
+/**
+ * Perpendicular stub length — must read clearly past the arrowhead
+ * (see media/flowchart-anchor-reference/desired-anchor-stubs.jpg).
+ */
+const STUB = 22;
 
-function handleToPosition(handle?: string | null, fallback?: Position): Position {
+function handleToPosition(
+  handle?: string | null,
+  fallback?: Position,
+): Position {
   switch (handle) {
     case "top":
       return Position.Top;
@@ -25,7 +32,7 @@ function handleToPosition(handle?: string | null, fallback?: Position): Position
   }
 }
 
-/** Short outward offset perpendicular to the node side. */
+/** Outward offset perpendicular to the node side (away from the node). */
 function stubPoint(
   x: number,
   y: number,
@@ -46,42 +53,76 @@ function stubPoint(
 }
 
 function stripLeadingMove(path: string): string {
-  // Drop the initial "M x y" so we can prefix our own stub segments.
-  return path.replace(/^M\s*[-0-9.]+[\s,]+[-0-9.]+/, "").trim();
+  return path.replace(/^M\s*[-0-9.eE+]+[\s,]+[-0-9.eE+]+/, "").trim();
 }
 
 type StubbedEdgeProps = EdgeProps & {
   data?: FlowEdgeData;
 };
 
-function buildStubbedPath(
-  props: StubbedEdgeProps,
-  mode: "curve" | "step",
-): { path: string; labelX: number; labelY: number } {
-  const sourceSide = handleToPosition(props.sourceHandleId, props.sourcePosition);
-  const targetSide = handleToPosition(props.targetHandleId, props.targetPosition);
+/**
+ * Orthogonal path with forced perpendicular stubs (reference style):
+ * handle → stub → 90° bends → stub → handle.
+ * Uses smooth-step `offset` so the first/last segments are always
+ * perpendicular and never hug the node edge.
+ */
+function buildAngledPath(props: StubbedEdgeProps): {
+  path: string;
+  labelX: number;
+  labelY: number;
+} {
+  const sourceSide = handleToPosition(
+    props.sourceHandleId,
+    props.sourcePosition,
+  );
+  const targetSide = handleToPosition(
+    props.targetHandleId,
+    props.targetPosition,
+  );
+
+  const [path, labelX, labelY] = getSmoothStepPath({
+    sourceX: props.sourceX,
+    sourceY: props.sourceY,
+    targetX: props.targetX,
+    targetY: props.targetY,
+    sourcePosition: sourceSide,
+    targetPosition: targetSide,
+    borderRadius: 0,
+    offset: STUB,
+  });
+
+  return { path, labelX, labelY };
+}
+
+/**
+ * Curved path with explicit straight stubs before/after the bezier,
+ * so the handle attachment is always perpendicular even when the
+ * curve would otherwise leave at a shallow angle.
+ */
+function buildCurvedPath(props: StubbedEdgeProps): {
+  path: string;
+  labelX: number;
+  labelY: number;
+} {
+  const sourceSide = handleToPosition(
+    props.sourceHandleId,
+    props.sourcePosition,
+  );
+  const targetSide = handleToPosition(
+    props.targetHandleId,
+    props.targetPosition,
+  );
   const s = stubPoint(props.sourceX, props.sourceY, sourceSide);
   const t = stubPoint(props.targetX, props.targetY, targetSide);
 
-  const [inner, labelX, labelY] =
-    mode === "step"
-      ? getSmoothStepPath({
-          sourceX: s.x,
-          sourceY: s.y,
-          targetX: t.x,
-          targetY: t.y,
-          sourcePosition: sourceSide,
-          targetPosition: targetSide,
-          borderRadius: 6,
-        })
-      : getBezierPath({
-          sourceX: s.x,
-          sourceY: s.y,
-          targetX: t.x,
-          targetY: t.y,
-          sourcePosition: sourceSide,
-          targetPosition: targetSide,
-        });
+  const [inner, labelX, labelY] = getBezierPath({
+    sourceX: s.x,
+    sourceY: s.y,
+    targetX: t.x,
+    targetY: t.y,
+    sourcePosition: sourceSide,
+    targetPosition: targetSide,
+  });
 
   const path = [
     `M ${props.sourceX} ${props.sourceY}`,
@@ -94,7 +135,8 @@ function buildStubbedPath(
 }
 
 function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
-  const { path, labelX, labelY } = buildStubbedPath(props, mode);
+  const { path, labelX, labelY } =
+    mode === "step" ? buildAngledPath(props) : buildCurvedPath(props);
   const label = props.label;
 
   return (
@@ -103,8 +145,8 @@ function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
         id={props.id}
         path={path}
         markerEnd={props.markerEnd}
-        style={props.style}
-        interactionWidth={20}
+        style={{ strokeWidth: 1.75, ...props.style }}
+        interactionWidth={24}
       />
       {label ? (
         <EdgeLabelRenderer>

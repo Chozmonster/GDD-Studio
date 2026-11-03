@@ -111,7 +111,14 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
 export function markerForEnd(end: FlowEdgeEnd): Edge["markerEnd"] {
   switch (end) {
     case "arrow":
-      return { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "#c8c8c8" };
+      // Keep marker smaller than the perpendicular stub (~22px) so the
+      // stub shaft stays visible (see desired-anchor-stubs.jpg).
+      return {
+        type: MarkerType.ArrowClosed,
+        width: 12,
+        height: 12,
+        color: "#c8c8c8",
+      };
     case "diamond":
       return "url(#gdd-marker-diamond)";
     case "circle":
