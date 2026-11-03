@@ -355,47 +355,6 @@ pub fn delete_flowchart(
     Ok(())
 }
 
-const DOCUMENT_FILE: &str = "document.json";
-
-fn document_path(project: &ProjectRecord) -> PathBuf {
-    PathBuf::from(&project.path).join(DOCUMENT_FILE)
-}
-
-pub fn load_document(app: &AppHandle, project_id: String) -> Result<serde_json::Value, String> {
-    let project = project_by_id(app, &project_id)?;
-    let path = document_path(&project);
-    if !path.exists() {
-        return Ok(serde_json::json!({
-            "type": "doc",
-            "content": [
-                {
-                    "type": "heading",
-                    "attrs": { "level": 1 },
-                    "content": [{ "type": "text", "text": project.name }]
-                },
-                {
-                    "type": "paragraph",
-                    "content": [{
-                        "type": "text",
-                        "text": "Start writing your game design doc. Use Insert flowchart to embed a live diagram."
-                    }]
-                }
-            ]
-        }));
-    }
-    let raw = fs::read_to_string(&path).map_err(|e| format!("read document: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse document: {e}"))
-}
-
-pub fn save_document(
-    app: &AppHandle,
-    project_id: String,
-    document: serde_json::Value,
-) -> Result<(), String> {
-    let project = project_by_id(app, &project_id)?;
-    write_json(&document_path(&project), &document)
-}
-
 const VARIABLES_FILE: &str = "variables.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -543,4 +502,731 @@ pub fn delete_rgd_sheet(
         fs::remove_file(&path).map_err(|e| format!("delete rgd sheet: {e}"))?;
     }
     Ok(())
+}
+
+// ── Multi-document wiki pages ──────────────────────────────────────────────
+
+const DOCS_DIR: &str = "docs";
+const LEGACY_DOCUMENT_FILE: &str = "document.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocSummary {
+    pub id: String,
+    pub title: String,
+    pub slug: String,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDocument {
+    pub id: String,
+    pub title: String,
+    pub slug: String,
+    pub body: serde_json::Value,
+    pub updated_at: u64,
+    #[serde(default)]
+    pub template_id: Option<String>,
+}
+
+fn docs_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(DOCS_DIR)
+}
+
+fn doc_file_path(project: &ProjectRecord, doc_id: &str) -> Result<PathBuf, String> {
+    let id = doc_id.trim();
+    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err("Invalid document id".into());
+    }
+    Ok(docs_dir(project).join(format!("{id}.json")))
+}
+
+fn slugify(input: &str) -> String {
+    let slug: String = input
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let slug = slug.trim_matches('-').to_string();
+    if slug.is_empty() {
+        "untitled".into()
+    } else {
+        slug
+    }
+}
+
+fn default_doc_body(title: &str) -> serde_json::Value {
+    serde_json::json!({
+        "type": "doc",
+        "content": [
+            {
+                "type": "heading",
+                "attrs": { "level": 1 },
+                "content": [{ "type": "text", "text": title }]
+            },
+            {
+                "type": "paragraph",
+                "content": [{
+                    "type": "text",
+                    "text": "Start writing. Link other pages with [[Page Title]]."
+                }]
+            }
+        ]
+    })
+}
+
+/// Migrate legacy single `document.json` into `docs/main.json` when needed.
+fn ensure_docs_migrated(project: &ProjectRecord) -> Result<(), String> {
+    let dir = docs_dir(project);
+    let main_path = dir.join("main.json");
+    if main_path.is_file() {
+        return Ok(());
+    }
+    let legacy = PathBuf::from(&project.path).join(LEGACY_DOCUMENT_FILE);
+    fs::create_dir_all(&dir).map_err(|e| format!("create docs dir: {e}"))?;
+    if legacy.is_file() {
+        let raw = fs::read_to_string(&legacy).map_err(|e| format!("read legacy document: {e}"))?;
+        let body: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("parse legacy document: {e}"))?;
+        let doc = ProjectDocument {
+            id: "main".into(),
+            title: project.name.clone(),
+            slug: "main".into(),
+            body,
+            updated_at: now_secs(),
+            template_id: None,
+        };
+        write_json(&main_path, &doc)?;
+    } else {
+        let doc = ProjectDocument {
+            id: "main".into(),
+            title: project.name.clone(),
+            slug: "main".into(),
+            body: default_doc_body(&project.name),
+            updated_at: now_secs(),
+            template_id: None,
+        };
+        write_json(&main_path, &doc)?;
+    }
+    Ok(())
+}
+
+pub fn list_documents(app: &AppHandle, project_id: String) -> Result<Vec<DocSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    ensure_docs_migrated(&project)?;
+    let dir = docs_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read docs: {e}"))? {
+            let entry = entry.map_err(|e| format!("read docs entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let raw = match fs::read_to_string(&path) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            if let Ok(doc) = serde_json::from_str::<ProjectDocument>(&raw) {
+                items.push(DocSummary {
+                    id: doc.id,
+                    title: doc.title,
+                    slug: doc.slug,
+                    updated_at: doc.updated_at,
+                });
+            }
+        }
+    }
+    items.sort_by(|a, b| {
+        if a.id == "main" {
+            return std::cmp::Ordering::Less;
+        }
+        if b.id == "main" {
+            return std::cmp::Ordering::Greater;
+        }
+        a.title.to_lowercase().cmp(&b.title.to_lowercase())
+    });
+    Ok(items)
+}
+
+pub fn load_project_document(
+    app: &AppHandle,
+    project_id: String,
+    doc_id: String,
+) -> Result<ProjectDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    ensure_docs_migrated(&project)?;
+    let path = doc_file_path(&project, &doc_id)?;
+    if !path.exists() {
+        return Err(format!("Unknown document id: {doc_id}"));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read document: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse document: {e}"))
+}
+
+pub fn save_project_document(
+    app: &AppHandle,
+    project_id: String,
+    document: ProjectDocument,
+) -> Result<ProjectDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    ensure_docs_migrated(&project)?;
+    let mut document = document;
+    if document.id.trim().is_empty() {
+        return Err("Document id is required".into());
+    }
+    if document.slug.trim().is_empty() {
+        document.slug = slugify(&document.title);
+    }
+    document.updated_at = now_secs();
+    let path = doc_file_path(&project, &document.id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create docs dir: {e}"))?;
+    }
+    write_json(&path, &document)?;
+
+    // Keep legacy document.json in sync for the main doc (older tooling / backups).
+    if document.id == "main" {
+        write_json(
+            &PathBuf::from(&project.path).join(LEGACY_DOCUMENT_FILE),
+            &document.body,
+        )?;
+    }
+    Ok(document)
+}
+
+pub fn create_project_document(
+    app: &AppHandle,
+    project_id: String,
+    title: String,
+) -> Result<ProjectDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    ensure_docs_migrated(&project)?;
+    let title = title.trim().to_string();
+    if title.is_empty() {
+        return Err("Document title is required".into());
+    }
+    let base = slugify(&title);
+    let mut id = base.clone();
+    let mut n = 2u32;
+    while doc_file_path(&project, &id)?.exists() {
+        id = format!("{base}-{n}");
+        n += 1;
+    }
+    let doc = ProjectDocument {
+        id: id.clone(),
+        title,
+        slug: id,
+        body: default_doc_body(&title),
+        updated_at: now_secs(),
+        template_id: None,
+    };
+    save_project_document(app, project_id, doc)
+}
+
+pub fn delete_project_document(
+    app: &AppHandle,
+    project_id: String,
+    doc_id: String,
+) -> Result<(), String> {
+    if doc_id == "main" {
+        return Err("Cannot delete the main document".into());
+    }
+    let project = project_by_id(app, &project_id)?;
+    let path = doc_file_path(&project, &doc_id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete document: {e}"))?;
+    }
+    Ok(())
+}
+
+pub fn resolve_wiki_slug(
+    app: &AppHandle,
+    project_id: String,
+    slug_or_title: String,
+) -> Result<Option<DocSummary>, String> {
+    let needle = slug_or_title.trim().to_lowercase();
+    if needle.is_empty() {
+        return Ok(None);
+    }
+    let docs = list_documents(app, project_id)?;
+    let found = docs.into_iter().find(|d| {
+        d.slug.to_lowercase() == needle
+            || d.id.to_lowercase() == needle
+            || d.title.to_lowercase() == needle
+            || slugify(&d.title) == slugify(&needle)
+    });
+    Ok(found)
+}
+
+/// Scan all document bodies for wikiLink nodes targeting `target_doc_id` / slug / title.
+pub fn list_backlinks(
+    app: &AppHandle,
+    project_id: String,
+    target_doc_id: String,
+) -> Result<Vec<DocSummary>, String> {
+    let docs = list_documents(app, project_id.clone())?;
+    let target = docs
+        .iter()
+        .find(|d| d.id == target_doc_id)
+        .cloned()
+        .ok_or_else(|| format!("Unknown document id: {target_doc_id}"))?;
+    let mut backlinks = Vec::new();
+    for summary in &docs {
+        if summary.id == target.id {
+            continue;
+        }
+        let full = load_project_document(app, project_id.clone(), summary.id.clone())?;
+        if body_links_to(&full.body, &target) {
+            backlinks.push(summary.clone());
+        }
+    }
+    Ok(backlinks)
+}
+
+fn body_links_to(value: &serde_json::Value, target: &DocSummary) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            let is_wiki = map.get("type").and_then(|t| t.as_str()) == Some("wikiLink");
+            if is_wiki {
+                if let Some(attrs) = map.get("attrs") {
+                    let doc_id = attrs.get("docId").and_then(|v| v.as_str()).unwrap_or("");
+                    let slug = attrs.get("slug").and_then(|v| v.as_str()).unwrap_or("");
+                    let title = attrs.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                    if (!doc_id.is_empty() && doc_id == target.id)
+                        || (!slug.is_empty()
+                            && (slug.eq_ignore_ascii_case(&target.slug)
+                                || slug.eq_ignore_ascii_case(&target.id)))
+                        || (!title.is_empty() && title.eq_ignore_ascii_case(&target.title))
+                    {
+                        return true;
+                    }
+                }
+            }
+            map.values().any(|v| body_links_to(v, target))
+        }
+        serde_json::Value::Array(arr) => arr.iter().any(|v| body_links_to(v, target)),
+        _ => false,
+    }
+}
+
+// Keep legacy load/save_document working by bridging to main project document.
+pub fn load_document(app: &AppHandle, project_id: String) -> Result<serde_json::Value, String> {
+    let doc = load_project_document(app, project_id, "main".into())?;
+    Ok(doc.body)
+}
+
+pub fn save_document(
+    app: &AppHandle,
+    project_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    let mut doc = match load_project_document(app, project_id.clone(), "main".into()) {
+        Ok(d) => d,
+        Err(_) => {
+            let project = project_by_id(app, &project_id)?;
+            ProjectDocument {
+                id: "main".into(),
+                title: project.name.clone(),
+                slug: "main".into(),
+                body: document.clone(),
+                updated_at: now_secs(),
+                template_id: None,
+            }
+        }
+    };
+    doc.body = document;
+    save_project_document(app, project_id, doc)?;
+    Ok(())
+}
+
+// ── Media assets ───────────────────────────────────────────────────────────
+
+const ASSETS_DIR: &str = "assets";
+const ASSETS_INDEX: &str = "assets.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetRecord {
+    pub id: String,
+    pub kind: String,
+    pub filename: String,
+    pub mime: String,
+    pub byte_size: u64,
+    pub storage_ref: String,
+    pub created_at: u64,
+}
+
+fn assets_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(ASSETS_DIR)
+}
+
+fn assets_index_path(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(ASSETS_INDEX)
+}
+
+fn load_asset_index(project: &ProjectRecord) -> Result<Vec<AssetRecord>, String> {
+    let path = assets_index_path(project);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    read_json(&path)
+}
+
+fn save_asset_index(project: &ProjectRecord, assets: &[AssetRecord]) -> Result<(), String> {
+    write_json(&assets_index_path(project), &assets)
+}
+
+fn kind_from_mime(mime: &str, filename: &str) -> String {
+    let m = mime.to_lowercase();
+    let lower = filename.to_lowercase();
+    if m.starts_with("image/") || lower.ends_with(".gif") {
+        if m.contains("gif") || lower.ends_with(".gif") {
+            "gif".into()
+        } else {
+            "image".into()
+        }
+    } else if m.starts_with("video/") {
+        "video".into()
+    } else if m.starts_with("audio/") {
+        "audio".into()
+    } else if lower.ends_with(".mp4")
+        || lower.ends_with(".webm")
+        || lower.ends_with(".mov")
+        || lower.ends_with(".mkv")
+    {
+        "video".into()
+    } else if lower.ends_with(".mp3")
+        || lower.ends_with(".wav")
+        || lower.ends_with(".ogg")
+        || lower.ends_with(".m4a")
+        || lower.ends_with(".flac")
+    {
+        "audio".into()
+    } else {
+        "image".into()
+    }
+}
+
+fn extension_for(filename: &str, mime: &str, kind: &str) -> String {
+    if let Some(ext) = Path::new(filename).extension().and_then(|e| e.to_str()) {
+        if !ext.is_empty() {
+            return ext.to_ascii_lowercase();
+        }
+    }
+    if let Some(subtype) = mime.split('/').nth(1) {
+        let clean = subtype.split(';').next().unwrap_or(subtype);
+        if !clean.is_empty() && clean.len() <= 8 {
+            return clean.replace("jpeg", "jpg");
+        }
+    }
+    match kind {
+        "gif" => "gif".into(),
+        "video" => "mp4".into(),
+        "audio" => "mp3".into(),
+        _ => "bin".into(),
+    }
+}
+
+pub fn list_assets(app: &AppHandle, project_id: String) -> Result<Vec<AssetRecord>, String> {
+    let project = project_by_id(app, &project_id)?;
+    Ok(load_asset_index(&project)?)
+}
+
+pub fn save_asset(
+    app: &AppHandle,
+    project_id: String,
+    filename: String,
+    mime: String,
+    data_base64: String,
+) -> Result<AssetRecord, String> {
+    let project = project_by_id(app, &project_id)?;
+    let bytes = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        data_base64.trim(),
+    )
+    .map_err(|e| format!("decode asset: {e}"))?;
+    if bytes.is_empty() {
+        return Err("Asset data is empty".into());
+    }
+    let kind = kind_from_mime(&mime, &filename);
+    let ext = extension_for(&filename, &mime, &kind);
+    let id = Uuid::new_v4().to_string();
+    let storage_ref = format!("{id}.{ext}");
+    let dir = assets_dir(&project);
+    fs::create_dir_all(&dir).map_err(|e| format!("create assets dir: {e}"))?;
+    let path = dir.join(&storage_ref);
+    fs::write(&path, &bytes).map_err(|e| format!("write asset: {e}"))?;
+
+    let record = AssetRecord {
+        id,
+        kind,
+        filename,
+        mime,
+        byte_size: bytes.len() as u64,
+        storage_ref,
+        created_at: now_secs(),
+    };
+    let mut index = load_asset_index(&project)?;
+    index.push(record.clone());
+    save_asset_index(&project, &index)?;
+    Ok(record)
+}
+
+pub fn get_asset_path(
+    app: &AppHandle,
+    project_id: String,
+    asset_id: String,
+) -> Result<String, String> {
+    let project = project_by_id(app, &project_id)?;
+    let index = load_asset_index(&project)?;
+    let record = index
+        .iter()
+        .find(|a| a.id == asset_id)
+        .ok_or_else(|| format!("Unknown asset id: {asset_id}"))?;
+    let path = assets_dir(&project).join(&record.storage_ref);
+    if !path.is_file() {
+        return Err(format!("Asset file missing: {}", path.display()));
+    }
+    Ok(path.to_string_lossy().into_owned())
+}
+
+pub fn get_asset_data_url(
+    app: &AppHandle,
+    project_id: String,
+    asset_id: String,
+) -> Result<String, String> {
+    let project = project_by_id(app, &project_id)?;
+    let index = load_asset_index(&project)?;
+    let record = index
+        .iter()
+        .find(|a| a.id == asset_id)
+        .ok_or_else(|| format!("Unknown asset id: {asset_id}"))?;
+    let path = assets_dir(&project).join(&record.storage_ref);
+    let bytes = fs::read(&path).map_err(|e| format!("read asset: {e}"))?;
+    // Cap data-URL export to ~25MB to avoid IPC blowups.
+    if bytes.len() > 25 * 1024 * 1024 {
+        return Err("Asset too large for data URL; use file path instead".into());
+    }
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
+    let mime = if record.mime.is_empty() {
+        "application/octet-stream"
+    } else {
+        &record.mime
+    };
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
+pub fn delete_asset(app: &AppHandle, project_id: String, asset_id: String) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    let mut index = load_asset_index(&project)?;
+    let Some(pos) = index.iter().position(|a| a.id == asset_id) else {
+        return Err(format!("Unknown asset id: {asset_id}"));
+    };
+    let record = index.remove(pos);
+    let path = assets_dir(&project).join(&record.storage_ref);
+    if path.is_file() {
+        let _ = fs::remove_file(&path);
+    }
+    save_asset_index(&project, &index)?;
+    Ok(())
+}
+
+// ── Templates (app-level + project-level) ──────────────────────────────────
+
+const TEMPLATES_DIR: &str = "templates";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateRecord {
+    pub id: String,
+    pub name: String,
+    /// "app" or "project"
+    pub scope: String,
+    pub body: serde_json::Value,
+    pub created_at: u64,
+    pub updated_at: u64,
+    #[serde(default)]
+    pub project_id: Option<String>,
+}
+
+fn app_templates_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join(TEMPLATES_DIR))
+}
+
+fn project_templates_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(TEMPLATES_DIR)
+}
+
+fn template_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
+    let id = id.trim();
+    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err("Invalid template id".into());
+    }
+    Ok(dir.join(format!("{id}.json")))
+}
+
+fn read_templates_dir(dir: &Path, scope: &str, project_id: Option<&str>) -> Result<Vec<TemplateRecord>, String> {
+    let mut items = Vec::new();
+    if !dir.is_dir() {
+        return Ok(items);
+    }
+    for entry in fs::read_dir(dir).map_err(|e| format!("read templates: {e}"))? {
+        let entry = entry.map_err(|e| format!("read templates entry: {e}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let raw = match fs::read_to_string(&path) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if let Ok(mut t) = serde_json::from_str::<TemplateRecord>(&raw) {
+            t.scope = scope.to_string();
+            t.project_id = project_id.map(|s| s.to_string());
+            items.push(t);
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(items)
+}
+
+pub fn list_templates(
+    app: &AppHandle,
+    project_id: Option<String>,
+) -> Result<Vec<TemplateRecord>, String> {
+    let mut items = read_templates_dir(&app_templates_dir(app)?, "app", None)?;
+    if let Some(pid) = project_id {
+        let project = project_by_id(app, &pid)?;
+        items.extend(read_templates_dir(
+            &project_templates_dir(&project),
+            "project",
+            Some(&pid),
+        )?);
+    }
+    Ok(items)
+}
+
+pub fn save_template(
+    app: &AppHandle,
+    name: String,
+    body: serde_json::Value,
+    scope: String,
+    project_id: Option<String>,
+    template_id: Option<String>,
+) -> Result<TemplateRecord, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Template name is required".into());
+    }
+    let scope = if scope == "project" { "project" } else { "app" };
+    let dir = if scope == "project" {
+        let pid = project_id
+            .as_ref()
+            .ok_or_else(|| "projectId required for project templates".to_string())?;
+        let project = project_by_id(app, pid)?;
+        project_templates_dir(&project)
+    } else {
+        app_templates_dir(app)?
+    };
+    fs::create_dir_all(&dir).map_err(|e| format!("create templates dir: {e}"))?;
+
+    let id = template_id
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let now = now_secs();
+    let existing = template_path(&dir, &id)?;
+    let created_at = if existing.is_file() {
+        fs::read_to_string(&existing)
+            .ok()
+            .and_then(|r| serde_json::from_str::<TemplateRecord>(&r).ok())
+            .map(|t| t.created_at)
+            .unwrap_or(now)
+    } else {
+        now
+    };
+
+    let record = TemplateRecord {
+        id: id.clone(),
+        name,
+        scope: scope.to_string(),
+        body,
+        created_at,
+        updated_at: now,
+        project_id: if scope == "project" {
+            project_id
+        } else {
+            None
+        },
+    };
+    write_json(&template_path(&dir, &id)?, &record)?;
+    Ok(record)
+}
+
+pub fn delete_template(
+    app: &AppHandle,
+    template_id: String,
+    scope: String,
+    project_id: Option<String>,
+) -> Result<(), String> {
+    let dir = if scope == "project" {
+        let pid = project_id
+            .as_ref()
+            .ok_or_else(|| "projectId required for project templates".to_string())?;
+        let project = project_by_id(app, pid)?;
+        project_templates_dir(&project)
+    } else {
+        app_templates_dir(app)?
+    };
+    let path = template_path(&dir, &template_id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete template: {e}"))?;
+    }
+    Ok(())
+}
+
+pub fn load_template(
+    app: &AppHandle,
+    template_id: String,
+    scope: String,
+    project_id: Option<String>,
+) -> Result<TemplateRecord, String> {
+    let dir = if scope == "project" {
+        let pid = project_id
+            .as_ref()
+            .ok_or_else(|| "projectId required for project templates".to_string())?;
+        let project = project_by_id(app, pid)?;
+        project_templates_dir(&project)
+    } else {
+        app_templates_dir(app)?
+    };
+    let path = template_path(&dir, &template_id)?;
+    if !path.is_file() {
+        return Err(format!("Unknown template id: {template_id}"));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read template: {e}"))?;
+    let mut t: TemplateRecord =
+        serde_json::from_str(&raw).map_err(|e| format!("parse template: {e}"))?;
+    t.scope = if scope == "project" {
+        "project".into()
+    } else {
+        "app".into()
+    };
+    t.project_id = project_id;
+    Ok(t)
+}
+
+/// Write a UTF-8 export HTML file under app cache for print/PDF workflows.
+pub fn write_export_html(app: &AppHandle, html: String) -> Result<String, String> {
+    let dir = data_dir(app)?.join("exports");
+    fs::create_dir_all(&dir).map_err(|e| format!("create exports dir: {e}"))?;
+    let path = dir.join(format!("export-{}.html", now_secs()));
+    fs::write(&path, html.as_bytes()).map_err(|e| format!("write export html: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
 }

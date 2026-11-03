@@ -1,8 +1,8 @@
 //! GDD Studio — Tauri entry.
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
-//! RGD sheets + documentation variables. Still deferred: wiki links, assets,
-//! spellcheck, PDF, sync/share.
+//! RGD sheets + documentation variables + multi-docs / wiki + media assets +
+//! templates + export HTML. Spellcheck runs in the webview (nspell).
 
 mod commands;
 mod store;
@@ -10,12 +10,15 @@ mod updates;
 mod window_geom;
 
 use commands::{
-    app_health, check_for_updates, create_project, default_projects_dir, delete_flowchart,
-    delete_project, delete_rgd_sheet, flowchart_exists, get_patch_notes, get_settings,
-    install_update, list_flowcharts, list_projects, list_rgd_sheets, load_document,
-    load_flowchart, load_rgd_sheet, load_variables, open_options_window, open_project,
-    rgd_sheet_exists, save_document, save_flowchart, save_rgd_sheet, save_variables,
-    set_automatic_updates, set_display_variable_names,
+    app_health, check_for_updates, create_project, create_project_document, default_projects_dir,
+    delete_asset, delete_flowchart, delete_project, delete_project_document, delete_rgd_sheet,
+    delete_template, flowchart_exists, get_asset_data_url, get_asset_path, get_patch_notes,
+    get_settings, install_update, list_assets, list_backlinks, list_documents, list_flowcharts,
+    list_projects, list_rgd_sheets, list_templates, load_document, load_flowchart,
+    load_project_document, load_rgd_sheet, load_template, load_variables, open_options_window,
+    open_project, resolve_wiki_slug, rgd_sheet_exists, save_asset, save_document, save_flowchart,
+    save_project_document, save_rgd_sheet, save_template, save_variables, set_automatic_updates,
+    set_display_variable_names, write_export_html,
 };
 use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
@@ -67,6 +70,23 @@ pub fn run() {
             save_document,
             load_variables,
             save_variables,
+            list_documents,
+            load_project_document,
+            save_project_document,
+            create_project_document,
+            delete_project_document,
+            resolve_wiki_slug,
+            list_backlinks,
+            list_assets,
+            save_asset,
+            get_asset_path,
+            get_asset_data_url,
+            delete_asset,
+            list_templates,
+            save_template,
+            load_template,
+            delete_template,
+            write_export_html,
             set_window_role,
             get_window_geometry,
         ])
