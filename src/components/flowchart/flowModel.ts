@@ -205,6 +205,10 @@ export function migrateNode(raw: RawNode): Omit<FlowNode, "data"> & {
     id: raw.id,
     type: "flow",
     position: raw.position,
+    // Explicit dimensions so handle bounds (and edge endpoints) resolve to
+    // the true N/E/S/W midpoints — not the node origin/corners.
+    width,
+    height,
     style: { width, height },
     data: {
       label: String(data.label ?? defaults.defaultLabel),

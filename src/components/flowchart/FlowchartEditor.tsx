@@ -582,6 +582,11 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
           connectionMode={ConnectionMode.Loose}
           connectionRadius={28}
           edgeTypes={edgeTypes}
+          defaultEdgeOptions={{
+            type: "stubStep",
+            markerEnd: markerForEnd("arrow"),
+            data: { path: "step", end: "arrow" },
+          }}
           fitView={nodes.length > 0}
           defaultViewport={viewportRef.current}
           onInit={(instance) => {

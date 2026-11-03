@@ -749,14 +749,25 @@ code {
   padding: 0.2rem 0.35rem;
 }
 
+/* Resize handles: square, low emphasis — not connection anchors */
+.flow-node-wrap .flow-resize-handle {
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 1px !important;
+  background: #666 !important;
+  border: 1px solid #999 !important;
+  z-index: 2 !important;
+  opacity: 0.7;
+}
+
 .flow-node-wrap .react-flow__handle.flow-anchor {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #d8efe3;
+  background: #e8fff2;
   border: 2px solid #2f5d50;
-  z-index: 5;
-  opacity: 0.92;
+  z-index: 6;
+  opacity: 1;
 }
 
 .flow-node-wrap .react-flow__handle.flow-anchor:hover,
@@ -768,29 +779,11 @@ code {
   box-shadow: 0 0 0 3px rgba(127, 180, 150, 0.35);
 }
 
-/* Keep anchors on the perimeter midpoints for every shape (incl. diamond tips). */
-.flow-node-wrap .react-flow__handle.anchor-top {
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-.flow-node-wrap .react-flow__handle.anchor-right {
-  top: 50%;
-  right: 0;
-  left: auto;
-  transform: translate(50%, -50%);
-}
-.flow-node-wrap .react-flow__handle.anchor-bottom {
-  bottom: 0;
-  top: auto;
-  left: 50%;
-  transform: translate(-50%, 50%);
-}
-.flow-node-wrap .react-flow__handle.anchor-left {
-  top: 50%;
-  left: 0;
-  transform: translate(-50%, -50%);
-}
+/*
+ * Do NOT override `transform` on handles — React Flow uses it for
+ * handle bounds / edge attachment. Fighting it makes edges attach to
+ * corners/origins instead of N/E/S/W midpoints.
+ */
 
 .flow-edge-label {
   position: absolute;

@@ -57,7 +57,9 @@ function FlowNodeComponent({
         isVisible={selected}
         minWidth={data.shape === "diamond" ? 80 : 90}
         minHeight={data.shape === "diamond" ? 80 : 44}
-        color="#7aa892"
+        color="#555"
+        handleClassName="flow-resize-handle"
+        lineClassName="flow-resize-line"
       />
 
       {ANCHORS.map(({ id: anchorId, position }) => (
@@ -66,7 +68,7 @@ function FlowNodeComponent({
           id={anchorId}
           type="source"
           position={position}
-          className={`flow-anchor nodrag anchor-${anchorId}`}
+          className={`flow-anchor nodrag nopan anchor-${anchorId}`}
           isConnectable
         />
       ))}
