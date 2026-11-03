@@ -5,6 +5,7 @@
 
 use crate::store::{self, WindowGeometry, WindowGeometryFile};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow, WindowEvent,
 };
@@ -12,10 +13,18 @@ use tauri::{
 pub const ROLE_LAUNCHER: &str = "launcher";
 pub const ROLE_EDITOR: &str = "editor";
 
+/// How long to ignore resize/move persist after applying stored geometry.
+/// Platform window events for size/fullscreen often arrive on a later tick;
+/// clearing suppress immediately can overwrite a role's fullscreen flag with
+/// an intermediate windowed capture.
+const APPLY_SETTLE_MS: u64 = 350;
+
 pub struct WindowGeomState {
     pub active_role: Mutex<String>,
     /// Skip persist while applying a stored geometry (resize events fire).
     pub suppress_persist: Mutex<bool>,
+    /// Bumped on each apply so a stale settle timer cannot clear a newer one.
+    pub apply_generation: Mutex<u64>,
 }
 
 impl Default for WindowGeomState {
@@ -23,6 +32,7 @@ impl Default for WindowGeomState {
         Self {
             active_role: Mutex::new(ROLE_LAUNCHER.to_string()),
             suppress_persist: Mutex::new(false),
+            apply_generation: Mutex::new(0),
         }
     }
 }
@@ -47,6 +57,47 @@ fn set_for_role(file: &mut WindowGeometryFile, role: &str, geo: WindowGeometry) 
         ROLE_EDITOR => file.editor = Some(geo),
         _ => file.launcher = Some(geo),
     }
+}
+
+fn set_suppress(app: &AppHandle, value: bool) {
+    if let Some(state) = app.try_state::<WindowGeomState>() {
+        if let Ok(mut flag) = state.suppress_persist.lock() {
+            *flag = value;
+        }
+    }
+}
+
+fn bump_apply_generation(app: &AppHandle) -> u64 {
+    if let Some(state) = app.try_state::<WindowGeomState>() {
+        if let Ok(mut gen) = state.apply_generation.lock() {
+            *gen = gen.wrapping_add(1);
+            return *gen;
+        }
+    }
+    0
+}
+
+fn schedule_settle(app: &AppHandle, generation: u64) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(APPLY_SETTLE_MS));
+        let Some(state) = app.try_state::<WindowGeomState>() else {
+            return;
+        };
+        let current = state
+            .apply_generation
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(0);
+        if current != generation {
+            return;
+        }
+        if let Ok(mut flag) = state.suppress_persist.lock() {
+            *flag = false;
+        }
+        // Capture the settled window once so disk matches final fullscreen/max.
+        persist_active(&app, &*state);
+    });
 }
 
 fn capture_geometry(win: &WebviewWindow) -> Result<WindowGeometry, String> {
@@ -106,18 +157,20 @@ pub fn apply_role_geometry(app: &AppHandle, role: &str) -> Result<(), String> {
         return Ok(());
     };
 
-    if let Some(state) = app.try_state::<WindowGeomState>() {
-        if let Ok(mut flag) = state.suppress_persist.lock() {
-            *flag = true;
-        }
-    }
+    let generation = bump_apply_generation(app);
+    set_suppress(app, true);
     let result = apply_geometry(&win, &geo);
-    if let Some(state) = app.try_state::<WindowGeomState>() {
-        if let Ok(mut flag) = state.suppress_persist.lock() {
-            *flag = false;
-        }
+    if result.is_err() {
+        set_suppress(app, false);
+        return result;
     }
-    result
+    // Keep the intended role geometry on disk while the window settles so a
+    // late intermediate resize cannot drop fullscreen/maximized.
+    let mut file = store::load_window_geometry(app)?;
+    set_for_role(&mut file, role, geo);
+    let _ = store::save_window_geometry(app, &file);
+    schedule_settle(app, generation);
+    Ok(())
 }
 
 fn apply_geometry(win: &WebviewWindow, geo: &WindowGeometry) -> Result<(), String> {
@@ -159,7 +212,16 @@ pub fn set_window_role(
     };
 
     if previous != next {
-        let _ = save_role_geometry(&app, &previous);
+        // If the previous role is still settling from an apply, disk already
+        // holds its intended geometry — capturing now can drop fullscreen.
+        let settling = state
+            .suppress_persist
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(false);
+        if !settling {
+            let _ = save_role_geometry(&app, &previous);
+        }
         apply_role_geometry(&app, &next)?;
     }
     Ok(())
