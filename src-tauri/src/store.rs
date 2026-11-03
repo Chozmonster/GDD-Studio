@@ -36,6 +36,9 @@ pub struct AppSettings {
     pub automatic_updates: bool,
     /// Unix seconds of the last update check (manual or automatic).
     pub last_update_check_at: Option<u64>,
+    /// When true, document variable chips show the name with the value.
+    #[serde(default)]
+    pub display_variable_names: bool,
 }
 
 impl Default for AppSettings {
@@ -43,6 +46,7 @@ impl Default for AppSettings {
         Self {
             automatic_updates: true,
             last_update_check_at: None,
+            display_variable_names: false,
         }
     }
 }

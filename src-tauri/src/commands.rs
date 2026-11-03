@@ -60,6 +60,14 @@ pub fn set_automatic_updates(app: AppHandle, enabled: bool) -> Result<AppSetting
     Ok(settings)
 }
 
+#[tauri::command]
+pub fn set_display_variable_names(app: AppHandle, enabled: bool) -> Result<AppSettings, String> {
+    let mut settings = store::load_settings(&app)?;
+    settings.display_variable_names = enabled;
+    store::save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
 /// Check for updates. Persists last-check timestamp.
 /// When `force` is false and a check already ran today, returns cached "skipped" status
 /// unless there is a simulated pending update flag.

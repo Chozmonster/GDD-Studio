@@ -4,7 +4,9 @@ import {
   fetchPatchNotes,
   fetchSettings,
   setAutomaticUpdates,
+  setDisplayVariableNames,
 } from "../api";
+import { emitSettingsChanged } from "../lib/settingsEvents";
 import type { AppSettings, UpdateStatus } from "../types";
 
 type OptionsPanelProps = {
@@ -24,15 +26,37 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
       .catch((e) => setStatus(e instanceof Error ? e.message : String(e)));
   }, []);
 
+  const applySettings = (next: AppSettings) => {
+    setSettings(next);
+    emitSettingsChanged(next);
+  };
+
   const toggleAuto = async (enabled: boolean) => {
     setBusy(true);
     try {
       const next = await setAutomaticUpdates(enabled);
-      setSettings(next);
+      applySettings(next);
       setStatus(
         enabled
           ? "Automatic updates enabled — checks about once per day."
           : "Automatic updates off — you'll be notified in the launcher.",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleDisplayNames = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const next = await setDisplayVariableNames(enabled);
+      applySettings(next);
+      setStatus(
+        enabled
+          ? "Variable chips show name and value in the document."
+          : "Variable chips show the value; hover for the name.",
       );
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
@@ -73,6 +97,25 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
           </button>
         )}
       </header>
+
+      <section className="options-section">
+        <h3>Document</h3>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings?.displayVariableNames ?? false}
+            disabled={!settings || busy}
+            onChange={(e) => void toggleDisplayNames(e.target.checked)}
+          />
+          <span>
+            <strong>Display variable names in document</strong>
+            <span className="muted block">
+              When off, chips show the resolved value and the name appears on
+              hover. When on, chips show both the name and the value.
+            </span>
+          </span>
+        </label>
+      </section>
 
       <section className="options-section">
         <h3>Updates</h3>

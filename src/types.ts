@@ -15,6 +15,11 @@ export type ProjectRecord = {
 export type AppSettings = {
   automaticUpdates: boolean;
   lastUpdateCheckAt: number | null;
+  /**
+   * When true, variable chips show the name alongside the resolved value.
+   * When false (default), chips show the value only; name appears on hover.
+   */
+  displayVariableNames: boolean;
 };
 
 export type UpdateStatus = {

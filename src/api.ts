@@ -40,8 +40,22 @@ function loadBrowser(): BrowserStore {
   }
   return {
     projects: [],
-    settings: { automaticUpdates: true, lastUpdateCheckAt: null },
+    settings: {
+      automaticUpdates: true,
+      lastUpdateCheckAt: null,
+      displayVariableNames: false,
+    },
     update: null,
+  };
+}
+
+function normalizeSettings(
+  settings: Partial<AppSettings> | undefined | null,
+): AppSettings {
+  return {
+    automaticUpdates: settings?.automaticUpdates ?? true,
+    lastUpdateCheckAt: settings?.lastUpdateCheckAt ?? null,
+    displayVariableNames: settings?.displayVariableNames ?? false,
   };
 }
 
@@ -128,8 +142,10 @@ export async function openProject(projectId: string): Promise<ProjectRecord> {
 }
 
 export async function fetchSettings(): Promise<AppSettings> {
-  if (!isTauriRuntime()) return loadBrowser().settings;
-  return invoke<AppSettings>("get_settings");
+  if (!isTauriRuntime()) {
+    return normalizeSettings(loadBrowser().settings);
+  }
+  return normalizeSettings(await invoke<AppSettings>("get_settings"));
 }
 
 export async function setAutomaticUpdates(
@@ -137,11 +153,33 @@ export async function setAutomaticUpdates(
 ): Promise<AppSettings> {
   if (!isTauriRuntime()) {
     const store = loadBrowser();
-    store.settings.automaticUpdates = enabled;
+    store.settings = normalizeSettings({
+      ...store.settings,
+      automaticUpdates: enabled,
+    });
     saveBrowser(store);
     return store.settings;
   }
-  return invoke<AppSettings>("set_automatic_updates", { enabled });
+  return normalizeSettings(
+    await invoke<AppSettings>("set_automatic_updates", { enabled }),
+  );
+}
+
+export async function setDisplayVariableNames(
+  enabled: boolean,
+): Promise<AppSettings> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    store.settings = normalizeSettings({
+      ...store.settings,
+      displayVariableNames: enabled,
+    });
+    saveBrowser(store);
+    return store.settings;
+  }
+  return normalizeSettings(
+    await invoke<AppSettings>("set_display_variable_names", { enabled }),
+  );
 }
 
 export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {

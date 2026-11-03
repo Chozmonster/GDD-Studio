@@ -1,6 +1,7 @@
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
-import { loadVariables } from "../../api";
+import { fetchSettings, loadVariables } from "../../api";
+import { onSettingsChanged } from "../../lib/settingsEvents";
 import { onVariablesChanged } from "../../lib/variableEvents";
 import type { DocVariable } from "../../types";
 
@@ -24,8 +25,23 @@ export function VariableEmbedView(props: NodeViewProps) {
   const projectId = extra.projectId;
   const [variable, setVariable] = useState<DocVariable | null>(null);
   const [missing, setMissing] = useState(false);
+  const [showNames, setShowNames] = useState(false);
 
   const updateAttributes = props.updateAttributes;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSettings().then((s) => {
+      if (!cancelled) setShowNames(s.displayVariableNames);
+    });
+    const off = onSettingsChanged((detail) => {
+      setShowNames(detail.settings.displayVariableNames);
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,16 +78,34 @@ export function VariableEmbedView(props: NodeViewProps) {
   }, [projectId, variableId, nameHint, updateAttributes]);
 
   const label = (variable?.name ?? nameHint) || "var";
+  const value = displayValue(variable ?? undefined);
+  const tooltip = missing
+    ? "Missing variable"
+    : showNames
+      ? `${label} = ${value}`
+      : label;
 
   return (
     <NodeViewWrapper
       as="span"
-      className={missing ? "variable-chip missing" : "variable-chip"}
+      className={
+        missing
+          ? "variable-chip missing"
+          : showNames
+            ? "variable-chip show-names"
+            : "variable-chip"
+      }
       contentEditable={false}
-      title={missing ? `Missing variable` : `${label} = ${displayValue(variable ?? undefined)}`}
+      title={tooltip}
     >
-      <span className="variable-chip-name">{label}</span>
-      <span className="variable-chip-value">{displayValue(variable ?? undefined)}</span>
+      {showNames ? (
+        <>
+          <span className="variable-chip-name">{label}</span>
+          <span className="variable-chip-value">{value}</span>
+        </>
+      ) : (
+        <span className="variable-chip-value">{value}</span>
+      )}
     </NodeViewWrapper>
   );
 }

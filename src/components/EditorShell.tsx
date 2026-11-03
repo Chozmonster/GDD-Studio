@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
+import { openOptionsWindow } from "../api";
 import type { ProjectRecord, ProjectTab } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
+import { OptionsPanel } from "./OptionsPanel";
 
 type EditorShellProps = {
   project: ProjectRecord;
@@ -10,10 +12,19 @@ type EditorShellProps = {
 
 export function EditorShell({ project, onBack }: EditorShellProps) {
   const [tab, setTab] = useState<ProjectTab>("document");
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const openFlowchart = useCallback((_flowchartId: string) => {
     setTab("flowchart");
   }, []);
+
+  const handleOptions = async () => {
+    try {
+      await openOptionsWindow();
+    } catch {
+      setOptionsOpen(true);
+    }
+  };
 
   return (
     <div className="app-shell editor-mode">
@@ -44,6 +55,9 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           <p className="chrome-meta muted path-line" title={project.path}>
             {project.name}
           </p>
+          <button type="button" className="ghost" onClick={() => void handleOptions()}>
+            Options
+          </button>
           <button type="button" className="ghost" onClick={onBack}>
             ← Projects
           </button>
@@ -62,6 +76,23 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           <FlowchartEditor project={project} />
         )}
       </main>
+
+      {optionsOpen && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => setOptionsOpen(false)}
+        >
+          <div
+            className="modal-panel options-modal-panel"
+            role="dialog"
+            aria-label="Options"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <OptionsPanel asWindow onClose={() => setOptionsOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

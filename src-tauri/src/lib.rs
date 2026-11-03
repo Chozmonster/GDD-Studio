@@ -13,7 +13,7 @@ use commands::{
     delete_project, flowchart_exists, get_patch_notes, get_settings, install_update,
     list_flowcharts, list_projects, load_document, load_flowchart, load_variables,
     open_options_window, open_project, save_document, save_flowchart, save_variables,
-    set_automatic_updates,
+    set_automatic_updates, set_display_variable_names,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -38,6 +38,7 @@ pub fn run() {
             open_project,
             get_settings,
             set_automatic_updates,
+            set_display_variable_names,
             check_for_updates,
             install_update,
             get_patch_notes,
