@@ -1104,6 +1104,13 @@ code {
   color: #ddd;
 }
 
+.snap-guide-line {
+  stroke: #7aa892;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.85;
+}
+
 .flowchart-preview {
   width: 100%;
   height: 220px;

@@ -32,7 +32,15 @@ import type { FlowchartDocument, ProjectRecord } from "../../types";
 import { EdgeMarkers } from "./EdgeMarkers";
 import { FlowNode } from "./FlowNode";
 import { FlowchartSidebar } from "./FlowchartSidebar";
+import { SnapGuides } from "./SnapGuides";
 import { StubCurveEdge, StubStepEdge } from "./StubbedEdge";
+import {
+  GRID_SIZE,
+  nodeBox,
+  snapDragPosition,
+  snapSize,
+  type SnapGuide,
+} from "./nodeSnap";
 import {
   COLOR_PALETTE,
   NODE_KIND_OPTIONS,
@@ -115,6 +123,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [addKind, setAddKind] = useState<FlowNodeKind>("process");
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const rfRef = useRef<ReactFlowInstance<FlowNodeT, FlowEdge> | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -208,17 +217,75 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNodeT>[]) => {
-      setNodes((nds) => {
-        const next = applyNodeChanges(changes, nds);
-        const meaningful = changes.some(
+      const nds = nodesRef.current;
+      const guides: SnapGuide[] = [];
+      let dragging = false;
+      let dragEnded = false;
+
+      const snappedChanges = changes.map((change) => {
+        if (change.type === "position" && change.position) {
+          if (change.dragging) dragging = true;
+          if (change.dragging === false) dragEnded = true;
+          const moving = nds.find((n) => n.id === change.id);
+          if (!moving) return change;
+          const box = nodeBox(moving);
+          const others = nds
+            .filter((n) => n.id !== change.id)
+            .map((n) => nodeBox(n));
+          const snapped = snapDragPosition(
+            change.position,
+            { width: box.width, height: box.height },
+            others,
+          );
+          if (change.dragging) guides.push(...snapped.guides);
+          return {
+            ...change,
+            position: { x: snapped.x, y: snapped.y },
+          };
+        }
+        if (change.type === "dimensions" && change.dimensions) {
+          const sized = snapSize(
+            change.dimensions.width,
+            change.dimensions.height,
+          );
+          return {
+            ...change,
+            dimensions: sized,
+          };
+        }
+        return change;
+      });
+
+      if (dragging) setSnapGuides(guides);
+      else if (dragEnded) setSnapGuides([]);
+
+      setNodes((prev) => {
+        const next = applyNodeChanges(snappedChanges, prev);
+        const withSyncedSize = next.map((n) => {
+          const dim = snappedChanges.find(
+            (c) => c.type === "dimensions" && c.id === n.id,
+          );
+          if (!dim || dim.type !== "dimensions" || !dim.dimensions) return n;
+          return {
+            ...n,
+            width: dim.dimensions.width,
+            height: dim.dimensions.height,
+            style: {
+              ...n.style,
+              width: dim.dimensions.width,
+              height: dim.dimensions.height,
+            },
+          };
+        });
+        const meaningful = snappedChanges.some(
           (c) =>
             c.type === "remove" ||
             c.type === "add" ||
             c.type === "dimensions" ||
             (c.type === "position" && c.dragging === false),
         );
-        if (meaningful) queueSave(next, edgesRef.current);
-        return next;
+        if (meaningful) queueSave(withSyncedSize, edgesRef.current);
+        return withSyncedSize;
       });
     },
     [setNodes, queueSave],
@@ -556,9 +623,10 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Drag from a node’s N/E/S/W anchor dots to connect · edges stay locked to
-        those handles when you move/resize · select a node for type/shape/color ·
-        select an edge for curved/angled path. Autosaves into this project.
+        Drag from a node’s N/E/S/W anchor dots to connect · nodes snap to a{" "}
+        {GRID_SIZE}px grid and align to other centers/edges · edges stay locked
+        to handles · select a node for type/shape/color · select an edge for
+        curved/angled path. Autosaves into this project.
       </p>
 
       {!ready ? (
@@ -596,7 +664,8 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
             proOptions={{ hideAttribution: true }}
           >
             <EdgeMarkers />
-            <Background gap={18} size={1} color="#4a4a4a" />
+            <SnapGuides guides={snapGuides} />
+            <Background gap={GRID_SIZE} size={1} color="#4a4a4a" />
             <Controls />
             <MiniMap pannable zoomable />
           </ReactFlow>
