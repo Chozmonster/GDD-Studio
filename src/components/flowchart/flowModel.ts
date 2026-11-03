@@ -122,7 +122,8 @@ export function markerForEnd(end: FlowEdgeEnd): Edge["markerEnd"] {
 }
 
 export function edgeTypeForPath(path: FlowEdgePath): string {
-  return path === "step" ? "step" : "default";
+  // Custom edges draw a short perpendicular stub at each anchored handle.
+  return path === "step" ? "stubStep" : "stubCurve";
 }
 
 type RawNode = {

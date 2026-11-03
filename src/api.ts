@@ -16,6 +16,8 @@ type BrowserStore = {
   update?: UpdateStatus | null;
   /** projectId → flowchartId → document */
   flowcharts?: Record<string, Record<string, FlowchartDocument>>;
+  /** projectId → TipTap JSON doc */
+  documents?: Record<string, unknown>;
 };
 
 function isTauriRuntime(): boolean {
@@ -265,7 +267,7 @@ export function isOptionsWindowRoute(): boolean {
 function emptyFlowchart(id: string): FlowchartDocument {
   return {
     format: "gdd-studio-flowchart",
-    version: 1,
+    version: 2,
     id,
     name: id === "main" ? "Main" : id,
     nodes: [],
@@ -322,4 +324,71 @@ export async function saveFlowchart(
     return;
   }
   await invoke("save_flowchart", { projectId, flowchartId, document });
+}
+
+export async function flowchartExists(
+  projectId: string,
+  flowchartId: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return Boolean(store.flowcharts?.[projectId]?.[flowchartId]);
+  }
+  return invoke<boolean>("flowchart_exists", { projectId, flowchartId });
+}
+
+export async function deleteFlowchart(
+  projectId: string,
+  flowchartId: string,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.flowcharts?.[projectId]) {
+      delete store.flowcharts[projectId][flowchartId];
+      saveBrowser(store);
+    }
+    return;
+  }
+  await invoke("delete_flowchart", { projectId, flowchartId });
+}
+
+export async function loadDocument(projectId: string): Promise<unknown> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.documents?.[projectId]) return store.documents[projectId];
+    return {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 1 },
+          content: [{ type: "text", text: "Untitled document" }],
+        },
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Start writing your game design doc. Use Insert flowchart to embed a live diagram.",
+            },
+          ],
+        },
+      ],
+    };
+  }
+  return invoke("load_document", { projectId });
+}
+
+export async function saveDocument(
+  projectId: string,
+  document: unknown,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.documents) store.documents = {};
+    store.documents[projectId] = document;
+    saveBrowser(store);
+    return;
+  }
+  await invoke("save_document", { projectId, document });
 }

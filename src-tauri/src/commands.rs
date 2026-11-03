@@ -137,3 +137,35 @@ pub fn save_flowchart(
 ) -> Result<(), String> {
     store::save_flowchart(&app, project_id, flowchart_id, document)
 }
+
+#[tauri::command]
+pub fn flowchart_exists(
+    app: AppHandle,
+    project_id: String,
+    flowchart_id: String,
+) -> Result<bool, String> {
+    store::flowchart_exists(&app, project_id, flowchart_id)
+}
+
+#[tauri::command]
+pub fn delete_flowchart(
+    app: AppHandle,
+    project_id: String,
+    flowchart_id: String,
+) -> Result<(), String> {
+    store::delete_flowchart(&app, project_id, flowchart_id)
+}
+
+#[tauri::command]
+pub fn load_document(app: AppHandle, project_id: String) -> Result<serde_json::Value, String> {
+    store::load_document(&app, project_id)
+}
+
+#[tauri::command]
+pub fn save_document(
+    app: AppHandle,
+    project_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    store::save_document(&app, project_id, document)
+}

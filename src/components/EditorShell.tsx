@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ProjectRecord, ProjectTab } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
@@ -10,6 +10,10 @@ type EditorShellProps = {
 
 export function EditorShell({ project, onBack }: EditorShellProps) {
   const [tab, setTab] = useState<ProjectTab>("document");
+
+  const openFlowchart = useCallback((_flowchartId: string) => {
+    setTab("flowchart");
+  }, []);
 
   return (
     <div className="app-shell editor-mode">
@@ -52,7 +56,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
               <h2>{project.name}</h2>
               <p className="muted status path-line">{project.path}</p>
             </div>
-            <EditorCanvas projectName={project.name} />
+            <EditorCanvas project={project} onOpenFlowchart={openFlowchart} />
           </>
         ) : (
           <FlowchartEditor project={project} />

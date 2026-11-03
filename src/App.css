@@ -792,6 +792,88 @@ code {
   transform: translate(-50%, -50%);
 }
 
+.flow-edge-label {
+  position: absolute;
+  pointer-events: all;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.72rem;
+  color: #ddd;
+}
+
+.flowchart-preview {
+  width: 100%;
+  height: 220px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.flowchart-preview.embed {
+  height: 260px;
+  border: 1px solid #444;
+}
+
+.flowchart-embed {
+  margin: 0.85rem 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #242424;
+  overflow: hidden;
+}
+
+.flowchart-embed.broken {
+  border-color: #8b3a3a;
+  background: #2a1f1f;
+}
+
+.flowchart-embed-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid #3a3a3a;
+  background: #2c2c2c;
+}
+
+.flowchart-embed-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.embed-status {
+  margin: 0.65rem;
+}
+
+.embed-picker {
+  margin: 0.5rem 1rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #2a2a2a;
+}
+
+.embed-picker ul {
+  list-style: none;
+  margin: 0.4rem 0 0.55rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.embed-picker li button {
+  width: 100%;
+  text-align: left;
+}
+
+.toolbar-status {
+  margin-left: auto;
+}
+
 @media (max-width: 840px) {
   .launcher-body {
     grid-template-columns: 1fr;

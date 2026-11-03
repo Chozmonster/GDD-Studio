@@ -31,6 +31,7 @@ import { loadFlowchart, saveFlowchart } from "../../api";
 import type { FlowchartDocument, ProjectRecord } from "../../types";
 import { EdgeMarkers } from "./EdgeMarkers";
 import { FlowNode } from "./FlowNode";
+import { StubCurveEdge, StubStepEdge } from "./StubbedEdge";
 import {
   COLOR_PALETTE,
   NODE_KIND_OPTIONS,
@@ -50,12 +51,18 @@ import {
   type FlowNodeKind,
   type FlowNodeShape,
 } from "./flowModel";
+import { deleteFlowchart } from "../../api";
+import {
+  emitFlowchartDeleted,
+  emitFlowchartSaved,
+} from "../../lib/flowchartEvents";
 
 type FlowchartEditorProps = {
   project: ProjectRecord;
 };
 
 const nodeTypes = { flow: FlowNode, labeled: FlowNode };
+const edgeTypes = { stubCurve: StubCurveEdge, stubStep: StubStepEdge };
 
 function toDoc(
   id: string,
@@ -123,13 +130,14 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
       const doc = toDoc(flowchartId, name, nextNodes, nextEdges, vp);
       try {
         await saveFlowchart(project.id, flowchartId, doc);
+        emitFlowchartSaved(project.id, flowchartId, doc);
         setDirty(false);
         setStatus(`Saved ${new Date().toLocaleTimeString()}`);
       } catch (e) {
         setStatus(e instanceof Error ? e.message : String(e));
       }
     },
-    [project.id, name],
+    [project.id, name, flowchartId],
   );
 
   const queueSave = useCallback(
@@ -230,7 +238,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
             sourceHandle: connection.sourceHandle,
             targetHandle: connection.targetHandle,
             id: `e-${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}-${Date.now()}`,
-            type: "default",
+            type: edgeTypeForPath("curve"),
             markerEnd: markerForEnd("arrow"),
             data: { path: "curve", end: "arrow" },
           },
@@ -431,6 +439,28 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
           >
             Save now
           </button>
+          <button
+            type="button"
+            className="danger-outline"
+            title="Remove flowchart file (embeds become broken)"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `Delete flowchart “${flowchartId}”? Document embeds will show a broken state.`,
+                )
+              ) {
+                return;
+              }
+              void deleteFlowchart(project.id, flowchartId).then(() => {
+                emitFlowchartDeleted(project.id, flowchartId);
+                setNodes([]);
+                setEdges([]);
+                setStatus("Flowchart deleted");
+              });
+            }}
+          >
+            Delete flowchart
+          </button>
         </div>
       </header>
 
@@ -551,6 +581,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
           nodeTypes={nodeTypes}
           connectionMode={ConnectionMode.Loose}
           connectionRadius={28}
+          edgeTypes={edgeTypes}
           fitView={nodes.length > 0}
           defaultViewport={viewportRef.current}
           onInit={(instance) => {

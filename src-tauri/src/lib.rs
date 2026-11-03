@@ -8,9 +8,10 @@ mod store;
 mod updates;
 
 use commands::{
-    app_health, check_for_updates, create_project, default_projects_dir, delete_project,
-    get_patch_notes, get_settings, install_update, list_flowcharts, list_projects,
-    load_flowchart, open_options_window, open_project, save_flowchart, set_automatic_updates,
+    app_health, check_for_updates, create_project, default_projects_dir, delete_flowchart,
+    delete_project, flowchart_exists, get_patch_notes, get_settings, install_update,
+    list_flowcharts, list_projects, load_document, load_flowchart, open_options_window,
+    open_project, save_document, save_flowchart, set_automatic_updates,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,6 +44,10 @@ pub fn run() {
             list_flowcharts,
             load_flowchart,
             save_flowchart,
+            flowchart_exists,
+            delete_flowchart,
+            load_document,
+            save_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GDD Studio");

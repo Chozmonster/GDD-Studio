@@ -292,11 +292,71 @@ pub fn save_flowchart(
 fn empty_flowchart_doc(id: &str) -> serde_json::Value {
     serde_json::json!({
         "format": "gdd-studio-flowchart",
-        "version": 1,
+        "version": 2,
         "id": id,
         "name": if id == "main" { "Main" } else { id },
         "nodes": [],
         "edges": [],
         "viewport": { "x": 0, "y": 0, "zoom": 1 }
     })
+}
+
+pub fn flowchart_exists(app: &AppHandle, project_id: String, flowchart_id: String) -> Result<bool, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = flowchart_path(&project, &flowchart_id)?;
+    Ok(path.is_file())
+}
+
+pub fn delete_flowchart(
+    app: &AppHandle,
+    project_id: String,
+    flowchart_id: String,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = flowchart_path(&project, &flowchart_id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete flowchart: {e}"))?;
+    }
+    Ok(())
+}
+
+const DOCUMENT_FILE: &str = "document.json";
+
+fn document_path(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(DOCUMENT_FILE)
+}
+
+pub fn load_document(app: &AppHandle, project_id: String) -> Result<serde_json::Value, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = document_path(&project);
+    if !path.exists() {
+        return Ok(serde_json::json!({
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": { "level": 1 },
+                    "content": [{ "type": "text", "text": project.name }]
+                },
+                {
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": "Start writing your game design doc. Use Insert flowchart to embed a live diagram."
+                    }]
+                }
+            ]
+        }));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read document: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse document: {e}"))
+}
+
+pub fn save_document(
+    app: &AppHandle,
+    project_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    write_json(&document_path(&project), &document)
 }
