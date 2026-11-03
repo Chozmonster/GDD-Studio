@@ -10,7 +10,7 @@ type EditorCanvasProps = {
 const STARTER_DOC = `
   <h1>Untitled document</h1>
   <p>Start writing your game design doc. TipTap is wired as the editor shell.</p>
-  <p><em>Scaffold only</em> — variables, wiki links, templates, and media land in v1.</p>
+  <p><em>Editor shell</em> — variables, wiki links, templates, and media still to come.</p>
 `;
 
 export function EditorCanvas({ projectName }: EditorCanvasProps) {

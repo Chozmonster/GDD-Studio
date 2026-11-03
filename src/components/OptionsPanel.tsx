@@ -1,0 +1,122 @@
+import { useEffect, useState } from "react";
+import {
+  checkForUpdates,
+  fetchPatchNotes,
+  fetchSettings,
+  setAutomaticUpdates,
+} from "../api";
+import type { AppSettings, UpdateStatus } from "../types";
+
+type OptionsPanelProps = {
+  asWindow?: boolean;
+  onClose?: () => void;
+};
+
+export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [status, setStatus] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [notes, setNotes] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetchSettings()
+      .then(setSettings)
+      .catch((e) => setStatus(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  const toggleAuto = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const next = await setAutomaticUpdates(enabled);
+      setSettings(next);
+      setStatus(
+        enabled
+          ? "Automatic updates enabled — checks about once per day."
+          : "Automatic updates off — you'll be notified in the launcher.",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runCheck = async () => {
+    setBusy(true);
+    setNotes(null);
+    try {
+      const result: UpdateStatus = await checkForUpdates(true);
+      setStatus(result.message);
+      if (result.notes) setNotes(result.notes);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const showNotes = async () => {
+    try {
+      setNotes(await fetchPatchNotes());
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div className={asWindow ? "options-window" : "options-modal-inner"}>
+      <header className="options-header">
+        <h2>Options</h2>
+        {onClose && (
+          <button type="button" className="ghost" onClick={onClose}>
+            Close
+          </button>
+        )}
+      </header>
+
+      <section className="options-section">
+        <h3>Updates</h3>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings?.automaticUpdates ?? true}
+            disabled={!settings || busy}
+            onChange={(e) => void toggleAuto(e.target.checked)}
+          />
+          <span>
+            <strong>Automatic updates</strong>
+            <span className="muted block">
+              When on, check about once per day and install quietly when a signed
+              GitHub Release is available. When off, the launcher notifies you
+              with an Install button.
+            </span>
+          </span>
+        </label>
+
+        <div className="options-actions">
+          <button type="button" onClick={() => void runCheck()} disabled={busy}>
+            Check for updates
+          </button>
+          <button type="button" className="ghost" onClick={() => void showNotes()}>
+            View patch notes
+          </button>
+        </div>
+
+        {status && <p className="options-status muted">{status}</p>}
+        {notes && (
+          <pre className="patch-notes" tabIndex={0}>
+            {notes}
+          </pre>
+        )}
+
+        <p className="muted tiny">
+          Updates use the Tauri updater against{" "}
+          <code>Chozmonster/GDD-Studio</code> GitHub Releases (
+          <code>latest.json</code> + signed artifacts). Configure signing via{" "}
+          <code>TAURI_SIGNING_PRIVATE_KEY</code> in CI. Demo without releases:{" "}
+          <code>GDD_STUDIO_SIMULATE_UPDATE=1</code>.
+        </p>
+      </section>
+    </div>
+  );
+}

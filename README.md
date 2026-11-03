@@ -2,63 +2,85 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-This repository currently contains the **scaffold only** — app chrome, a placeholder project library, a TipTap editor canvas, and stubbed Rust IPC. Full v1 features (persistence, variables, wiki links, assets, spellcheck, PDF export) are not implemented yet.
+Current cut: **Godot-style project launcher** + TipTap editor shell + Options (automatic updates). Full GDD features (variables, wiki links, assets, spellcheck, PDF) are not implemented yet. Cloud sync / share links remain v1.5+.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 20+ (npm or pnpm)
-- [Rust](https://rustup.rs/) stable (Cargo)
-- OS-specific Tauri dependencies: see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
-
-| Platform | Notes |
-|----------|--------|
-| Linux | `webkit2gtk`, `librsvg2`, GTK 3 development packages |
-| macOS | Xcode Command Line Tools |
-| Windows | Microsoft Visual Studio C++ Build Tools, WebView2 |
+- [Rust](https://rustup.rs/) stable (1.90+)
+- OS-specific Tauri dependencies: [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
 ## Quick start
 
 ```bash
-# Install JS dependencies
 npm install
-# or: pnpm install
-
-# Run the desktop app (starts Vite + Rust/Tauri)
 npm run tauri dev
-# or: pnpm tauri dev
 ```
 
-Frontend-only preview (no native window; mirrors Rust stub data in-browser):
+Frontend-only preview (persists demo library in `localStorage`):
 
 ```bash
 npm run dev
+# Demo update banner / patch notes:
+VITE_GDD_SIMULATE_UPDATE=1 npm run dev
+```
+
+Native simulate flag (Tauri):
+
+```bash
+GDD_STUDIO_SIMULATE_UPDATE=1 npm run tauri dev
 ```
 
 ## Useful scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
-| `npm run build` | Production frontend build → `dist/` |
-| `npm run tauri build` | Package the desktop app (platform-specific) |
-| `cargo check` (in `src-tauri/`) | Rust compile check without full bundle |
+| `npm run typecheck` | TypeScript check |
+| `npm run build` | Production frontend → `dist/` |
+| `npm run tauri build` | Package desktop app |
+| `cargo check` (in `src-tauri/`) | Rust compile check |
 
-## Repository layout
+## Project layout
 
 ```
-├── src/                 # React + TipTap UI
-│   ├── components/      # Project library + editor canvas
-│   ├── api.ts           # Thin wrappers around Tauri invoke
-│   └── App.tsx          # App chrome / workspace shell
-├── src-tauri/           # Rust core + Tauri config
-│   ├── src/commands.rs  # IPC stubs (health / list / open)
-│   └── tauri.conf.json  # productName: "GDD Studio"
-├── .github/workflows/   # CI: typecheck + frontend build + cargo check
-└── package.json
+├── src/                      # React UI
+│   ├── components/
+│   │   ├── Launcher.tsx      # Godot-like project manager
+│   │   ├── OptionsPanel.tsx  # Options window / modal
+│   │   ├── EditorShell.tsx   # Editor chrome + back to launcher
+│   │   └── EditorCanvas.tsx  # TipTap
+│   └── api.ts
+├── src-tauri/
+│   ├── src/store.rs          # Local project library + settings JSON
+│   ├── src/updates.rs        # Updater check / install / daily gate
+│   └── tauri.conf.json       # productName + updater endpoints
+└── .github/workflows/ci.yml
 ```
+
+## Automatic updates (GitHub Releases)
+
+Configured in `src-tauri/tauri.conf.json`:
+
+- **Endpoint:** `https://github.com/Chozmonster/GDD-Studio/releases/latest/download/latest.json`
+- **Pubkey:** minisign public key embedded under `plugins.updater.pubkey`
+- **Artifacts:** `bundle.createUpdaterArtifacts: true`
+
+**To ship real updates:**
+
+1. Keep the matching **minisign private key** secret (CI secret `TAURI_SIGNING_PRIVATE_KEY`, optional password `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+2. Build/publish with [`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) so each GitHub Release includes signed installers **and** `latest.json`.
+3. Release body text is shown as patch notes in the app.
+
+Until releases exist, update checks fail softly (UI stays usable). Use `GDD_STUDIO_SIMULATE_UPDATE=1` / `VITE_GDD_SIMULATE_UPDATE=1` to demo the notify + Install + patch notes flow.
+
+**Behavior:**
+
+- **Auto on:** about once per day (`lastUpdateCheckAt`); if an update exists, download/install automatically.
+- **Auto off:** same daily check; launcher shows a banner with **Install** + **View patch notes**.
+- Manual **Check for updates** in Options always forces a network check.
 
 ## Scope notes
 
-**In this scaffold:** runnable desktop shell, TipTap starter editor, stub commands for health and project open.
+**In:** launcher (create / open / remove), local project metadata persistence, Options window, updater wiring, TipTap editor shell, back-to-launcher navigation.
 
-**Not yet (by design):** cloud sync, share links, PDF export, variables, wiki links, asset pipeline, spellcheck. Extension points / TODOs live in `src-tauri/src/lib.rs` and `commands.rs`.
+**Not yet:** cloud sync, share links, PDF export, variables, wiki links, asset pipeline, spellcheck, deleting project files on disk.
