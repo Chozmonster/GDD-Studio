@@ -16,6 +16,7 @@ use commands::{
     open_options_window, open_project, save_document, save_flowchart, save_variables,
     set_automatic_updates, set_display_variable_names,
 };
+use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
