@@ -5,6 +5,7 @@ import type { FlowchartSummary } from "../../../types";
 import {
   emptyAtomicRow,
   parsePayload,
+  RGD_EXPAND_EVENT,
   serializePayload,
 } from "./rgdContent";
 import { SKILL_PRESETS, type SkillCategory } from "./rgdPresets";
@@ -40,6 +41,8 @@ export function RgdBlockView(props: NodeViewProps) {
   const meta = RGD_TYPE_META[rgdType];
   const extra = props.extension.options as ExtraProps;
   const title = String(props.node.attrs.title ?? meta.label);
+  // Session-only: default collapsed so blocks stay dense in the doc.
+  const [expanded, setExpanded] = useState(false);
 
   const payload = useMemo(
     () => parsePayload(rgdType, props.node.attrs.payload),
@@ -57,67 +60,121 @@ export function RgdBlockView(props: NodeViewProps) {
     [props],
   );
 
+  const toggleExpanded = useCallback(() => {
+    setExpanded((v) => !v);
+  }, []);
+
+  useEffect(() => {
+    const onExpandRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ pos?: number }>).detail;
+      if (!detail || typeof detail.pos !== "number") return;
+      let pos: number | undefined;
+      try {
+        const raw = props.getPos();
+        pos = typeof raw === "number" ? raw : undefined;
+      } catch {
+        return;
+      }
+      if (pos === detail.pos) setExpanded(true);
+    };
+    window.addEventListener(RGD_EXPAND_EVENT, onExpandRequest);
+    return () => window.removeEventListener(RGD_EXPAND_EVENT, onExpandRequest);
+  }, [props.getPos]);
+
   return (
     <NodeViewWrapper
-      className={`rgd-block rgd-${rgdType}`}
+      className={`rgd-block rgd-${rgdType}${expanded ? " is-expanded" : " is-collapsed"}`}
       data-rgd-type={rgdType}
       data-drag-handle
     >
-      <header className="rgd-block-chrome">
+      <header
+        className="rgd-block-chrome"
+        onClick={(e) => {
+          // Title input handles its own clicks when expanded.
+          if (
+            expanded &&
+            (e.target as HTMLElement).closest(".rgd-title-input")
+          ) {
+            return;
+          }
+          toggleExpanded();
+        }}
+      >
+        <button
+          type="button"
+          className="rgd-collapse-toggle"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse RGD block" : "Expand RGD block"}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleExpanded();
+          }}
+        >
+          <span className="rgd-chevron" aria-hidden="true" />
+        </button>
         <span className="rgd-step-badge" title={meta.description}>
           RGD {meta.step} · {meta.shortLabel}
         </span>
-        <input
-          className="rgd-title-input"
-          value={title}
-          aria-label={`${meta.label} title`}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        {expanded ? (
+          <input
+            className="rgd-title-input"
+            value={title}
+            aria-label={`${meta.label} title`}
+            onChange={(e) => setTitle(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span className="rgd-title-collapsed">{title || meta.label}</span>
+        )}
       </header>
 
-      {rgdType === "pillars" && (
-        <PillarsFields
-          payload={payload as PillarsPayload}
-          onChange={patchPayload}
-        />
-      )}
-      {rgdType === "gameplay" && (
-        <GameplayFields
-          payload={payload as GameplayPayload}
-          onChange={patchPayload}
-        />
-      )}
-      {rgdType === "mechanic" && (
-        <MechanicFields
-          payload={payload as MechanicPayload}
-          onChange={patchPayload}
-        />
-      )}
-      {rgdType === "skills" && (
-        <SkillsFields
-          payload={payload as SkillsPayload}
-          onChange={patchPayload}
-        />
-      )}
-      {rgdType === "atomicParams" && (
-        <AtomicParamsFields
-          payload={payload as AtomicParamsPayload}
-          onChange={patchPayload}
-        />
-      )}
-      {rgdType === "pattern" && (
-        <PatternFields
-          payload={payload as PatternPayload}
-          onChange={patchPayload}
-          projectId={extra.projectId}
-          onOpenFlowchart={extra.onOpenFlowchart}
-        />
-      )}
-      {rgdType === "signsFeedback" && (
-        <SignsFeedbackFields
-          payload={payload as SignsFeedbackPayload}
-          onChange={patchPayload}
-        />
+      {expanded && (
+        <div className="rgd-block-body">
+          {rgdType === "pillars" && (
+            <PillarsFields
+              payload={payload as PillarsPayload}
+              onChange={patchPayload}
+            />
+          )}
+          {rgdType === "gameplay" && (
+            <GameplayFields
+              payload={payload as GameplayPayload}
+              onChange={patchPayload}
+            />
+          )}
+          {rgdType === "mechanic" && (
+            <MechanicFields
+              payload={payload as MechanicPayload}
+              onChange={patchPayload}
+            />
+          )}
+          {rgdType === "skills" && (
+            <SkillsFields
+              payload={payload as SkillsPayload}
+              onChange={patchPayload}
+            />
+          )}
+          {rgdType === "atomicParams" && (
+            <AtomicParamsFields
+              payload={payload as AtomicParamsPayload}
+              onChange={patchPayload}
+            />
+          )}
+          {rgdType === "pattern" && (
+            <PatternFields
+              payload={payload as PatternPayload}
+              onChange={patchPayload}
+              projectId={extra.projectId}
+              onOpenFlowchart={extra.onOpenFlowchart}
+            />
+          )}
+          {rgdType === "signsFeedback" && (
+            <SignsFeedbackFields
+              payload={payload as SignsFeedbackPayload}
+              onChange={patchPayload}
+            />
+          )}
+        </div>
       )}
     </NodeViewWrapper>
   );

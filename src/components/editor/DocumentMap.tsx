@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/react";
 import { useEffect, useState } from "react";
-import { parsePayload } from "./rgd/rgdContent";
+import { parsePayload, RGD_EXPAND_EVENT } from "./rgd/rgdContent";
 import type { RgdBlockType } from "./rgd/rgdTypes";
 import { RGD_TYPE_META } from "./rgd/rgdTypes";
 
@@ -88,9 +88,14 @@ export function DocumentMap({ editor }: DocumentMapProps) {
     };
   }, [editor]);
 
-  const jumpTo = (pos: number) => {
+  const jumpTo = (pos: number, kind?: OutlineItem["kind"]) => {
     if (!editor) return;
     editor.chain().focus().setTextSelection(pos + 1).run();
+    if (kind === "rgd") {
+      window.dispatchEvent(
+        new CustomEvent(RGD_EXPAND_EVENT, { detail: { pos } }),
+      );
+    }
     const dom = editor.view.nodeDOM(pos);
     if (dom instanceof HTMLElement) {
       dom.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -146,7 +151,11 @@ export function DocumentMap({ editor }: DocumentMapProps) {
               key={h.id}
               className={`doc-map-item level-${h.level}${h.kind === "rgd" ? " is-rgd" : ""}`}
             >
-              <button type="button" onClick={() => jumpTo(h.pos)} title={h.text}>
+              <button
+                type="button"
+                onClick={() => jumpTo(h.pos, h.kind)}
+                title={h.text}
+              >
                 {h.text}
               </button>
             </li>

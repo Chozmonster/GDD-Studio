@@ -1256,7 +1256,7 @@ code {
 
 /* —— Rational Game Design blocks —— */
 .rgd-block {
-  margin: 1rem 0;
+  margin: 0.55rem 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: linear-gradient(180deg, #323832 0%, var(--bg-elevated) 48%);
@@ -1264,13 +1264,66 @@ code {
   overflow: hidden;
 }
 
+.rgd-block.is-collapsed {
+  background: #2c322e;
+}
+
 .rgd-block-chrome {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.45rem 0.65rem;
-  border-bottom: 1px solid var(--line);
+  gap: 0.45rem;
+  padding: 0.32rem 0.55rem;
+  border-bottom: 1px solid transparent;
   background: #2c322e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rgd-block.is-expanded .rgd-block-chrome {
+  border-bottom-color: var(--line);
+}
+
+.rgd-collapse-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rgd-collapse-toggle:hover {
+  border-color: var(--line);
+  background: var(--bg-row);
+  color: var(--ink);
+}
+
+.rgd-collapse-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.rgd-chevron {
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease;
+  margin-top: 0.1rem;
+}
+
+.rgd-block.is-expanded .rgd-chevron {
+  transform: rotate(45deg);
+  margin-top: -0.05rem;
 }
 
 .rgd-step-badge {
@@ -1288,6 +1341,19 @@ code {
   white-space: nowrap;
 }
 
+.rgd-title-collapsed {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.1rem 0.2rem;
+}
+
 .rgd-title-input {
   flex: 1;
   min-width: 0;
@@ -1299,6 +1365,7 @@ code {
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 0.2rem 0.35rem;
+  cursor: text;
 }
 
 .rgd-title-input:focus {
@@ -1307,11 +1374,15 @@ code {
   background: var(--bg-input);
 }
 
+.rgd-block-body {
+  background: linear-gradient(180deg, #323832 0%, var(--bg-elevated) 48%);
+}
+
 .rgd-fields {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.7rem 0.75rem 0.85rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem 0.7rem;
   font-family: var(--font-ui);
   font-size: 0.85rem;
 }

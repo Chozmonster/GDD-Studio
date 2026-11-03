@@ -12,6 +12,9 @@ import type {
 } from "./rgdTypes";
 import { RGD_INSERT_ORDER, RGD_TYPE_META } from "./rgdTypes";
 
+/** Dispatched to expand a specific RGD block (session UI; detail: `{ pos }`). */
+export const RGD_EXPAND_EVENT = "gdd:rgd-expand";
+
 function newId(): string {
   return crypto.randomUUID();
 }
