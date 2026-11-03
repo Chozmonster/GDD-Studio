@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher**, TipTap document shell, **basic flowchart editor** (React Flow / `@xyflow`), and Options (automatic updates). Full GDD features (variables, wiki links, assets, spellcheck, PDF) are not implemented yet. Cloud sync / share links remain v1.5+.
+Current cut: **Godot-style project launcher**, TipTap rich editor (variables, **wiki links**, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, and RGD workspace. Cloud sync / share links remain v1.5+.
 
 ## Prerequisites
 
