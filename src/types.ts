@@ -64,6 +64,8 @@ export type FlowchartDocument = {
     id: string;
     source: string;
     target: string;
+    sourceHandle?: string;
+    targetHandle?: string;
     label?: string;
     type?: string;
     data?: {

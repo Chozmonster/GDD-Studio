@@ -135,10 +135,20 @@ type RawNode = {
   data?: Record<string, unknown>;
 };
 
+const ANCHOR_SET = new Set(["top", "right", "bottom", "left"]);
+
+function normalizeHandle(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const id = value.trim().toLowerCase();
+  return ANCHOR_SET.has(id) ? id : undefined;
+}
+
 type RawEdge = {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   label?: string;
   type?: string;
   data?: Record<string, unknown>;
@@ -210,10 +220,23 @@ export function migrateEdge(raw: RawEdge): FlowEdge {
     end = "arrow";
   }
 
+  // Old graphs without handle ids get a stable default (right → left)
+  // so edges still attach to explicit anchors after migration.
+  const sourceHandle =
+    normalizeHandle(raw.sourceHandle) ??
+    normalizeHandle(data.sourceHandle) ??
+    "right";
+  const targetHandle =
+    normalizeHandle(raw.targetHandle) ??
+    normalizeHandle(data.targetHandle) ??
+    "left";
+
   return {
     id: raw.id,
     source: raw.source,
     target: raw.target,
+    sourceHandle,
+    targetHandle,
     label: raw.label,
     type: edgeTypeForPath(path),
     markerEnd: markerForEnd(end),
@@ -256,6 +279,8 @@ export function serializeEdge(edge: Edge): {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
   label?: string;
   type: string;
   data: FlowEdgeData;
@@ -268,6 +293,8 @@ export function serializeEdge(edge: Edge): {
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    sourceHandle: normalizeHandle(edge.sourceHandle),
+    targetHandle: normalizeHandle(edge.targetHandle),
     label: typeof edge.label === "string" ? edge.label : undefined,
     type: edgeTypeForPath(data.path),
     data: {

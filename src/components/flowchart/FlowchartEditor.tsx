@@ -12,6 +12,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  ConnectionMode,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -217,11 +218,18 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      // Require explicit anchors so edges stay locked to N/E/S/W handles.
+      if (!connection.sourceHandle || !connection.targetHandle) return;
       setEdges((eds) => {
         const next = addEdge(
           {
             ...connection,
-            id: `e-${connection.source}-${connection.target}-${Date.now()}`,
+            source: connection.source,
+            target: connection.target,
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
+            id: `e-${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}-${Date.now()}`,
             type: "default",
             markerEnd: markerForEnd("arrow"),
             data: { path: "curve", end: "arrow" },
@@ -528,9 +536,9 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Select a node to change type/shape/color · drag corners to resize ·
-        select an edge for curved/angled path and end style · double-click to
-        rename. Autosaves into this project.
+        Drag from a node’s N/E/S/W anchor dots to connect · edges stay locked to
+        those handles when you move/resize · select a node for type/shape/color ·
+        select an edge for curved/angled path. Autosaves into this project.
       </p>
 
       <div className="flowchart-canvas">
@@ -541,6 +549,8 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
+          connectionMode={ConnectionMode.Loose}
+          connectionRadius={28}
           fitView={nodes.length > 0}
           defaultViewport={viewportRef.current}
           onInit={(instance) => {

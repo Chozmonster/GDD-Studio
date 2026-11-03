@@ -10,6 +10,17 @@ import {
   type FlowNode as FlowNodeType,
 } from "./flowModel";
 
+/** Explicit N/E/S/W anchor ids — stored on edges as sourceHandle/targetHandle. */
+export const ANCHOR_IDS = ["top", "right", "bottom", "left"] as const;
+export type AnchorId = (typeof ANCHOR_IDS)[number];
+
+const ANCHORS: Array<{ id: AnchorId; position: Position }> = [
+  { id: "top", position: Position.Top },
+  { id: "right", position: Position.Right },
+  { id: "bottom", position: Position.Bottom },
+  { id: "left", position: Position.Left },
+];
+
 function FlowNodeComponent({
   id,
   data,
@@ -48,13 +59,18 @@ function FlowNodeComponent({
         minHeight={data.shape === "diamond" ? 80 : 44}
         color="#7aa892"
       />
-      <Handle type="target" position={Position.Top} className="nodrag" />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="left"
-        className="nodrag"
-      />
+
+      {ANCHORS.map(({ id: anchorId, position }) => (
+        <Handle
+          key={anchorId}
+          id={anchorId}
+          type="source"
+          position={position}
+          className={`flow-anchor nodrag anchor-${anchorId}`}
+          isConnectable
+        />
+      ))}
+
       <div
         className={`flow-shape shape-${data.shape} kind-${data.kind}`}
         style={{ background: data.fill, color: ink }}
@@ -91,13 +107,6 @@ function FlowNodeComponent({
           </button>
         )}
       </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="right"
-        className="nodrag"
-      />
-      <Handle type="source" position={Position.Bottom} className="nodrag" />
     </div>
   );
 }
