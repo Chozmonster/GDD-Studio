@@ -1,8 +1,6 @@
 //! Tauri IPC for launcher (projects, settings, updates).
 
-use crate::store::{
-    self, AppSettings, ProjectRecord,
-};
+use crate::store::{self, AppSettings, FlowchartSummary, ProjectRecord};
 use crate::updates::{self, UpdateStatus};
 use serde::Serialize;
 use tauri::AppHandle;
@@ -111,4 +109,31 @@ pub fn default_projects_dir(app: AppHandle) -> Result<String, String> {
     let dir = docs.join("GDD Studio Projects");
     std::fs::create_dir_all(&dir).map_err(|e| format!("create projects dir: {e}"))?;
     Ok(dir.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn list_flowcharts(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<FlowchartSummary>, String> {
+    store::list_flowcharts(&app, project_id)
+}
+
+#[tauri::command]
+pub fn load_flowchart(
+    app: AppHandle,
+    project_id: String,
+    flowchart_id: String,
+) -> Result<serde_json::Value, String> {
+    store::load_flowchart(&app, project_id, flowchart_id)
+}
+
+#[tauri::command]
+pub fn save_flowchart(
+    app: AppHandle,
+    project_id: String,
+    flowchart_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    store::save_flowchart(&app, project_id, flowchart_id, document)
 }

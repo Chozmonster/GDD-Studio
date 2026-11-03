@@ -28,3 +28,36 @@ export type UpdateStatus = {
 };
 
 export type View = "launcher" | "editor";
+
+export type ProjectTab = "document" | "flowchart";
+
+export type FlowchartSummary = {
+  id: string;
+  name: string;
+};
+
+export type FlowchartViewport = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+export type FlowchartDocument = {
+  format: string;
+  version: number;
+  id: string;
+  name: string;
+  nodes: Array<{
+    id: string;
+    type?: string;
+    position: { x: number; y: number };
+    data: { label: string };
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+  }>;
+  viewport: FlowchartViewport;
+};

@@ -428,6 +428,24 @@ code {
   background: #2a2a2a;
 }
 
+.project-tabs {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.project-tabs .tab {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  padding: 0.35rem 0.7rem;
+}
+
+.project-tabs .tab.active {
+  color: var(--ink);
+  background: #3a3a3a;
+  border-color: var(--line);
+}
+
 .chrome-right {
   display: flex;
   align-items: center;
@@ -535,6 +553,110 @@ code {
   pointer-events: none;
 }
 
+/* —— Flowchart —— */
+
+.flowchart-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #1c1c1c;
+  overflow: hidden;
+}
+
+.flowchart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: #2a2a2a;
+}
+
+.flowchart-toolbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.flowchart-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.flowchart-hint {
+  margin: 0;
+  padding: 0.35rem 0.75rem 0.45rem;
+  border-bottom: 1px solid #333;
+}
+
+.flowchart-status {
+  padding: 1.25rem;
+}
+
+.flowchart-canvas {
+  flex: 1;
+  min-height: 360px;
+}
+
+.flowchart-canvas .react-flow {
+  background: #1a1a1a;
+}
+
+.flow-node {
+  min-width: 140px;
+  max-width: 220px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #5a5a5a;
+  background: #2f3b35;
+  color: #f0f0f0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.flow-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.flow-node-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.15rem;
+  cursor: text;
+}
+
+.flow-node-input {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  color: #1c1a17;
+  background: #f4f1ea;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+}
+
+.flow-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border: 1px solid #1c1c1c;
+}
+
 @media (max-width: 840px) {
   .launcher-body {
     grid-template-columns: 1fr;
@@ -558,5 +680,9 @@ code {
 
   .side-detail {
     flex-basis: 100%;
+  }
+
+  .app-chrome {
+    flex-wrap: wrap;
   }
 }

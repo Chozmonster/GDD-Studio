@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher** + TipTap editor shell + Options (automatic updates). Full GDD features (variables, wiki links, assets, spellcheck, PDF) are not implemented yet. Cloud sync / share links remain v1.5+.
+Current cut: **Godot-style project launcher**, TipTap document shell, **basic flowchart editor** (React Flow / `@xyflow`), and Options (automatic updates). Full GDD features (variables, wiki links, assets, spellcheck, PDF) are not implemented yet. Cloud sync / share links remain v1.5+.
 
 ## Prerequisites
 
@@ -47,15 +47,18 @@ GDD_STUDIO_SIMULATE_UPDATE=1 npm run tauri dev
 │   ├── components/
 │   │   ├── Launcher.tsx      # Godot-like project manager
 │   │   ├── OptionsPanel.tsx  # Options window / modal
-│   │   ├── EditorShell.tsx   # Editor chrome + back to launcher
-│   │   └── EditorCanvas.tsx  # TipTap
+│   │   ├── EditorShell.tsx   # Document / Flowcharts tabs
+│   │   ├── EditorCanvas.tsx  # TipTap
+│   │   └── flowchart/        # @xyflow canvas (nodes, edges, labels)
 │   └── api.ts
 ├── src-tauri/
-│   ├── src/store.rs          # Local project library + settings JSON
+│   ├── src/store.rs          # Project library, settings, flowchart JSON
 │   ├── src/updates.rs        # Updater check / install / daily gate
 │   └── tauri.conf.json       # productName + updater endpoints
 └── .github/workflows/ci.yml
 ```
+
+Flowcharts save under `{project}/flowcharts/main.json` (browser preview uses `localStorage`).
 
 ## Automatic updates (GitHub Releases)
 

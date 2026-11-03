@@ -1,6 +1,6 @@
 //! GDD Studio — Tauri entry.
 //!
-//! Launcher + local project library + settings + updater hooks.
+//! Launcher + local project library + settings + updater + basic flowcharts.
 //! Still deferred: variables, wiki links, assets, spellcheck, PDF, sync/share.
 
 mod commands;
@@ -9,8 +9,8 @@ mod updates;
 
 use commands::{
     app_health, check_for_updates, create_project, default_projects_dir, delete_project,
-    get_patch_notes, get_settings, install_update, list_projects, open_options_window,
-    open_project, set_automatic_updates,
+    get_patch_notes, get_settings, install_update, list_flowcharts, list_projects,
+    load_flowchart, open_options_window, open_project, save_flowchart, set_automatic_updates,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,6 +40,9 @@ pub fn run() {
             get_patch_notes,
             open_options_window,
             default_projects_dir,
+            list_flowcharts,
+            load_flowchart,
+            save_flowchart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GDD Studio");

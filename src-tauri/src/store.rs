@@ -191,7 +191,112 @@ pub fn open_project_record(app: &AppHandle, project_id: String) -> Result<Projec
     Ok(record)
 }
 
-/// Seed a couple of demo entries in browser-less first run only if library empty — disabled;
-/// launcher starts empty like Godot.
-#[allow(dead_code)]
-pub fn ensure_empty_ok() {}
+const FLOWCHARTS_DIR: &str = "flowcharts";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlowchartSummary {
+    pub id: String,
+    pub name: String,
+}
+
+fn project_by_id(app: &AppHandle, project_id: &str) -> Result<ProjectRecord, String> {
+    load_projects(app)?
+        .into_iter()
+        .find(|p| p.id == project_id)
+        .ok_or_else(|| format!("Unknown project id: {project_id}"))
+}
+
+fn flowchart_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(FLOWCHARTS_DIR)
+}
+
+fn flowchart_path(project: &ProjectRecord, flowchart_id: &str) -> Result<PathBuf, String> {
+    let id = flowchart_id.trim();
+    if id.is_empty()
+        || id.contains('/')
+        || id.contains('\\')
+        || id.contains("..")
+    {
+        return Err("Invalid flowchart id".into());
+    }
+    Ok(flowchart_dir(project).join(format!("{id}.json")))
+}
+
+pub fn list_flowcharts(app: &AppHandle, project_id: String) -> Result<Vec<FlowchartSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    let dir = flowchart_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read flowcharts: {e}"))? {
+            let entry = entry.map_err(|e| format!("read flowcharts entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("untitled")
+                .to_string();
+            let name = fs::read_to_string(&path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .and_then(|v| {
+                    v.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| id.clone());
+            items.push(FlowchartSummary { id, name });
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    if items.is_empty() {
+        items.push(FlowchartSummary {
+            id: "main".into(),
+            name: "Main".into(),
+        });
+    }
+    Ok(items)
+}
+
+pub fn load_flowchart(
+    app: &AppHandle,
+    project_id: String,
+    flowchart_id: String,
+) -> Result<serde_json::Value, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = flowchart_path(&project, &flowchart_id)?;
+    if !path.exists() {
+        return Ok(empty_flowchart_doc(&flowchart_id));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read flowchart: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse flowchart: {e}"))
+}
+
+pub fn save_flowchart(
+    app: &AppHandle,
+    project_id: String,
+    flowchart_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = flowchart_path(&project, &flowchart_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create flowcharts dir: {e}"))?;
+    }
+    write_json(&path, &document)
+}
+
+fn empty_flowchart_doc(id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "format": "gdd-studio-flowchart",
+        "version": 1,
+        "id": id,
+        "name": if id == "main" { "Main" } else { id },
+        "nodes": [],
+        "edges": [],
+        "viewport": { "x": 0, "y": 0, "zoom": 1 }
+    })
+}

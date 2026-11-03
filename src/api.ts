@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppSettings,
+  FlowchartDocument,
+  FlowchartSummary,
   HealthStatus,
   ProjectRecord,
   UpdateStatus,
@@ -12,6 +14,8 @@ type BrowserStore = {
   projects: ProjectRecord[];
   settings: AppSettings;
   update?: UpdateStatus | null;
+  /** projectId → flowchartId → document */
+  flowcharts?: Record<string, Record<string, FlowchartDocument>>;
 };
 
 function isTauriRuntime(): boolean {
@@ -256,4 +260,66 @@ export async function pickDirectory(
 
 export function isOptionsWindowRoute(): boolean {
   return new URLSearchParams(window.location.search).get("window") === "options";
+}
+
+function emptyFlowchart(id: string): FlowchartDocument {
+  return {
+    format: "gdd-studio-flowchart",
+    version: 1,
+    id,
+    name: id === "main" ? "Main" : id,
+    nodes: [],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  };
+}
+
+export async function listFlowcharts(
+  projectId: string,
+): Promise<FlowchartSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = store.flowcharts?.[projectId] ?? {};
+    const items = Object.values(map).map((doc) => ({
+      id: doc.id,
+      name: doc.name,
+    }));
+    if (items.length === 0) {
+      return [{ id: "main", name: "Main" }];
+    }
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return invoke<FlowchartSummary[]>("list_flowcharts", { projectId });
+}
+
+export async function loadFlowchart(
+  projectId: string,
+  flowchartId: string,
+): Promise<FlowchartDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return (
+      store.flowcharts?.[projectId]?.[flowchartId] ?? emptyFlowchart(flowchartId)
+    );
+  }
+  return invoke<FlowchartDocument>("load_flowchart", {
+    projectId,
+    flowchartId,
+  });
+}
+
+export async function saveFlowchart(
+  projectId: string,
+  flowchartId: string,
+  document: FlowchartDocument,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.flowcharts) store.flowcharts = {};
+    if (!store.flowcharts[projectId]) store.flowcharts[projectId] = {};
+    store.flowcharts[projectId][flowchartId] = document;
+    saveBrowser(store);
+    return;
+  }
+  await invoke("save_flowchart", { projectId, flowchartId, document });
 }
