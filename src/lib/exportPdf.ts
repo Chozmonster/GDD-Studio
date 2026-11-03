@@ -18,6 +18,25 @@ export function buildExportHtml(
   });
   root.querySelectorAll(".media-embed-chrome").forEach((el) => el.remove());
 
+  // Harden export HTML: drop executable / navigable attack surfaces from cloned TipTap DOM
+  root.querySelectorAll("script, iframe, object, embed, link, meta").forEach((el) =>
+    el.remove(),
+  );
+  root.querySelectorAll("*").forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || name === "srcdoc") {
+        el.removeAttribute(attr.name);
+      }
+      if (
+        (name === "href" || name === "src" || name === "xlink:href") &&
+        /^\s*(javascript|data|file|vbscript):/i.test(attr.value)
+      ) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+
   // Variable chips → plain text of visible value
   root.querySelectorAll(".variable-chip").forEach((el) => {
     const text = el.textContent?.trim() ?? "";

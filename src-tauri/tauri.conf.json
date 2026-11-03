@@ -21,10 +21,43 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost https://ipc.localhost",
+        "img-src": "'self' asset: http://asset.localhost https://asset.localhost blob: data:",
+        "media-src": "'self' asset: http://asset.localhost https://asset.localhost blob: data:",
+        "style-src": "'unsafe-inline' 'self'",
+        "font-src": "'self' data:",
+        "script-src": "'self'",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'",
+        "frame-ancestors": "'none'",
+        "worker-src": "'self' blob:"
+      },
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": {
+          "allow": [
+            "$APPDATA/**/*",
+            "$APPLOCALDATA/**/*",
+            "$RESOURCE/**/*",
+            "$DOCUMENT/**/*",
+            "$DESKTOP/**/*",
+            "$DOWNLOAD/**/*",
+            "$HOME/Documents/**/*",
+            "$HOME/GDD Studio Projects/**/*"
+          ],
+          "deny": [
+            "$HOME/.ssh/**/*",
+            "$HOME/.gnupg/**/*",
+            "**/.ssh/**/*",
+            "**/.gnupg/**/*",
+            "**/id_rsa*",
+            "**/id_ed25519*",
+            "**/id_ecdsa*"
+          ]
+        }
       }
     }
   },

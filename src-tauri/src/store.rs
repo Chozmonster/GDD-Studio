@@ -86,6 +86,88 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Entity ids used as filenames: alphanumeric, dash, underscore, dot — no traversal.
+fn validate_entity_id(id: &str, kind: &str) -> Result<(), String> {
+    let id = id.trim();
+    if id.is_empty() || id.len() > 128 {
+        return Err(format!("Invalid {kind} id"));
+    }
+    if id == "." || id == ".." || id.contains("..") {
+        return Err(format!("Invalid {kind} id"));
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(format!("Invalid {kind} id"));
+    }
+    Ok(())
+}
+
+/// Ensure `candidate` resolves inside `root` (after canonicalize when possible).
+fn ensure_path_within(root: &Path, candidate: &Path) -> Result<PathBuf, String> {
+    let root_canon = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    let candidate_canon = if candidate.exists() {
+        fs::canonicalize(candidate).map_err(|e| format!("resolve path: {e}"))?
+    } else {
+        // For not-yet-written paths, canonicalize the parent and append the name.
+        let parent = candidate
+            .parent()
+            .ok_or_else(|| "Invalid path".to_string())?;
+        let name = candidate
+            .file_name()
+            .ok_or_else(|| "Invalid path".to_string())?;
+        let parent_canon = if parent.exists() {
+            fs::canonicalize(parent).map_err(|e| format!("resolve parent: {e}"))?
+        } else {
+            parent.to_path_buf()
+        };
+        parent_canon.join(name)
+    };
+    if !candidate_canon.starts_with(&root_canon) {
+        return Err("Path escapes allowed directory".into());
+    }
+    Ok(candidate_canon)
+}
+
+fn sanitize_filename(name: &str) -> String {
+    let base = Path::new(name)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("asset.bin");
+    let cleaned: String = base
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let cleaned = cleaned.trim_matches('.').to_string();
+    if cleaned.is_empty() {
+        "asset.bin".into()
+    } else {
+        cleaned.chars().take(180).collect()
+    }
+}
+
+fn sanitize_mime(mime: &str) -> String {
+    let cleaned: String = mime
+        .chars()
+        .take(120)
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '+' | '.'))
+        .collect();
+    if cleaned.is_empty() || !cleaned.contains('/') {
+        "application/octet-stream".into()
+    } else {
+        cleaned
+    }
+}
+
+const MAX_ASSET_BYTES: usize = 200 * 1024 * 1024;
+
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<T, String> {
     if !path.exists() {
         return Ok(T::default());
@@ -159,6 +241,9 @@ pub fn create_project(
         return Err("Project name is required".into());
     }
     let parent = PathBuf::from(&parent_dir);
+    if !parent.is_absolute() {
+        return Err("Parent directory must be an absolute path".into());
+    }
     if !parent.is_dir() {
         return Err(format!("Parent directory does not exist: {parent_dir}"));
     }
@@ -247,15 +332,12 @@ fn flowchart_dir(project: &ProjectRecord) -> PathBuf {
 }
 
 fn flowchart_path(project: &ProjectRecord, flowchart_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(flowchart_id, "flowchart")?;
     let id = flowchart_id.trim();
-    if id.is_empty()
-        || id.contains('/')
-        || id.contains('\\')
-        || id.contains("..")
-    {
-        return Err("Invalid flowchart id".into());
-    }
-    Ok(flowchart_dir(project).join(format!("{id}.json")))
+    let dir = flowchart_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
 }
 
 pub fn list_flowcharts(app: &AppHandle, project_id: String) -> Result<Vec<FlowchartSummary>, String> {
@@ -403,11 +485,12 @@ fn rgd_dir(project: &ProjectRecord) -> PathBuf {
 }
 
 fn rgd_sheet_path(project: &ProjectRecord, sheet_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(sheet_id, "RGD sheet")?;
     let id = sheet_id.trim();
-    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
-        return Err("Invalid RGD sheet id".into());
-    }
-    Ok(rgd_dir(project).join(format!("{id}.json")))
+    let dir = rgd_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
 }
 
 pub fn list_rgd_sheets(app: &AppHandle, project_id: String) -> Result<Vec<RgdSheetSummary>, String> {
@@ -535,11 +618,12 @@ fn docs_dir(project: &ProjectRecord) -> PathBuf {
 }
 
 fn doc_file_path(project: &ProjectRecord, doc_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(doc_id, "document")?;
     let id = doc_id.trim();
-    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
-        return Err("Invalid document id".into());
-    }
-    Ok(docs_dir(project).join(format!("{id}.json")))
+    let dir = docs_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
 }
 
 fn slugify(input: &str) -> String {
@@ -955,13 +1039,42 @@ pub fn save_asset(
     if bytes.is_empty() {
         return Err("Asset data is empty".into());
     }
+    if bytes.len() > MAX_ASSET_BYTES {
+        return Err(format!(
+            "Asset exceeds {} MB limit",
+            MAX_ASSET_BYTES / (1024 * 1024)
+        ));
+    }
+    let filename = sanitize_filename(&filename);
+    let mime = sanitize_mime(&mime);
     let kind = kind_from_mime(&mime, &filename);
     let ext = extension_for(&filename, &mime, &kind);
+    // Extension must stay a simple suffix — never path segments.
+    let ext = {
+        let e = ext.replace(['/', '\\', '.'], "");
+        if e.is_empty()
+            || !e
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            || e.len() > 12
+        {
+            match kind.as_str() {
+                "gif" => "gif".into(),
+                "video" => "mp4".into(),
+                "audio" => "mp3".into(),
+                _ => "bin".into(),
+            }
+        } else {
+            e
+        }
+    };
     let id = Uuid::new_v4().to_string();
     let storage_ref = format!("{id}.{ext}");
+    validate_entity_id(&storage_ref, "asset storage")?;
     let dir = assets_dir(&project);
     fs::create_dir_all(&dir).map_err(|e| format!("create assets dir: {e}"))?;
     let path = dir.join(&storage_ref);
+    let path = ensure_path_within(&dir, &path)?;
     fs::write(&path, &bytes).map_err(|e| format!("write asset: {e}"))?;
 
     let record = AssetRecord {
@@ -979,18 +1092,26 @@ pub fn save_asset(
     Ok(record)
 }
 
+fn resolve_asset_file(project: &ProjectRecord, record: &AssetRecord) -> Result<PathBuf, String> {
+    validate_entity_id(&record.storage_ref, "asset storage")?;
+    let dir = assets_dir(project);
+    let path = dir.join(&record.storage_ref);
+    ensure_path_within(&dir, &path)
+}
+
 pub fn get_asset_path(
     app: &AppHandle,
     project_id: String,
     asset_id: String,
 ) -> Result<String, String> {
+    validate_entity_id(&asset_id, "asset")?;
     let project = project_by_id(app, &project_id)?;
     let index = load_asset_index(&project)?;
     let record = index
         .iter()
         .find(|a| a.id == asset_id)
         .ok_or_else(|| format!("Unknown asset id: {asset_id}"))?;
-    let path = assets_dir(&project).join(&record.storage_ref);
+    let path = resolve_asset_file(&project, record)?;
     if !path.is_file() {
         return Err(format!("Asset file missing: {}", path.display()));
     }
@@ -1002,37 +1123,36 @@ pub fn get_asset_data_url(
     project_id: String,
     asset_id: String,
 ) -> Result<String, String> {
+    validate_entity_id(&asset_id, "asset")?;
     let project = project_by_id(app, &project_id)?;
     let index = load_asset_index(&project)?;
     let record = index
         .iter()
         .find(|a| a.id == asset_id)
         .ok_or_else(|| format!("Unknown asset id: {asset_id}"))?;
-    let path = assets_dir(&project).join(&record.storage_ref);
+    let path = resolve_asset_file(&project, record)?;
     let bytes = fs::read(&path).map_err(|e| format!("read asset: {e}"))?;
     // Cap data-URL export to ~25MB to avoid IPC blowups.
     if bytes.len() > 25 * 1024 * 1024 {
         return Err("Asset too large for data URL; use file path instead".into());
     }
+    let mime = sanitize_mime(&record.mime);
     let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
-    let mime = if record.mime.is_empty() {
-        "application/octet-stream"
-    } else {
-        &record.mime
-    };
     Ok(format!("data:{mime};base64,{b64}"))
 }
 
 pub fn delete_asset(app: &AppHandle, project_id: String, asset_id: String) -> Result<(), String> {
+    validate_entity_id(&asset_id, "asset")?;
     let project = project_by_id(app, &project_id)?;
     let mut index = load_asset_index(&project)?;
     let Some(pos) = index.iter().position(|a| a.id == asset_id) else {
         return Err(format!("Unknown asset id: {asset_id}"));
     };
     let record = index.remove(pos);
-    let path = assets_dir(&project).join(&record.storage_ref);
-    if path.is_file() {
-        let _ = fs::remove_file(&path);
+    if let Ok(path) = resolve_asset_file(&project, &record) {
+        if path.is_file() {
+            let _ = fs::remove_file(&path);
+        }
     }
     save_asset_index(&project, &index)?;
     Ok(())
@@ -1065,11 +1185,11 @@ fn project_templates_dir(project: &ProjectRecord) -> PathBuf {
 }
 
 fn template_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(id, "template")?;
     let id = id.trim();
-    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
-        return Err("Invalid template id".into());
-    }
-    Ok(dir.join(format!("{id}.json")))
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(dir, &path)?;
+    Ok(path)
 }
 
 fn read_templates_dir(dir: &Path, scope: &str, project_id: Option<&str>) -> Result<Vec<TemplateRecord>, String> {

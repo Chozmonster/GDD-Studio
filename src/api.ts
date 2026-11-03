@@ -1081,4 +1081,6 @@ export async function getAssetPath(
   return invoke<string>("get_asset_path", { projectId, assetId });
 }
 
-export { bytesToBase64, convertFileSrc };
+export { bytesToBase64 };
+// convertFileSrc is intentionally not re-exported — only getAssetSrc may
+// construct asset:// URLs from Rust-validated paths.
