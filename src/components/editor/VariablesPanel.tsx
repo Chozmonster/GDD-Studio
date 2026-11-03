@@ -76,51 +76,57 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
         <ul className="variables-list">
           {variables.map((v) => (
             <li key={v.id} className="variable-row">
-              <input
-                className="var-name"
-                aria-label="Variable name"
-                value={v.name}
-                onChange={(e) =>
-                  patch(v.id, {
-                    name: e.target.value.replace(/\s+/g, "_").slice(0, 48),
-                  })
-                }
-              />
-              <select
-                aria-label="Variable type"
-                value={v.kind}
-                onChange={(e) =>
-                  patch(v.id, { kind: e.target.value as DocVariableKind })
-                }
-              >
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-              </select>
-              <input
-                className="var-value"
-                aria-label="Variable value"
-                type={v.kind === "number" ? "number" : "text"}
-                value={v.value}
-                onChange={(e) => patch(v.id, { value: e.target.value })}
-              />
-              <div className="var-row-actions">
-                {onInsert ? (
+              <div className="var-row-top">
+                <input
+                  className="var-name"
+                  aria-label="Variable name"
+                  value={v.name}
+                  onChange={(e) =>
+                    patch(v.id, {
+                      name: e.target.value.replace(/\s+/g, "_").slice(0, 48),
+                    })
+                  }
+                />
+                <div className="var-row-actions">
+                  {onInsert ? (
+                    <button
+                      type="button"
+                      className="ghost tiny-btn"
+                      title="Insert into document"
+                      onClick={() => onInsert(v)}
+                    >
+                      Insert
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="ghost tiny-btn"
-                    title="Insert into document"
-                    onClick={() => onInsert(v)}
+                    className="ghost tiny-btn danger-outline"
+                    onClick={() => remove(v.id)}
+                    aria-label={`Remove ${v.name}`}
                   >
-                    Insert
+                    ×
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="ghost tiny-btn danger-outline"
-                  onClick={() => remove(v.id)}
+                </div>
+              </div>
+              <div className="var-row-fields">
+                <select
+                  className="var-kind"
+                  aria-label="Variable type"
+                  value={v.kind}
+                  onChange={(e) =>
+                    patch(v.id, { kind: e.target.value as DocVariableKind })
+                  }
                 >
-                  ×
-                </button>
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                </select>
+                <input
+                  className="var-value"
+                  aria-label="Variable value"
+                  type={v.kind === "number" ? "number" : "text"}
+                  value={v.value}
+                  onChange={(e) => patch(v.id, { value: e.target.value })}
+                />
               </div>
             </li>
           ))}

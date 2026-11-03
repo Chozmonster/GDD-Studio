@@ -672,13 +672,43 @@ code {
 }
 
 .variable-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.25rem;
-  padding: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.35rem 0.4rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--bg-row);
+}
+
+.var-row-top {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.var-row-top .var-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.var-row-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.var-row-fields .var-kind {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 5.75rem;
+}
+
+.var-row-fields .var-value {
+  flex: 1;
+  min-width: 0;
 }
 
 .variable-row input,
@@ -689,13 +719,14 @@ code {
   background: var(--bg-input);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 0.28rem 0.4rem;
+  padding: 0.22rem 0.35rem;
   width: 100%;
 }
 
 .var-row-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  flex-shrink: 0;
   justify-content: flex-end;
 }
 
