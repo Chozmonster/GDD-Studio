@@ -7,6 +7,7 @@
 mod commands;
 mod store;
 mod updates;
+mod window_geom;
 
 use commands::{
     app_health, check_for_updates, create_project, default_projects_dir, delete_flowchart,
@@ -15,6 +16,7 @@ use commands::{
     open_options_window, open_project, save_document, save_flowchart, save_variables,
     set_automatic_updates, set_display_variable_names,
 };
+use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,13 +24,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
+        .manage(WindowGeomState::default())
         .setup(|app| {
             #[cfg(desktop)]
             {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            window_geom::apply_startup_geometry(app.handle());
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            window_geom::handle_main_window_event(window.app_handle(), window.label(), event);
         })
         .invoke_handler(tauri::generate_handler![
             app_health,
@@ -53,6 +60,8 @@ pub fn run() {
             save_document,
             load_variables,
             save_variables,
+            set_window_role,
+            get_window_geometry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running GDD Studio");

@@ -9,8 +9,10 @@ import {
   installUpdate,
   openOptionsWindow,
   openProject,
+  saveDocument,
 } from "../api";
 import type { HealthStatus, ProjectRecord, UpdateStatus } from "../types";
+import { buildRgdSkeletonDoc } from "./editor/rgd/rgdContent";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { OptionsPanel } from "./OptionsPanel";
 
@@ -99,8 +101,15 @@ export function Launcher({ onOpenProject }: LauncherProps) {
     }
   };
 
-  const handleCreate = async (name: string, parentDir: string) => {
+  const handleCreate = async (
+    name: string,
+    parentDir: string,
+    options?: { rgdTemplate?: boolean },
+  ) => {
     const created = await createProject(name, parentDir);
+    if (options?.rgdTemplate) {
+      await saveDocument(created.id, buildRgdSkeletonDoc(created.name));
+    }
     await refresh();
     const opened = await openProject(created.id);
     onOpenProject(opened);

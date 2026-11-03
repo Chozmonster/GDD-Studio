@@ -23,6 +23,9 @@ import {
   FONT_SIZE_OPTIONS,
   FontSize,
 } from "./editor/fontSize";
+import { RgdBlock } from "./editor/rgd/rgdBlockExtension";
+import { RGD_INSERT_ORDER, RGD_TYPE_META } from "./editor/rgd/rgdTypes";
+import type { RgdBlockType } from "./editor/rgd/rgdTypes";
 import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 
@@ -39,6 +42,7 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [rgdMenuOpen, setRgdMenuOpen] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const editorRef = useRef<Editor | null>(null);
 
@@ -64,6 +68,10 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
         }),
         VariableEmbed.configure({
           projectId: project.id,
+        }),
+        RgdBlock.configure({
+          projectId: project.id,
+          onOpenFlowchart,
         }),
       ],
       content: "",
@@ -144,6 +152,18 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
   const insertVariable = (variable: DocVariable) => {
     editor?.chain().focus().insertVariableEmbed(variable.id, variable.name).run();
     setStatus(`Inserted {{${variable.name}}}`);
+  };
+
+  const insertRgd = (type: RgdBlockType) => {
+    editor?.chain().focus().insertRgdBlock(type).run();
+    setRgdMenuOpen(false);
+    setStatus(`Inserted ${RGD_TYPE_META[type].label}`);
+  };
+
+  const insertRgdSkeleton = () => {
+    editor?.chain().focus().insertRgdSkeleton().run();
+    setRgdMenuOpen(false);
+    setStatus("Inserted RGD skeleton (7 steps)");
   };
 
   if (!editor) {
@@ -334,10 +354,22 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
           type="button"
           className="primary"
           onClick={() => {
+            setRgdMenuOpen(false);
             void refreshList().then(() => setPickerOpen(true));
           }}
         >
           Insert flowchart
+        </button>
+        <button
+          type="button"
+          aria-expanded={rgdMenuOpen}
+          aria-haspopup="menu"
+          onClick={() => {
+            setPickerOpen(false);
+            setRgdMenuOpen((o) => !o);
+          }}
+        >
+          Insert RGD…
         </button>
         <span className="muted tiny toolbar-status">{status}</span>
       </header>
@@ -357,6 +389,32 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
             ))}
           </ul>
           <button type="button" className="ghost" onClick={() => setPickerOpen(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {rgdMenuOpen && (
+        <div className="embed-picker rgd-insert-menu" role="menu" aria-label="Insert RGD">
+          <p className="muted tiny">
+            Rational Game Design blocks — opt-in methodology sections in the document.
+          </p>
+          <ul>
+            {RGD_INSERT_ORDER.map((type) => {
+              const meta = RGD_TYPE_META[type];
+              return (
+                <li key={type}>
+                  <button type="button" role="menuitem" onClick={() => insertRgd(type)}>
+                    <span className="rgd-menu-step">Step {meta.step}</span> {meta.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <button type="button" className="ghost" onClick={insertRgdSkeleton}>
+            Insert all 7 steps (skeleton)
+          </button>
+          <button type="button" className="ghost" onClick={() => setRgdMenuOpen(false)}>
             Cancel
           </button>
         </div>

@@ -5,7 +5,11 @@ import { defaultProjectsDir, pickDirectory } from "../api";
 type NewProjectDialogProps = {
   open: boolean;
   onClose: () => void;
-  onCreate: (name: string, parentDir: string) => Promise<void>;
+  onCreate: (
+    name: string,
+    parentDir: string,
+    options?: { rgdTemplate?: boolean },
+  ) => Promise<void>;
 };
 
 export function NewProjectDialog({
@@ -15,12 +19,14 @@ export function NewProjectDialog({
 }: NewProjectDialogProps) {
   const [name, setName] = useState("");
   const [parentDir, setParentDir] = useState("");
+  const [rgdTemplate, setRgdTemplate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setName("");
+    setRgdTemplate(false);
     setError(null);
     void defaultProjectsDir().then(setParentDir).catch(() => setParentDir(""));
   }, [open]);
@@ -32,7 +38,7 @@ export function NewProjectDialog({
     setBusy(true);
     setError(null);
     try {
-      await onCreate(name, parentDir);
+      await onCreate(name, parentDir, { rgdTemplate });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -80,6 +86,20 @@ export function NewProjectDialog({
               Browse…
             </button>
           </div>
+        </label>
+        <label className="toggle-row rgd-template-opt">
+          <input
+            type="checkbox"
+            checked={rgdTemplate}
+            onChange={(e) => setRgdTemplate(e.target.checked)}
+          />
+          <span>
+            Include Rational Game Design starter sections
+            <span className="muted tiny block">
+              Opt-in — inserts the 7 RGD steps into the document. You can also add
+              blocks later via Insert RGD…
+            </span>
+          </span>
         </label>
         {error && <p className="error">{error}</p>}
         <div className="modal-actions">

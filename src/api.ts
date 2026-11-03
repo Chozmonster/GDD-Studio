@@ -305,6 +305,14 @@ export function isOptionsWindowRoute(): boolean {
   return new URLSearchParams(window.location.search).get("window") === "options";
 }
 
+export type WindowRole = "launcher" | "editor";
+
+/** Tell the native shell which chrome mode owns the main window geometry. */
+export async function setWindowRole(role: WindowRole): Promise<void> {
+  if (!isTauriRuntime()) return;
+  await invoke("set_window_role", { role });
+}
+
 function emptyFlowchart(id: string): FlowchartDocument {
   return {
     format: "gdd-studio-flowchart",

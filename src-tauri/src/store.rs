@@ -11,7 +11,26 @@ use uuid::Uuid;
 
 const LIBRARY_FILE: &str = "project-library.json";
 const SETTINGS_FILE: &str = "settings.json";
+const WINDOW_GEOMETRY_FILE: &str = "window-geometry.json";
 const PROJECT_MARKER: &str = "gdd-studio.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowGeometry {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub maximized: bool,
+    pub fullscreen: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowGeometryFile {
+    pub launcher: Option<WindowGeometry>,
+    pub editor: Option<WindowGeometry>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,6 +135,18 @@ pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
 
 pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
     write_json(&settings_path(app)?, settings)
+}
+
+fn window_geometry_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join(WINDOW_GEOMETRY_FILE))
+}
+
+pub fn load_window_geometry(app: &AppHandle) -> Result<WindowGeometryFile, String> {
+    read_json(&window_geometry_path(app)?)
+}
+
+pub fn save_window_geometry(app: &AppHandle, file: &WindowGeometryFile) -> Result<(), String> {
+    write_json(&window_geometry_path(app)?, file)
 }
 
 pub fn create_project(
