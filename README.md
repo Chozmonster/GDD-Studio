@@ -49,7 +49,7 @@ GDD_STUDIO_SIMULATE_UPDATE=1 npm run tauri dev
 │   │   ├── OptionsPanel.tsx  # Options window / modal
 │   │   ├── EditorShell.tsx   # Document / Flowcharts tabs
 │   │   ├── EditorCanvas.tsx  # TipTap
-│   │   └── flowchart/        # @xyflow canvas (nodes, edges, labels)
+│   │   └── flowchart/        # @xyflow: typed shapes, colors, resize, edge styles
 │   └── api.ts
 ├── src-tauri/
 │   ├── src/store.rs          # Project library, settings, flowchart JSON

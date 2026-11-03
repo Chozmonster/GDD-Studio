@@ -51,13 +51,25 @@ export type FlowchartDocument = {
     id: string;
     type?: string;
     position: { x: number; y: number };
-    data: { label: string };
+    data: {
+      label: string;
+      kind?: string;
+      shape?: string;
+      fill?: string;
+      width?: number;
+      height?: number;
+    };
   }>;
   edges: Array<{
     id: string;
     source: string;
     target: string;
     label?: string;
+    type?: string;
+    data?: {
+      path?: string;
+      end?: string;
+    };
   }>;
   viewport: FlowchartViewport;
 };
