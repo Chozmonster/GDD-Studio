@@ -1,6 +1,7 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 
-export type FlowNodeKind = "process" | "start" | "end" | "decision";
+/** UML-ish node kinds. `process` is the Action step (legacy id kept for saves). */
+export type FlowNodeKind = "process" | "start" | "end" | "decision" | "state";
 export type FlowNodeShape = "rectangle" | "rounded" | "diamond" | "ellipse";
 export type FlowEdgePath = "curve" | "step";
 export type FlowEdgeEnd = "none" | "arrow" | "diamond" | "circle";
@@ -29,13 +30,6 @@ export const NODE_KIND_OPTIONS: Array<{
   defaultLabel: string;
 }> = [
   {
-    kind: "process",
-    label: "Process",
-    defaultShape: "rounded",
-    defaultFill: "#3d5a4c",
-    defaultLabel: "Process",
-  },
-  {
     kind: "start",
     label: "Start",
     defaultShape: "ellipse",
@@ -50,11 +44,25 @@ export const NODE_KIND_OPTIONS: Array<{
     defaultLabel: "End",
   },
   {
+    kind: "process",
+    label: "Action",
+    defaultShape: "rounded",
+    defaultFill: "#3d5a4c",
+    defaultLabel: "Action",
+  },
+  {
     kind: "decision",
     label: "Decision",
     defaultShape: "diamond",
     defaultFill: "#4a4f6d",
     defaultLabel: "Decision?",
+  },
+  {
+    kind: "state",
+    label: "State",
+    defaultShape: "rounded",
+    defaultFill: "#3f5a6d",
+    defaultLabel: "State",
   },
 ];
 
@@ -104,6 +112,9 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
   if (kind === "decision" || shape === "diamond") return { ...DIAMOND_SIZE };
   if (kind === "start" || kind === "end" || shape === "ellipse") {
     return { width: 120, height: 72 };
+  }
+  if (kind === "state") {
+    return { width: 150, height: 70 };
   }
   return { ...DEFAULT_NODE_SIZE };
 }
@@ -177,8 +188,12 @@ export function migrateNode(raw: RawNode): Omit<FlowNode, "data"> & {
 } {
   const data = raw.data ?? {};
   const kind = (
-    ["process", "start", "end", "decision"].includes(String(data.kind))
-      ? data.kind
+    ["process", "start", "end", "decision", "state", "action"].includes(
+      String(data.kind),
+    )
+      ? data.kind === "action"
+        ? "process"
+        : data.kind
       : "process"
   ) as FlowNodeKind;
   const defaults = kindDefaults(kind);

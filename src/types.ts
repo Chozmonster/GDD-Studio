@@ -36,6 +36,16 @@ export type FlowchartSummary = {
   name: string;
 };
 
+export type DocVariableKind = "text" | "number";
+
+export type DocVariable = {
+  id: string;
+  name: string;
+  kind: DocVariableKind;
+  /** Stored as string; parse as number when kind === "number". */
+  value: string;
+};
+
 export type FlowchartViewport = {
   x: number;
   y: number;

@@ -74,7 +74,9 @@ function FlowNodeComponent({
       ))}
 
       <div
-        className={`flow-shape shape-${data.shape} kind-${data.kind}`}
+        className={`flow-shape shape-${data.shape} kind-${data.kind}${
+          data.kind === "state" ? " state-border" : ""
+        }`}
         style={{ background: data.fill, color: ink }}
       >
         {editing ? (

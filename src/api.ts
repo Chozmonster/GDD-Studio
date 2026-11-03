@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppSettings,
+  DocVariable,
   FlowchartDocument,
   FlowchartSummary,
   HealthStatus,
@@ -18,6 +19,8 @@ type BrowserStore = {
   flowcharts?: Record<string, Record<string, FlowchartDocument>>;
   /** projectId → TipTap JSON doc */
   documents?: Record<string, unknown>;
+  /** projectId → documentation variables */
+  variables?: Record<string, DocVariable[]>;
 };
 
 function isTauriRuntime(): boolean {
@@ -391,4 +394,48 @@ export async function saveDocument(
     return;
   }
   await invoke("save_document", { projectId, document });
+}
+
+export async function loadVariables(projectId: string): Promise<DocVariable[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return (store.variables?.[projectId] ?? []).slice();
+  }
+  return invoke<DocVariable[]>("load_variables", { projectId });
+}
+
+export async function saveVariables(
+  projectId: string,
+  variables: DocVariable[],
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.variables) store.variables = {};
+    store.variables[projectId] = variables;
+    saveBrowser(store);
+    return;
+  }
+  await invoke("save_variables", { projectId, variables });
+}
+
+/** Create an empty named flowchart and persist it. */
+export async function createFlowchart(
+  projectId: string,
+  name: string,
+): Promise<FlowchartSummary> {
+  const trimmed = name.trim() || "Untitled";
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "flowchart";
+  let id = base;
+  let n = 2;
+  while (await flowchartExists(projectId, id)) {
+    id = `${base}-${n++}`;
+  }
+  const doc = emptyFlowchart(id);
+  doc.name = trimmed;
+  await saveFlowchart(projectId, id, doc);
+  return { id, name: trimmed };
 }

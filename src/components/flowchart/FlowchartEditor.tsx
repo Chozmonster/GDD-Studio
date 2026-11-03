@@ -31,6 +31,7 @@ import { loadFlowchart, saveFlowchart } from "../../api";
 import type { FlowchartDocument, ProjectRecord } from "../../types";
 import { EdgeMarkers } from "./EdgeMarkers";
 import { FlowNode } from "./FlowNode";
+import { FlowchartSidebar } from "./FlowchartSidebar";
 import { StubCurveEdge, StubStepEdge } from "./StubbedEdge";
 import {
   COLOR_PALETTE,
@@ -51,9 +52,7 @@ import {
   type FlowNodeKind,
   type FlowNodeShape,
 } from "./flowModel";
-import { deleteFlowchart } from "../../api";
 import {
-  emitFlowchartDeleted,
   emitFlowchartSaved,
 } from "../../lib/flowchartEvents";
 
@@ -106,7 +105,7 @@ function withLabelHandler(
 }
 
 export function FlowchartEditor({ project }: FlowchartEditorProps) {
-  const flowchartId = "main";
+  const [flowchartId, setFlowchartId] = useState("main");
   const [name, setName] = useState("Main");
   const [nodes, setNodes] = useNodesState<FlowNodeT>([]);
   const [edges, setEdges] = useEdgesState<FlowEdge>([]);
@@ -122,12 +121,14 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
   const idCounter = useRef(1);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
+  const nameRef = useRef(name);
   nodesRef.current = nodes;
   edgesRef.current = edges;
+  nameRef.current = name;
 
   const persist = useCallback(
     async (nextNodes: Node[], nextEdges: Edge[], vp: Viewport) => {
-      const doc = toDoc(flowchartId, name, nextNodes, nextEdges, vp);
+      const doc = toDoc(flowchartId, nameRef.current, nextNodes, nextEdges, vp);
       try {
         await saveFlowchart(project.id, flowchartId, doc);
         emitFlowchartSaved(project.id, flowchartId, doc);
@@ -137,7 +138,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
         setStatus(e instanceof Error ? e.message : String(e));
       }
     },
-    [project.id, name, flowchartId],
+    [project.id, flowchartId],
   );
 
   const queueSave = useCallback(
@@ -156,11 +157,13 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
+    setStatus("Loading…");
     void (async () => {
       try {
         const doc = await loadFlowchart(project.id, flowchartId);
         if (cancelled) return;
-        setName(doc.name || "Main");
+        setName(doc.name || flowchartId);
         viewportRef.current = doc.viewport ?? { x: 0, y: 0, zoom: 1 };
         const loaded = (doc.nodes ?? []).map((n) =>
           withLabelHandler(
@@ -177,6 +180,8 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
           }, 0) + 1;
         setNodes(loaded);
         setEdges((doc.edges ?? []).map((e) => migrateEdge(e)));
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
         setStatus("Ready");
         setDirty(false);
         setReady(true);
@@ -190,7 +195,16 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, setNodes, setEdges]);
+  }, [project.id, flowchartId, setNodes, setEdges]);
+
+  const selectFlowchart = (id: string, nextName: string) => {
+    if (id === flowchartId) {
+      setName(nextName);
+      return;
+    }
+    setFlowchartId(id);
+    setName(nextName);
+  };
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNodeT>[]) => {
@@ -329,7 +343,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
         id,
         position,
         data: {
-          label: `${defaults.defaultLabel}${kind === "process" ? ` ${index}` : ""}`,
+          label: `${defaults.defaultLabel}${kind === "process" || kind === "state" ? ` ${index}` : ""}`,
           kind,
           shape: defaults.defaultShape,
           fill: defaults.defaultFill,
@@ -386,16 +400,14 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
     });
   };
 
-  if (!ready) {
-    return (
-      <section className="flowchart-shell">
-        <p className="muted flowchart-status">{status}</p>
-      </section>
-    );
-  }
-
   return (
     <section className="flowchart-shell" aria-label="Flowchart editor">
+      <FlowchartSidebar
+        project={project}
+        activeId={flowchartId}
+        onSelect={selectFlowchart}
+      />
+      <div className="flowchart-main">
       <header className="flowchart-toolbar" role="toolbar">
         <div className="flowchart-toolbar-left">
           <strong>{name}</strong>
@@ -424,7 +436,7 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
             onClick={renameSelectedNode}
             disabled={!selectedNode && nodes.length === 0}
           >
-            Rename
+            Rename node
           </button>
           <button type="button" onClick={editEdgeLabel} disabled={!selectedEdge}>
             Edge label
@@ -438,28 +450,6 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
             onClick={() => void persist(nodes, edges, viewportRef.current)}
           >
             Save now
-          </button>
-          <button
-            type="button"
-            className="danger-outline"
-            title="Remove flowchart file (embeds become broken)"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  `Delete flowchart “${flowchartId}”? Document embeds will show a broken state.`,
-                )
-              ) {
-                return;
-              }
-              void deleteFlowchart(project.id, flowchartId).then(() => {
-                emitFlowchartDeleted(project.id, flowchartId);
-                setNodes([]);
-                setEdges([]);
-                setStatus("Flowchart deleted");
-              });
-            }}
-          >
-            Delete flowchart
           </button>
         </div>
       </header>
@@ -571,42 +561,47 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
         select an edge for curved/angled path. Autosaves into this project.
       </p>
 
-      <div className="flowchart-canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          connectionMode={ConnectionMode.Loose}
-          connectionRadius={28}
-          edgeTypes={edgeTypes}
-          defaultEdgeOptions={{
-            type: "stubStep",
-            markerEnd: markerForEnd("arrow"),
-            data: { path: "step", end: "arrow" },
-          }}
-          fitView={nodes.length > 0}
-          defaultViewport={viewportRef.current}
-          onInit={(instance) => {
-            rfRef.current = instance;
-          }}
-          onMoveEnd={(_, vp) => {
-            viewportRef.current = vp;
-          }}
-          onSelectionChange={({ nodes: selNodes, edges: selEdges }) => {
-            setSelectedNodeId(selNodes[0]?.id ?? null);
-            setSelectedEdgeId(selEdges[0]?.id ?? null);
-          }}
-          deleteKeyCode={["Backspace", "Delete"]}
-          proOptions={{ hideAttribution: true }}
-        >
-          <EdgeMarkers />
-          <Background gap={18} size={1} color="#4a4a4a" />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
+      {!ready ? (
+        <p className="muted flowchart-status">{status}</p>
+      ) : (
+        <div className="flowchart-canvas">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            connectionMode={ConnectionMode.Loose}
+            connectionRadius={28}
+            edgeTypes={edgeTypes}
+            defaultEdgeOptions={{
+              type: "stubStep",
+              markerEnd: markerForEnd("arrow"),
+              data: { path: "step", end: "arrow" },
+            }}
+            fitView={nodes.length > 0}
+            defaultViewport={viewportRef.current}
+            onInit={(instance) => {
+              rfRef.current = instance;
+            }}
+            onMoveEnd={(_, vp) => {
+              viewportRef.current = vp;
+            }}
+            onSelectionChange={({ nodes: selNodes, edges: selEdges }) => {
+              setSelectedNodeId(selNodes[0]?.id ?? null);
+              setSelectedEdgeId(selEdges[0]?.id ?? null);
+            }}
+            deleteKeyCode={["Backspace", "Delete"]}
+            proOptions={{ hideAttribution: true }}
+          >
+            <EdgeMarkers />
+            <Background gap={18} size={1} color="#4a4a4a" />
+            <Controls />
+            <MiniMap pannable zoomable />
+          </ReactFlow>
+        </div>
+      )}
       </div>
     </section>
   );

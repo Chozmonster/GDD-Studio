@@ -169,3 +169,20 @@ pub fn save_document(
 ) -> Result<(), String> {
     store::save_document(&app, project_id, document)
 }
+
+#[tauri::command]
+pub fn load_variables(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<store::DocVariable>, String> {
+    store::load_variables(&app, project_id)
+}
+
+#[tauri::command]
+pub fn save_variables(
+    app: AppHandle,
+    project_id: String,
+    variables: Vec<store::DocVariable>,
+) -> Result<(), String> {
+    store::save_variables(&app, project_id, variables)
+}

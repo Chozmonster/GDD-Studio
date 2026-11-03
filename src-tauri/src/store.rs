@@ -360,3 +360,37 @@ pub fn save_document(
     let project = project_by_id(app, &project_id)?;
     write_json(&document_path(&project), &document)
 }
+
+const VARIABLES_FILE: &str = "variables.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocVariable {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub value: String,
+}
+
+fn variables_path(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(VARIABLES_FILE)
+}
+
+pub fn load_variables(app: &AppHandle, project_id: String) -> Result<Vec<DocVariable>, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = variables_path(&project);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read variables: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse variables: {e}"))
+}
+
+pub fn save_variables(
+    app: &AppHandle,
+    project_id: String,
+    variables: Vec<DocVariable>,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    write_json(&variables_path(&project), &variables)
+}
