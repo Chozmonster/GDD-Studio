@@ -34,11 +34,34 @@ export type UpdateStatus = {
 
 export type View = "launcher" | "editor";
 
-export type ProjectTab = "document" | "flowchart";
+export type ProjectTab = "document" | "flowchart" | "rgd";
 
 export type FlowchartSummary = {
   id: string;
   name: string;
+};
+
+export type RgdSheetSummary = {
+  id: string;
+  name: string;
+};
+
+/** One gameplay loop through the 7 RGD steps (project-persisted). */
+export type RgdSheetDocument = {
+  format: string;
+  version: number;
+  id: string;
+  name: string;
+  /** Optional primary flowchart link for the sheet. */
+  primaryFlowchartId: string;
+  steps: Record<
+    string,
+    {
+      title: string;
+      /** Type-specific payload object (not a JSON string). */
+      payload: Record<string, unknown>;
+    }
+  >;
 };
 
 export type DocVariableKind = "text" | "number";

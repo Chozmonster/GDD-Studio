@@ -66,6 +66,8 @@ import {
 
 type FlowchartEditorProps = {
   project: ProjectRecord;
+  /** When set (e.g. from a document embed Open), select that flowchart. */
+  focusFlowchartId?: string | null;
 };
 
 const nodeTypes = { flow: FlowNode, labeled: FlowNode };
@@ -112,7 +114,10 @@ function withLabelHandler(
   };
 }
 
-export function FlowchartEditor({ project }: FlowchartEditorProps) {
+export function FlowchartEditor({
+  project,
+  focusFlowchartId,
+}: FlowchartEditorProps) {
   const [flowchartId, setFlowchartId] = useState("main");
   const [name, setName] = useState("Main");
   const [nodes, setNodes] = useNodesState<FlowNodeT>([]);
@@ -214,6 +219,11 @@ export function FlowchartEditor({ project }: FlowchartEditorProps) {
     setFlowchartId(id);
     setName(nextName);
   };
+
+  useEffect(() => {
+    if (!focusFlowchartId || focusFlowchartId === flowchartId) return;
+    setFlowchartId(focusFlowchartId);
+  }, [focusFlowchartId, flowchartId]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNodeT>[]) => {

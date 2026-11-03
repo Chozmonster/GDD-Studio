@@ -88,7 +88,10 @@ export function rgdBlockNode(type: RgdBlockType, title?: string) {
   };
 }
 
-/** Light starter document with all seven RGD sections (opt-in). */
+/**
+ * @deprecated Prefer `buildRgdStarterDoc` + a project RGD sheet.
+ * Kept for reference / older callers; inserts seven inline TipTap blocks.
+ */
 export function buildRgdSkeletonDoc(projectName: string): {
   type: string;
   content: unknown[];

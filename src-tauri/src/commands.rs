@@ -1,6 +1,6 @@
 //! Tauri IPC for launcher (projects, settings, updates).
 
-use crate::store::{self, AppSettings, FlowchartSummary, ProjectRecord};
+use crate::store::{self, AppSettings, FlowchartSummary, ProjectRecord, RgdSheetSummary};
 use crate::updates::{self, UpdateStatus};
 use serde::Serialize;
 use tauri::AppHandle;
@@ -162,6 +162,51 @@ pub fn delete_flowchart(
     flowchart_id: String,
 ) -> Result<(), String> {
     store::delete_flowchart(&app, project_id, flowchart_id)
+}
+
+#[tauri::command]
+pub fn list_rgd_sheets(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<RgdSheetSummary>, String> {
+    store::list_rgd_sheets(&app, project_id)
+}
+
+#[tauri::command]
+pub fn load_rgd_sheet(
+    app: AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<serde_json::Value, String> {
+    store::load_rgd_sheet(&app, project_id, sheet_id)
+}
+
+#[tauri::command]
+pub fn save_rgd_sheet(
+    app: AppHandle,
+    project_id: String,
+    sheet_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    store::save_rgd_sheet(&app, project_id, sheet_id, document)
+}
+
+#[tauri::command]
+pub fn rgd_sheet_exists(
+    app: AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<bool, String> {
+    store::rgd_sheet_exists(&app, project_id, sheet_id)
+}
+
+#[tauri::command]
+pub fn delete_rgd_sheet(
+    app: AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<(), String> {
+    store::delete_rgd_sheet(&app, project_id, sheet_id)
 }
 
 #[tauri::command]

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   checkForUpdates,
   createProject,
+  createRgdSheet,
   deleteProject,
   fetchHealth,
   fetchPatchNotes,
@@ -10,9 +11,12 @@ import {
   openOptionsWindow,
   openProject,
   saveDocument,
+  saveRgdSheet,
 } from "../api";
+import { emitRgdSheetSaved } from "../lib/rgdEvents";
 import type { HealthStatus, ProjectRecord, UpdateStatus } from "../types";
-import { buildRgdSkeletonDoc } from "./editor/rgd/rgdContent";
+import { buildRgdStarterDoc } from "./editor/rgd/migrateRgdBlocks";
+import { emptyRgdSheetDocument } from "./editor/rgd/rgdSheetModel";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { OptionsPanel } from "./OptionsPanel";
 
@@ -108,7 +112,14 @@ export function Launcher({ onOpenProject }: LauncherProps) {
   ) => {
     const created = await createProject(name, parentDir);
     if (options?.rgdTemplate) {
-      await saveDocument(created.id, buildRgdSkeletonDoc(created.name));
+      const sheetSummary = await createRgdSheet(created.id, "Main gameplay");
+      const sheet = emptyRgdSheetDocument(sheetSummary.id, sheetSummary.name);
+      await saveRgdSheet(created.id, sheet.id, sheet);
+      emitRgdSheetSaved(created.id, sheet.id, sheet);
+      await saveDocument(
+        created.id,
+        buildRgdStarterDoc(created.name, sheet.id),
+      );
     }
     await refresh();
     const opened = await openProject(created.id);

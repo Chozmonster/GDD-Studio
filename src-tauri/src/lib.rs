@@ -1,8 +1,8 @@
 //! GDD Studio — Tauri entry.
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
-//! documentation variables. Still deferred: wiki links, assets, spellcheck,
-//! PDF, sync/share.
+//! RGD sheets + documentation variables. Still deferred: wiki links, assets,
+//! spellcheck, PDF, sync/share.
 
 mod commands;
 mod store;
@@ -11,9 +11,10 @@ mod window_geom;
 
 use commands::{
     app_health, check_for_updates, create_project, default_projects_dir, delete_flowchart,
-    delete_project, flowchart_exists, get_patch_notes, get_settings, install_update,
-    list_flowcharts, list_projects, load_document, load_flowchart, load_variables,
-    open_options_window, open_project, save_document, save_flowchart, save_variables,
+    delete_project, delete_rgd_sheet, flowchart_exists, get_patch_notes, get_settings,
+    install_update, list_flowcharts, list_projects, list_rgd_sheets, load_document,
+    load_flowchart, load_rgd_sheet, load_variables, open_options_window, open_project,
+    rgd_sheet_exists, save_document, save_flowchart, save_rgd_sheet, save_variables,
     set_automatic_updates, set_display_variable_names,
 };
 use tauri::Manager;
@@ -57,6 +58,11 @@ pub fn run() {
             save_flowchart,
             flowchart_exists,
             delete_flowchart,
+            list_rgd_sheets,
+            load_rgd_sheet,
+            save_rgd_sheet,
+            rgd_sheet_exists,
+            delete_rgd_sheet,
             load_document,
             save_document,
             load_variables,

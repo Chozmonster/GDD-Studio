@@ -429,3 +429,118 @@ pub fn save_variables(
     let project = project_by_id(app, &project_id)?;
     write_json(&variables_path(&project), &variables)
 }
+
+const RGD_DIR: &str = "rgd";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RgdSheetSummary {
+    pub id: String,
+    pub name: String,
+}
+
+fn rgd_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(RGD_DIR)
+}
+
+fn rgd_sheet_path(project: &ProjectRecord, sheet_id: &str) -> Result<PathBuf, String> {
+    let id = sheet_id.trim();
+    if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err("Invalid RGD sheet id".into());
+    }
+    Ok(rgd_dir(project).join(format!("{id}.json")))
+}
+
+pub fn list_rgd_sheets(app: &AppHandle, project_id: String) -> Result<Vec<RgdSheetSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    let dir = rgd_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read rgd sheets: {e}"))? {
+            let entry = entry.map_err(|e| format!("read rgd sheets entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("untitled")
+                .to_string();
+            let name = fs::read_to_string(&path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .and_then(|v| {
+                    v.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| id.clone());
+            items.push(RgdSheetSummary { id, name });
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(items)
+}
+
+pub fn load_rgd_sheet(
+    app: &AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<serde_json::Value, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = rgd_sheet_path(&project, &sheet_id)?;
+    if !path.exists() {
+        return Ok(empty_rgd_sheet_doc(&sheet_id));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read rgd sheet: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse rgd sheet: {e}"))
+}
+
+pub fn save_rgd_sheet(
+    app: &AppHandle,
+    project_id: String,
+    sheet_id: String,
+    document: serde_json::Value,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = rgd_sheet_path(&project, &sheet_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create rgd dir: {e}"))?;
+    }
+    write_json(&path, &document)
+}
+
+fn empty_rgd_sheet_doc(id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "format": "gdd-studio-rgd-sheet",
+        "version": 1,
+        "id": id,
+        "name": if id == "main" { "Main gameplay" } else { id },
+        "primaryFlowchartId": "",
+        "steps": {}
+    })
+}
+
+pub fn rgd_sheet_exists(
+    app: &AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<bool, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = rgd_sheet_path(&project, &sheet_id)?;
+    Ok(path.is_file())
+}
+
+pub fn delete_rgd_sheet(
+    app: &AppHandle,
+    project_id: String,
+    sheet_id: String,
+) -> Result<(), String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = rgd_sheet_path(&project, &sheet_id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete rgd sheet: {e}"))?;
+    }
+    Ok(())
+}

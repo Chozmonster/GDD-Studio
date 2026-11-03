@@ -94,10 +94,10 @@ export function NewProjectDialog({
             onChange={(e) => setRgdTemplate(e.target.checked)}
           />
           <span>
-            Include Rational Game Design starter sections
+            Include Rational Game Design starter
             <span className="muted tiny block">
-              Opt-in — inserts the 7 RGD steps into the document. You can also add
-              blocks later via Insert RGD…
+              Opt-in — creates one empty RGD sheet and an intro card in the
+              document. Edit steps under the RGD tab.
             </span>
           </span>
         </label>

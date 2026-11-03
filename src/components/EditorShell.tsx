@@ -4,6 +4,7 @@ import type { ProjectRecord, ProjectTab } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
 import { OptionsPanel } from "./OptionsPanel";
+import { RgdEditor } from "./rgd/RgdEditor";
 
 type EditorShellProps = {
   project: ProjectRecord;
@@ -13,9 +14,17 @@ type EditorShellProps = {
 export function EditorShell({ project, onBack }: EditorShellProps) {
   const [tab, setTab] = useState<ProjectTab>("document");
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [focusFlowchartId, setFocusFlowchartId] = useState<string | null>(null);
+  const [focusSheetId, setFocusSheetId] = useState<string | null>(null);
 
-  const openFlowchart = useCallback((_flowchartId: string) => {
+  const openFlowchart = useCallback((flowchartId: string) => {
+    setFocusFlowchartId(flowchartId);
     setTab("flowchart");
+  }, []);
+
+  const openRgdSheet = useCallback((sheetId: string) => {
+    setFocusSheetId(sheetId);
+    setTab("rgd");
   }, []);
 
   const handleOptions = async () => {
@@ -50,6 +59,14 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           >
             Flowcharts
           </button>
+          <button
+            type="button"
+            className={tab === "rgd" ? "tab active" : "tab"}
+            onClick={() => setTab("rgd")}
+            aria-current={tab === "rgd" ? "page" : undefined}
+          >
+            RGD
+          </button>
         </nav>
         <div className="chrome-right">
           <p className="chrome-meta muted path-line" title={project.path}>
@@ -70,10 +87,23 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
               <h2>{project.name}</h2>
               <p className="muted status path-line">{project.path}</p>
             </div>
-            <EditorCanvas project={project} onOpenFlowchart={openFlowchart} />
+            <EditorCanvas
+              project={project}
+              onOpenFlowchart={openFlowchart}
+              onOpenRgdSheet={openRgdSheet}
+            />
           </>
+        ) : tab === "flowchart" ? (
+          <FlowchartEditor
+            project={project}
+            focusFlowchartId={focusFlowchartId}
+          />
         ) : (
-          <FlowchartEditor project={project} />
+          <RgdEditor
+            project={project}
+            focusSheetId={focusSheetId}
+            onOpenFlowchart={openFlowchart}
+          />
         )}
       </main>
 

@@ -7,15 +7,25 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  createRgdSheet,
+  flowchartExists,
   listFlowcharts,
+  listRgdSheets,
   loadDocument,
   loadFlowchart,
+  loadRgdSheet,
   saveDocument,
   saveFlowchart,
-  flowchartExists,
+  saveRgdSheet,
 } from "../api";
 import { emitFlowchartSaved } from "../lib/flowchartEvents";
-import type { DocVariable, FlowchartSummary, ProjectRecord } from "../types";
+import { emitRgdSheetSaved } from "../lib/rgdEvents";
+import type {
+  DocVariable,
+  FlowchartSummary,
+  ProjectRecord,
+  RgdSheetSummary,
+} from "../types";
 import { DocumentMap } from "./editor/DocumentMap";
 import { FlowchartEmbed } from "./editor/flowchartEmbedExtension";
 import {
@@ -23,28 +33,39 @@ import {
   FONT_SIZE_OPTIONS,
   FontSize,
 } from "./editor/fontSize";
+import { migrateRgdBlocksInDocument } from "./editor/rgd/migrateRgdBlocks";
 import { RgdBlock } from "./editor/rgd/rgdBlockExtension";
-import { RGD_INSERT_ORDER, RGD_TYPE_META } from "./editor/rgd/rgdTypes";
-import type { RgdBlockType } from "./editor/rgd/rgdTypes";
+import { RgdSheetEmbed } from "./editor/rgd/rgdSheetEmbedExtension";
+import {
+  emptyRgdSheetDocument,
+  normalizeRgdSheet,
+} from "./editor/rgd/rgdSheetModel";
 import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 
 type EditorCanvasProps = {
   project: ProjectRecord;
   onOpenFlowchart?: (flowchartId: string) => void;
+  onOpenRgdSheet?: (sheetId: string) => void;
 };
 
 function ToolbarDivider() {
   return <span className="toolbar-divider" aria-hidden />;
 }
 
-export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
+export function EditorCanvas({
+  project,
+  onOpenFlowchart,
+  onOpenRgdSheet,
+}: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
+  const [rgdSheets, setRgdSheets] = useState<RgdSheetSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [rgdMenuOpen, setRgdMenuOpen] = useState(false);
+  const [rgdPickerOpen, setRgdPickerOpen] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  const migratedRef = useRef(false);
 
   const editor = useEditor(
     {
@@ -69,6 +90,11 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
         VariableEmbed.configure({
           projectId: project.id,
         }),
+        RgdSheetEmbed.configure({
+          projectId: project.id,
+          onOpenRgdSheet,
+        }),
+        // Legacy node — migrate-on-open replaces these with sheet cards.
         RgdBlock.configure({
           projectId: project.id,
           onOpenFlowchart,
@@ -104,23 +130,66 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
         }, 500);
       },
     },
-    [project.id, onOpenFlowchart],
+    [project.id, onOpenFlowchart, onOpenRgdSheet],
   );
 
   editorRef.current = editor;
 
   useEffect(() => {
+    migratedRef.current = false;
+  }, [project.id]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [doc, list] = await Promise.all([
+        const [doc, list, sheets] = await Promise.all([
           loadDocument(project.id),
           listFlowcharts(project.id),
+          listRgdSheets(project.id),
         ]);
-        if (cancelled) return;
+        if (cancelled || !editor) return;
         setFlowcharts(list);
-        editor?.commands.setContent(doc as object);
-        setStatus("Ready");
+        setRgdSheets(sheets);
+
+        let content = doc;
+        let didMigrate = false;
+        if (!migratedRef.current) {
+          const migration = migrateRgdBlocksInDocument(doc, {
+            sheetName: `${project.name} — Migrated RGD`,
+            sheetId: "migrated-rgd",
+          });
+          if (migration.migrated) {
+            for (const sheet of migration.sheets) {
+              const existing = sheets.find((s) => s.id === sheet.id);
+              if (!existing) {
+                await saveRgdSheet(project.id, sheet.id, sheet);
+                emitRgdSheetSaved(project.id, sheet.id, sheet);
+              } else {
+                const loaded = normalizeRgdSheet(
+                  await loadRgdSheet(project.id, sheet.id),
+                );
+                const merged = normalizeRgdSheet({
+                  ...loaded,
+                  steps: { ...loaded.steps, ...sheet.steps },
+                });
+                await saveRgdSheet(project.id, sheet.id, merged);
+                emitRgdSheetSaved(project.id, sheet.id, merged);
+              }
+            }
+            content = migration.document;
+            await saveDocument(project.id, content);
+            setRgdSheets(await listRgdSheets(project.id));
+            didMigrate = true;
+          }
+          migratedRef.current = true;
+        }
+
+        if (cancelled) return;
+        editor.commands.setContent(content as object);
+        setStatus(
+          didMigrate ? "Migrated legacy RGD blocks into a sheet" : "Ready",
+        );
       } catch (e) {
         if (!cancelled) {
           setStatus(e instanceof Error ? e.message : String(e));
@@ -131,10 +200,14 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, editor]);
+  }, [project.id, project.name, editor]);
 
-  const refreshList = useCallback(async () => {
+  const refreshFlowcharts = useCallback(async () => {
     setFlowcharts(await listFlowcharts(project.id));
+  }, [project.id]);
+
+  const refreshRgdSheets = useCallback(async () => {
+    setRgdSheets(await listRgdSheets(project.id));
   }, [project.id]);
 
   const insertFlowchart = async (flowchartId: string) => {
@@ -145,25 +218,36 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
     }
     editor?.chain().focus().insertFlowchartEmbed(flowchartId).run();
     setPickerOpen(false);
-    const named = flowcharts.find((f) => f.id === flowchartId)?.name ?? flowchartId;
+    const named =
+      flowcharts.find((f) => f.id === flowchartId)?.name ?? flowchartId;
     setStatus(`Embedded flowchart “${named}”`);
   };
 
   const insertVariable = (variable: DocVariable) => {
-    editor?.chain().focus().insertVariableEmbed(variable.id, variable.name).run();
+    editor
+      ?.chain()
+      .focus()
+      .insertVariableEmbed(variable.id, variable.name)
+      .run();
     setStatus(`Inserted {{${variable.name}}}`);
   };
 
-  const insertRgd = (type: RgdBlockType) => {
-    editor?.chain().focus().insertRgdBlock(type).run();
-    setRgdMenuOpen(false);
-    setStatus(`Inserted ${RGD_TYPE_META[type].label}`);
+  const insertRgdSheet = async (sheetId: string) => {
+    editor?.chain().focus().insertRgdSheetEmbed(sheetId).run();
+    setRgdPickerOpen(false);
+    const named = rgdSheets.find((s) => s.id === sheetId)?.name ?? sheetId;
+    setStatus(`Embedded RGD “${named}”`);
   };
 
-  const insertRgdSkeleton = () => {
-    editor?.chain().focus().insertRgdSkeleton().run();
-    setRgdMenuOpen(false);
-    setStatus("Inserted RGD skeleton (7 steps)");
+  const createAndInsertRgdSheet = async () => {
+    const name = window.prompt("New RGD sheet name", "Untitled gameplay");
+    if (name === null) return;
+    const created = await createRgdSheet(project.id, name);
+    const sheet = emptyRgdSheetDocument(created.id, created.name);
+    await saveRgdSheet(project.id, created.id, sheet);
+    emitRgdSheetSaved(project.id, created.id, sheet);
+    await refreshRgdSheets();
+    await insertRgdSheet(created.id);
   };
 
   if (!editor) {
@@ -211,21 +295,27 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
         <div className="toolbar-group">
           <button
             type="button"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 1 }).run()
+            }
             aria-pressed={editor.isActive("heading", { level: 1 })}
           >
             H1
           </button>
           <button
             type="button"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 2 }).run()
+            }
             aria-pressed={editor.isActive("heading", { level: 2 })}
           >
             H2
           </button>
           <button
             type="button"
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 3 }).run()
+            }
             aria-pressed={editor.isActive("heading", { level: 3 })}
           >
             H3
@@ -354,19 +444,19 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
           type="button"
           className="primary"
           onClick={() => {
-            setRgdMenuOpen(false);
-            void refreshList().then(() => setPickerOpen(true));
+            setRgdPickerOpen(false);
+            void refreshFlowcharts().then(() => setPickerOpen(true));
           }}
         >
           Insert flowchart
         </button>
         <button
           type="button"
-          aria-expanded={rgdMenuOpen}
-          aria-haspopup="menu"
+          aria-expanded={rgdPickerOpen}
+          aria-haspopup="dialog"
           onClick={() => {
             setPickerOpen(false);
-            setRgdMenuOpen((o) => !o);
+            void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
           }}
         >
           Insert RGD…
@@ -394,27 +484,37 @@ export function EditorCanvas({ project, onOpenFlowchart }: EditorCanvasProps) {
         </div>
       )}
 
-      {rgdMenuOpen && (
-        <div className="embed-picker rgd-insert-menu" role="menu" aria-label="Insert RGD">
+      {rgdPickerOpen && (
+        <div
+          className="embed-picker rgd-insert-menu"
+          role="dialog"
+          aria-label="Insert RGD sheet"
+        >
           <p className="muted tiny">
-            Rational Game Design blocks — opt-in methodology sections in the document.
+            Embed a compact card that references an RGD sheet (edit under the
+            RGD tab).
           </p>
           <ul>
-            {RGD_INSERT_ORDER.map((type) => {
-              const meta = RGD_TYPE_META[type];
-              return (
-                <li key={type}>
-                  <button type="button" role="menuitem" onClick={() => insertRgd(type)}>
-                    <span className="rgd-menu-step">Step {meta.step}</span> {meta.label}
-                  </button>
-                </li>
-              );
-            })}
+            {rgdSheets.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => void insertRgdSheet(s.id)}>
+                  {s.name} <span className="muted tiny">({s.id})</span>
+                </button>
+              </li>
+            ))}
           </ul>
-          <button type="button" className="ghost" onClick={insertRgdSkeleton}>
-            Insert all 7 steps (skeleton)
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void createAndInsertRgdSheet()}
+          >
+            New sheet + insert card
           </button>
-          <button type="button" className="ghost" onClick={() => setRgdMenuOpen(false)}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setRgdPickerOpen(false)}
+          >
             Cancel
           </button>
         </div>

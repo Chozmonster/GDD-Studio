@@ -6,6 +6,8 @@ import type {
   FlowchartSummary,
   HealthStatus,
   ProjectRecord,
+  RgdSheetDocument,
+  RgdSheetSummary,
   UpdateStatus,
 } from "./types";
 
@@ -17,6 +19,8 @@ type BrowserStore = {
   update?: UpdateStatus | null;
   /** projectId → flowchartId → document */
   flowcharts?: Record<string, Record<string, FlowchartDocument>>;
+  /** projectId → sheetId → RGD sheet document */
+  rgdSheets?: Record<string, Record<string, RgdSheetDocument>>;
   /** projectId → TipTap JSON doc */
   documents?: Record<string, unknown>;
   /** projectId → documentation variables */
@@ -483,5 +487,104 @@ export async function createFlowchart(
   const doc = emptyFlowchart(id);
   doc.name = trimmed;
   await saveFlowchart(projectId, id, doc);
+  return { id, name: trimmed };
+}
+
+function emptyRgdSheet(id: string, name?: string): RgdSheetDocument {
+  // Minimal stub for missing files; callers normalize via rgdSheetModel.
+  return {
+    format: "gdd-studio-rgd-sheet",
+    version: 1,
+    id,
+    name: name ?? (id === "main" ? "Main gameplay" : id),
+    primaryFlowchartId: "",
+    steps: {},
+  };
+}
+
+export async function listRgdSheets(
+  projectId: string,
+): Promise<RgdSheetSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = store.rgdSheets?.[projectId] ?? {};
+    return Object.values(map)
+      .map((doc) => ({ id: doc.id, name: doc.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return invoke<RgdSheetSummary[]>("list_rgd_sheets", { projectId });
+}
+
+export async function loadRgdSheet(
+  projectId: string,
+  sheetId: string,
+): Promise<RgdSheetDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return store.rgdSheets?.[projectId]?.[sheetId] ?? emptyRgdSheet(sheetId);
+  }
+  return invoke<RgdSheetDocument>("load_rgd_sheet", { projectId, sheetId });
+}
+
+export async function saveRgdSheet(
+  projectId: string,
+  sheetId: string,
+  document: RgdSheetDocument,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.rgdSheets) store.rgdSheets = {};
+    if (!store.rgdSheets[projectId]) store.rgdSheets[projectId] = {};
+    store.rgdSheets[projectId][sheetId] = document;
+    saveBrowser(store);
+    return;
+  }
+  await invoke("save_rgd_sheet", { projectId, sheetId, document });
+}
+
+export async function rgdSheetExists(
+  projectId: string,
+  sheetId: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return Boolean(store.rgdSheets?.[projectId]?.[sheetId]);
+  }
+  return invoke<boolean>("rgd_sheet_exists", { projectId, sheetId });
+}
+
+export async function deleteRgdSheet(
+  projectId: string,
+  sheetId: string,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.rgdSheets?.[projectId]) {
+      delete store.rgdSheets[projectId][sheetId];
+      saveBrowser(store);
+    }
+    return;
+  }
+  await invoke("delete_rgd_sheet", { projectId, sheetId });
+}
+
+/** Create an empty named RGD sheet and persist it. */
+export async function createRgdSheet(
+  projectId: string,
+  name: string,
+): Promise<RgdSheetSummary> {
+  const trimmed = name.trim() || "Untitled gameplay";
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "rgd-sheet";
+  let id = base;
+  let n = 2;
+  while (await rgdSheetExists(projectId, id)) {
+    id = `${base}-${n++}`;
+  }
+  const doc = emptyRgdSheet(id, trimmed);
+  await saveRgdSheet(projectId, id, doc);
   return { id, name: trimmed };
 }

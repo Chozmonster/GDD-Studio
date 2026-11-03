@@ -6,7 +6,7 @@ import { RGD_TYPE_META } from "./rgd/rgdTypes";
 
 export type OutlineItem = {
   id: string;
-  kind: "heading" | "rgd";
+  kind: "heading" | "rgd" | "rgdSheet";
   level: number;
   text: string;
   pos: number;
@@ -30,6 +30,17 @@ function collectOutline(editor: Editor): OutlineItem[] {
         kind: "heading",
         level,
         text,
+        pos,
+      });
+      return;
+    }
+    if (node.type.name === "rgdSheetEmbed") {
+      const sheetId = String(node.attrs.sheetId ?? "").trim() || "sheet";
+      items.push({
+        id: `rgd-sheet-${pos}-${sheetId}`,
+        kind: "rgdSheet",
+        level: 2,
+        text: `RGD · ${sheetId}`,
         pos,
       });
       return;
@@ -104,15 +115,22 @@ export function DocumentMap({ editor }: DocumentMapProps) {
       const scroller = editor.view.dom.closest(".editor-canvas");
       if (scroller instanceof HTMLElement) {
         const top =
-          coords.top - scroller.getBoundingClientRect().top + scroller.scrollTop - 24;
+          coords.top -
+          scroller.getBoundingClientRect().top +
+          scroller.scrollTop -
+          24;
         scroller.scrollTo({ top, behavior: "smooth" });
       }
     }
   };
 
   const visible =
-    filter === "rgd" ? items.filter((i) => i.kind === "rgd") : items;
-  const rgdCount = items.filter((i) => i.kind === "rgd").length;
+    filter === "rgd"
+      ? items.filter((i) => i.kind === "rgd" || i.kind === "rgdSheet")
+      : items;
+  const rgdCount = items.filter(
+    (i) => i.kind === "rgd" || i.kind === "rgdSheet",
+  ).length;
 
   return (
     <aside className="doc-side-panel doc-map" aria-label="Document map">
@@ -132,7 +150,7 @@ export function DocumentMap({ editor }: DocumentMapProps) {
             className="tiny-btn"
             aria-pressed={filter === "rgd"}
             onClick={() => setFilter("rgd")}
-            title="Show Rational Game Design blocks only"
+            title="Show Rational Game Design references only"
           >
             RGD{rgdCount ? ` (${rgdCount})` : ""}
           </button>
@@ -141,15 +159,17 @@ export function DocumentMap({ editor }: DocumentMapProps) {
       {visible.length === 0 ? (
         <p className="muted tiny doc-side-empty">
           {filter === "rgd"
-            ? "No RGD blocks yet. Use Insert RGD… in the toolbar."
-            : "Add H1–H3 headings or RGD blocks to build an outline."}
+            ? "No RGD cards yet. Use Insert RGD… in the toolbar."
+            : "Add H1–H3 headings or RGD cards to build an outline."}
         </p>
       ) : (
         <ul className="doc-map-list">
           {visible.map((h) => (
             <li
               key={h.id}
-              className={`doc-map-item level-${h.level}${h.kind === "rgd" ? " is-rgd" : ""}`}
+              className={`doc-map-item level-${h.level}${
+                h.kind === "rgd" || h.kind === "rgdSheet" ? " is-rgd" : ""
+              }`}
             >
               <button
                 type="button"
