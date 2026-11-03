@@ -1,13 +1,18 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { bytesToBase64, fileToBase64 } from "./lib/bytes";
 import type {
   AppSettings,
+  AssetRecord,
+  DocSummary,
   DocVariable,
   FlowchartDocument,
   FlowchartSummary,
   HealthStatus,
+  ProjectDocument,
   ProjectRecord,
   RgdSheetDocument,
   RgdSheetSummary,
+  TemplateRecord,
   UpdateStatus,
 } from "./types";
 
@@ -21,10 +26,20 @@ type BrowserStore = {
   flowcharts?: Record<string, Record<string, FlowchartDocument>>;
   /** projectId → sheetId → RGD sheet document */
   rgdSheets?: Record<string, Record<string, RgdSheetDocument>>;
-  /** projectId → TipTap JSON doc */
+  /** projectId → TipTap JSON doc (legacy single-doc; migrated into projectDocs) */
   documents?: Record<string, unknown>;
   /** projectId → documentation variables */
   variables?: Record<string, DocVariable[]>;
+  /** projectId → docId → ProjectDocument */
+  projectDocs?: Record<string, Record<string, ProjectDocument>>;
+  /** projectId → assets */
+  assets?: Record<string, AssetRecord[]>;
+  /** projectId → assetId → base64 payload */
+  assetData?: Record<string, Record<string, string>>;
+  /** app-level templates */
+  appTemplates?: TemplateRecord[];
+  /** projectId → templates */
+  projectTemplates?: Record<string, TemplateRecord[]>;
 };
 
 function isTauriRuntime(): boolean {
@@ -588,3 +603,482 @@ export async function createRgdSheet(
   await saveRgdSheet(projectId, id, doc);
   return { id, name: trimmed };
 }
+
+function slugify(input: string): string {
+  const slug = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || "untitled";
+}
+
+function defaultDocBody(title: string): unknown {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "heading",
+        attrs: { level: 1 },
+        content: [{ type: "text", text: title }],
+      },
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "Start writing. Link other pages with [[Page Title]].",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function ensureBrowserDocs(store: BrowserStore, projectId: string): Record<string, ProjectDocument> {
+  if (!store.projectDocs) store.projectDocs = {};
+  if (!store.projectDocs[projectId]) {
+    const legacy = store.documents?.[projectId];
+    const project = store.projects.find((p) => p.id === projectId);
+    const title = project?.name ?? "Untitled document";
+    store.projectDocs[projectId] = {
+      main: {
+        id: "main",
+        title,
+        slug: "main",
+        body: legacy ?? defaultDocBody(title),
+        updatedAt: nowSecs(),
+        templateId: null,
+      },
+    };
+  }
+  return store.projectDocs[projectId];
+}
+
+export async function listDocuments(projectId: string): Promise<DocSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = ensureBrowserDocs(store, projectId);
+    saveBrowser(store);
+    return Object.values(map)
+      .map((d) => ({
+        id: d.id,
+        title: d.title,
+        slug: d.slug,
+        updatedAt: d.updatedAt,
+      }))
+      .sort((a, b) => {
+        if (a.id === "main") return -1;
+        if (b.id === "main") return 1;
+        return a.title.localeCompare(b.title);
+      });
+  }
+  return invoke<DocSummary[]>("list_documents", { projectId });
+}
+
+export async function loadProjectDocument(
+  projectId: string,
+  docId: string,
+): Promise<ProjectDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = ensureBrowserDocs(store, projectId);
+    const doc = map[docId];
+    if (!doc) throw new Error(`Unknown document id: ${docId}`);
+    return doc;
+  }
+  return invoke<ProjectDocument>("load_project_document", { projectId, docId });
+}
+
+export async function saveProjectDocument(
+  projectId: string,
+  document: ProjectDocument,
+): Promise<ProjectDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = ensureBrowserDocs(store, projectId);
+    const next = { ...document, updatedAt: nowSecs() };
+    map[document.id] = next;
+    if (document.id === "main") {
+      if (!store.documents) store.documents = {};
+      store.documents[projectId] = document.body;
+    }
+    saveBrowser(store);
+    return next;
+  }
+  return invoke<ProjectDocument>("save_project_document", {
+    projectId,
+    document,
+  });
+}
+
+export async function createProjectDocument(
+  projectId: string,
+  title: string,
+): Promise<ProjectDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = ensureBrowserDocs(store, projectId);
+    const trimmed = title.trim() || "Untitled";
+    const base = slugify(trimmed);
+    let id = base;
+    let n = 2;
+    while (map[id]) id = `${base}-${n++}`;
+    const doc: ProjectDocument = {
+      id,
+      title: trimmed,
+      slug: id,
+      body: defaultDocBody(trimmed),
+      updatedAt: nowSecs(),
+      templateId: null,
+    };
+    map[id] = doc;
+    saveBrowser(store);
+    return doc;
+  }
+  return invoke<ProjectDocument>("create_project_document", {
+    projectId,
+    title,
+  });
+}
+
+export async function deleteProjectDocument(
+  projectId: string,
+  docId: string,
+): Promise<void> {
+  if (docId === "main") throw new Error("Cannot delete the main document");
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = ensureBrowserDocs(store, projectId);
+    delete map[docId];
+    saveBrowser(store);
+    return;
+  }
+  await invoke("delete_project_document", { projectId, docId });
+}
+
+export async function resolveWikiSlug(
+  projectId: string,
+  slugOrTitle: string,
+): Promise<DocSummary | null> {
+  if (!isTauriRuntime()) {
+    const needle = slugOrTitle.trim().toLowerCase();
+    if (!needle) return null;
+    const docs = await listDocuments(projectId);
+    return (
+      docs.find(
+        (d) =>
+          d.slug.toLowerCase() === needle ||
+          d.id.toLowerCase() === needle ||
+          d.title.toLowerCase() === needle ||
+          slugify(d.title) === slugify(needle),
+      ) ?? null
+    );
+  }
+  return invoke<DocSummary | null>("resolve_wiki_slug", {
+    projectId,
+    slugOrTitle,
+  });
+}
+
+function bodyLinksTo(
+  value: unknown,
+  target: DocSummary,
+): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((v) => bodyLinksTo(v, target));
+  const obj = value as Record<string, unknown>;
+  if (obj.type === "wikiLink") {
+    const attrs = (obj.attrs ?? {}) as Record<string, unknown>;
+    const docId = String(attrs.docId ?? "");
+    const slug = String(attrs.slug ?? "");
+    const title = String(attrs.title ?? "");
+    if (
+      (docId && docId === target.id) ||
+      (slug &&
+        (slug.toLowerCase() === target.slug.toLowerCase() ||
+          slug.toLowerCase() === target.id.toLowerCase())) ||
+      (title && title.toLowerCase() === target.title.toLowerCase())
+    ) {
+      return true;
+    }
+  }
+  return Object.values(obj).some((v) => bodyLinksTo(v, target));
+}
+
+export async function listBacklinks(
+  projectId: string,
+  targetDocId: string,
+): Promise<DocSummary[]> {
+  if (!isTauriRuntime()) {
+    const docs = await listDocuments(projectId);
+    const target = docs.find((d) => d.id === targetDocId);
+    if (!target) throw new Error(`Unknown document id: ${targetDocId}`);
+    const out: DocSummary[] = [];
+    for (const summary of docs) {
+      if (summary.id === target.id) continue;
+      const full = await loadProjectDocument(projectId, summary.id);
+      if (bodyLinksTo(full.body, target)) out.push(summary);
+    }
+    return out;
+  }
+  return invoke<DocSummary[]>("list_backlinks", { projectId, targetDocId });
+}
+
+function kindFromMime(mime: string, filename: string): string {
+  const m = mime.toLowerCase();
+  const lower = filename.toLowerCase();
+  if (m.startsWith("image/") || lower.endsWith(".gif")) {
+    return m.includes("gif") || lower.endsWith(".gif") ? "gif" : "image";
+  }
+  if (m.startsWith("video/")) return "video";
+  if (m.startsWith("audio/")) return "audio";
+  if (/\.(mp4|webm|mov|mkv)$/i.test(lower)) return "video";
+  if (/\.(mp3|wav|ogg|m4a|flac)$/i.test(lower)) return "audio";
+  return "image";
+}
+
+export async function listAssets(projectId: string): Promise<AssetRecord[]> {
+  if (!isTauriRuntime()) {
+    return (loadBrowser().assets?.[projectId] ?? []).slice();
+  }
+  return invoke<AssetRecord[]>("list_assets", { projectId });
+}
+
+export async function saveAsset(
+  projectId: string,
+  filename: string,
+  mime: string,
+  dataBase64: string,
+): Promise<AssetRecord> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.assets) store.assets = {};
+    if (!store.assetData) store.assetData = {};
+    if (!store.assets[projectId]) store.assets[projectId] = [];
+    if (!store.assetData[projectId]) store.assetData[projectId] = {};
+    const id = crypto.randomUUID();
+    const kind = kindFromMime(mime, filename);
+    const ext =
+      filename.split(".").pop()?.toLowerCase() ||
+      mime.split("/")[1]?.split(";")[0] ||
+      "bin";
+    const record: AssetRecord = {
+      id,
+      kind,
+      filename,
+      mime,
+      byteSize: Math.floor((dataBase64.length * 3) / 4),
+      storageRef: `${id}.${ext}`,
+      createdAt: nowSecs(),
+    };
+    store.assets[projectId].push(record);
+    store.assetData[projectId][id] = dataBase64;
+    saveBrowser(store);
+    return record;
+  }
+  return invoke<AssetRecord>("save_asset", {
+    projectId,
+    filename,
+    mime,
+    dataBase64,
+  });
+}
+
+export async function saveAssetFromFile(
+  projectId: string,
+  file: File,
+): Promise<AssetRecord> {
+  const dataBase64 = await fileToBase64(file);
+  return saveAsset(
+    projectId,
+    file.name || "paste.bin",
+    file.type || "application/octet-stream",
+    dataBase64,
+  );
+}
+
+export async function getAssetSrc(
+  projectId: string,
+  assetId: string,
+): Promise<string> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const record = store.assets?.[projectId]?.find((a) => a.id === assetId);
+    const b64 = store.assetData?.[projectId]?.[assetId];
+    if (!record || !b64) throw new Error(`Unknown asset id: ${assetId}`);
+    const mime = record.mime || "application/octet-stream";
+    return `data:${mime};base64,${b64}`;
+  }
+  try {
+    return await invoke<string>("get_asset_data_url", { projectId, assetId });
+  } catch {
+    const path = await invoke<string>("get_asset_path", { projectId, assetId });
+    return convertFileSrc(path);
+  }
+}
+
+export async function deleteAsset(
+  projectId: string,
+  assetId: string,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.assets?.[projectId]) {
+      store.assets[projectId] = store.assets[projectId].filter(
+        (a) => a.id !== assetId,
+      );
+    }
+    if (store.assetData?.[projectId]) {
+      delete store.assetData[projectId][assetId];
+    }
+    saveBrowser(store);
+    return;
+  }
+  await invoke("delete_asset", { projectId, assetId });
+}
+
+export async function listTemplates(
+  projectId?: string | null,
+): Promise<TemplateRecord[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const app = (store.appTemplates ?? []).map((t) => ({
+      ...t,
+      scope: "app" as const,
+    }));
+    const project = projectId
+      ? (store.projectTemplates?.[projectId] ?? []).map((t) => ({
+          ...t,
+          scope: "project" as const,
+          projectId,
+        }))
+      : [];
+    return [...app, ...project].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return invoke<TemplateRecord[]>("list_templates", {
+    projectId: projectId ?? null,
+  });
+}
+
+export async function saveTemplate(args: {
+  name: string;
+  body: unknown;
+  scope: "app" | "project";
+  projectId?: string | null;
+  templateId?: string | null;
+}): Promise<TemplateRecord> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const now = nowSecs();
+    const id = args.templateId?.trim() || crypto.randomUUID();
+    const record: TemplateRecord = {
+      id,
+      name: args.name.trim(),
+      scope: args.scope,
+      body: args.body,
+      createdAt: now,
+      updatedAt: now,
+      projectId: args.scope === "project" ? args.projectId ?? null : null,
+    };
+    if (args.scope === "project") {
+      const pid = args.projectId;
+      if (!pid) throw new Error("projectId required for project templates");
+      if (!store.projectTemplates) store.projectTemplates = {};
+      if (!store.projectTemplates[pid]) store.projectTemplates[pid] = [];
+      const idx = store.projectTemplates[pid].findIndex((t) => t.id === id);
+      if (idx >= 0) {
+        record.createdAt = store.projectTemplates[pid][idx].createdAt;
+        store.projectTemplates[pid][idx] = record;
+      } else {
+        store.projectTemplates[pid].push(record);
+      }
+    } else {
+      if (!store.appTemplates) store.appTemplates = [];
+      const idx = store.appTemplates.findIndex((t) => t.id === id);
+      if (idx >= 0) {
+        record.createdAt = store.appTemplates[idx].createdAt;
+        store.appTemplates[idx] = record;
+      } else {
+        store.appTemplates.push(record);
+      }
+    }
+    saveBrowser(store);
+    return record;
+  }
+  return invoke<TemplateRecord>("save_template", {
+    name: args.name,
+    body: args.body,
+    scope: args.scope,
+    projectId: args.projectId ?? null,
+    templateId: args.templateId ?? null,
+  });
+}
+
+export async function loadTemplate(
+  templateId: string,
+  scope: "app" | "project" | string,
+  projectId?: string | null,
+): Promise<TemplateRecord> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const list =
+      scope === "project"
+        ? store.projectTemplates?.[projectId ?? ""] ?? []
+        : store.appTemplates ?? [];
+    const found = list.find((t) => t.id === templateId);
+    if (!found) throw new Error(`Unknown template id: ${templateId}`);
+    return found;
+  }
+  return invoke<TemplateRecord>("load_template", {
+    templateId,
+    scope,
+    projectId: projectId ?? null,
+  });
+}
+
+export async function deleteTemplate(
+  templateId: string,
+  scope: "app" | "project" | string,
+  projectId?: string | null,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (scope === "project" && projectId) {
+      if (store.projectTemplates?.[projectId]) {
+        store.projectTemplates[projectId] = store.projectTemplates[
+          projectId
+        ].filter((t) => t.id !== templateId);
+      }
+    } else if (store.appTemplates) {
+      store.appTemplates = store.appTemplates.filter((t) => t.id !== templateId);
+    }
+    saveBrowser(store);
+    return;
+  }
+  await invoke("delete_template", {
+    templateId,
+    scope,
+    projectId: projectId ?? null,
+  });
+}
+
+export async function writeExportHtml(html: string): Promise<string> {
+  if (!isTauriRuntime()) {
+    return `browser-export://${nowSecs()}`;
+  }
+  return invoke<string>("write_export_html", { html });
+}
+
+/** Prefer convertFileSrc path when data URL fails for large video. */
+export async function getAssetPath(
+  projectId: string,
+  assetId: string,
+): Promise<string> {
+  if (!isTauriRuntime()) {
+    return getAssetSrc(projectId, assetId);
+  }
+  return invoke<string>("get_asset_path", { projectId, assetId });
+}
+
+export { bytesToBase64, convertFileSrc };

@@ -74,6 +74,54 @@ export type DocVariable = {
   value: string;
 };
 
+export type DocSummary = {
+  id: string;
+  title: string;
+  slug: string;
+  updatedAt: number;
+};
+
+export type ProjectDocument = {
+  id: string;
+  title: string;
+  slug: string;
+  body: unknown;
+  updatedAt: number;
+  templateId?: string | null;
+};
+
+export type AssetKind = "image" | "gif" | "video" | "audio";
+
+export type AssetRecord = {
+  id: string;
+  kind: AssetKind | string;
+  filename: string;
+  mime: string;
+  byteSize: number;
+  storageRef: string;
+  createdAt: number;
+};
+
+export type TemplateRecord = {
+  id: string;
+  name: string;
+  scope: "app" | "project" | string;
+  body: unknown;
+  createdAt: number;
+  updatedAt: number;
+  projectId?: string | null;
+};
+
+export type WordDefinition = {
+  word: string;
+  phonetic?: string;
+  meanings: Array<{
+    partOfSpeech: string;
+    definitions: Array<{ definition: string; example?: string }>;
+  }>;
+  source: "cache" | "network" | "builtin";
+};
+
 export type FlowchartViewport = {
   x: number;
   y: number;
