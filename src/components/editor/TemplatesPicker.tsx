@@ -17,9 +17,18 @@ export function TemplatesPicker({
 }: TemplatesPickerProps) {
   const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    setTemplates(await listTemplates(projectId));
+    setLoading(true);
+    try {
+      setTemplates(await listTemplates(projectId));
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -32,20 +41,34 @@ export function TemplatesPicker({
       "Untitled template",
     );
     if (name === null) return;
-    await saveTemplate({
-      name,
-      body: currentBody,
-      scope,
-      projectId: scope === "project" ? projectId : null,
-    });
-    setStatus(`Saved “${name.trim()}” (${scope})`);
-    await refresh();
+    setBusy(true);
+    try {
+      await saveTemplate({
+        name,
+        body: currentBody,
+        scope,
+        projectId: scope === "project" ? projectId : null,
+      });
+      setStatus(`Saved “${name.trim()}” (${scope})`);
+      await refresh();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const remove = async (t: TemplateRecord) => {
     if (!window.confirm(`Delete template “${t.name}”?`)) return;
-    await deleteTemplate(t.id, t.scope, t.projectId);
-    await refresh();
+    setBusy(true);
+    try {
+      await deleteTemplate(t.id, t.scope, t.projectId);
+      await refresh();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -55,16 +78,26 @@ export function TemplatesPicker({
         template.
       </p>
       <div className="templates-actions">
-        <button type="button" className="primary" onClick={() => void saveCurrent("project")}>
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => void saveCurrent("project")}
+        >
           Save as project template
         </button>
-        <button type="button" onClick={() => void saveCurrent("app")}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void saveCurrent("app")}
+        >
           Save as app template
         </button>
       </div>
       {status && <p className="muted tiny">{status}</p>}
+      {loading && <p className="muted tiny">Loading templates…</p>}
       <ul className="templates-list">
-        {templates.length === 0 && (
+        {!loading && templates.length === 0 && (
           <li className="muted tiny">No templates yet.</li>
         )}
         {templates.map((t) => (
@@ -78,6 +111,7 @@ export function TemplatesPicker({
                 <button
                   type="button"
                   className="primary"
+                  disabled={busy}
                   onClick={() => {
                     onApply(t.body, t.name);
                     onClose();
@@ -85,7 +119,12 @@ export function TemplatesPicker({
                 >
                   Apply
                 </button>
-                <button type="button" className="ghost" onClick={() => void remove(t)}>
+                <button
+                  type="button"
+                  className="ghost danger-outline"
+                  disabled={busy}
+                  onClick={() => void remove(t)}
+                >
                   Delete
                 </button>
               </div>

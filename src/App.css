@@ -529,6 +529,36 @@ code {
   color: #e8fff2;
 }
 
+.toolbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.4rem;
+}
+
+.toolbar-icon-btn .toolbar-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.toolbar-icon-btn .toolbar-icon-label {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.toolbar-actions {
+  gap: 0.3rem;
+}
+
+.flowchart-sidebar-empty {
+  padding: 0.75rem 0.85rem;
+}
+
 .toolbar-group {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2178,5 +2208,158 @@ code {
 .word-meaning .example {
   display: inline;
   font-size: 0.78rem;
+}
+
+/* ── Help panel ─────────────────────────────────────────── */
+
+.help-panel {
+  width: min(820px, 94vw);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.help-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.help-panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.help-panel-body {
+  display: grid;
+  grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.help-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border-right: 1px solid var(--line);
+  background: var(--bg-panel);
+  overflow: auto;
+}
+
+.help-nav-item {
+  text-align: left;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+.help-nav-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--line);
+}
+
+.help-nav-item.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: #e8fff2;
+}
+
+.help-content {
+  overflow: auto;
+  padding: 1rem 1.15rem 1.35rem;
+  outline: none;
+}
+
+.help-article h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+}
+
+.help-article h4,
+.help-subhead {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.88rem;
+}
+
+.help-article p {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.help-feature-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.help-feature-list li {
+  margin: 0.35rem 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.help-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.help-step-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+
+.help-step-card h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.88rem;
+}
+
+.help-step-card p {
+  margin: 0 0 0.3rem;
+  font-size: 0.82rem;
+}
+
+.help-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: #e8fff2;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .help-panel-body {
+    grid-template-columns: 1fr;
+  }
+
+  .help-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
 }
 

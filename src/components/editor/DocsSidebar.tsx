@@ -23,8 +23,10 @@ export function DocsSidebar({
   const [docs, setDocs] = useState<DocSummary[]>([]);
   const [backlinks, setBacklinks] = useState<DocSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const list = await listDocuments(projectId);
       setDocs(list);
@@ -34,6 +36,8 @@ export function DocsSidebar({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
   }, [projectId, activeDocId]);
 
@@ -66,6 +70,10 @@ export function DocsSidebar({
         </button>
       </div>
       {error && <p className="error tiny">{error}</p>}
+      {loading && <p className="muted tiny docs-empty">Loading pages…</p>}
+      {!loading && docs.length === 0 && (
+        <p className="muted tiny docs-empty">No pages yet.</p>
+      )}
       <ul className="docs-list">
         {docs.map((d) => (
           <li key={d.id} className={d.id === activeDocId ? "active" : undefined}>

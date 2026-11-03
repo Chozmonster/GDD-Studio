@@ -105,44 +105,54 @@ export function FlowchartSidebar({
           New
         </button>
       </header>
-      <ul className="flowchart-sidebar-list">
-        {list.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={
-                item.id === activeId
-                  ? "flowchart-side-row active"
-                  : "flowchart-side-row"
-              }
-              onClick={() => onSelect(item.id, item.name)}
-            >
-              <span className="flowchart-side-name">{item.name}</span>
-              <span className="muted tiny">{item.id}</span>
-            </button>
-            <div className="flowchart-side-actions">
+      {list.length === 0 ? (
+        <p className="muted tiny flowchart-sidebar-empty">
+          No flowcharts yet. Create one to diagram a loop or system.
+        </p>
+      ) : (
+        <ul className="flowchart-sidebar-list">
+          {list.map((item) => (
+            <li key={item.id}>
               <button
                 type="button"
-                className="ghost tiny-btn"
-                disabled={busy}
-                onClick={() => void handleRename(item)}
-                title="Rename"
+                className={
+                  item.id === activeId
+                    ? "flowchart-side-row active"
+                    : "flowchart-side-row"
+                }
+                onClick={() => onSelect(item.id, item.name)}
               >
-                Rename
+                <span className="flowchart-side-name">{item.name}</span>
+                <span className="muted tiny">{item.id}</span>
               </button>
-              <button
-                type="button"
-                className="ghost tiny-btn danger-outline"
-                disabled={busy}
-                onClick={() => void handleDelete(item)}
-                title="Delete"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              <div className="flowchart-side-actions">
+                <button
+                  type="button"
+                  className="ghost tiny-btn"
+                  disabled={busy}
+                  onClick={() => void handleRename(item)}
+                  title="Rename"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="ghost tiny-btn danger-outline"
+                  disabled={busy || item.id === "main"}
+                  onClick={() => void handleDelete(item)}
+                  title={
+                    item.id === "main"
+                      ? "Main flowchart cannot be deleted"
+                      : "Delete"
+                  }
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }

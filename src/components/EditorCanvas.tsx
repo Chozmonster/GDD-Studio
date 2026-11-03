@@ -5,6 +5,29 @@ import TextAlign from "@tiptap/extension-text-align";
 import FontFamily from "@tiptap/extension-font-family";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  BookOpen,
+  FileDown,
+  Heading1,
+  Heading2,
+  Heading3,
+  FileStack,
+  Image as ImageIcon,
+  Indent,
+  Italic,
+  Layers,
+  Link2,
+  List,
+  ListOrdered,
+  Outdent,
+  Underline as UnderlineIcon,
+  Workflow,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createRgdSheet,
@@ -50,6 +73,7 @@ import {
 } from "./editor/rgd/rgdSheetModel";
 import { Spellcheck } from "./editor/spellcheckExtension";
 import { TemplatesPicker } from "./editor/TemplatesPicker";
+import { ToolbarIconButton } from "./editor/ToolbarIconButton";
 import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 import { WikiLink } from "./editor/wikiLinkExtension";
@@ -500,133 +524,111 @@ export function EditorCanvas({
     <section className="editor-shell" aria-label={`Editing ${project.name}`}>
       <header className="editor-toolbar" role="toolbar" aria-label="Formatting">
         <div className="toolbar-group">
-          <button
-            type="button"
+          <ToolbarIconButton
+            label="Bold"
+            icon={Bold}
+            pressed={editor.isActive("bold")}
             onClick={() => editor.chain().focus().toggleBold().run()}
-            aria-pressed={editor.isActive("bold")}
-          >
-            Bold
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Italic"
+            icon={Italic}
+            pressed={editor.isActive("italic")}
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            aria-pressed={editor.isActive("italic")}
-          >
-            Italic
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Underline"
+            icon={UnderlineIcon}
+            pressed={editor.isActive("underline")}
             onClick={() => editor.chain().focus().toggleUnderline().run()}
-            aria-pressed={editor.isActive("underline")}
-          >
-            Underline
-          </button>
+          />
         </div>
 
         <ToolbarDivider />
 
         <div className="toolbar-group">
-          <button
-            type="button"
+          <ToolbarIconButton
+            label="Heading 1"
+            icon={Heading1}
+            pressed={editor.isActive("heading", { level: 1 })}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 1 }).run()
             }
-            aria-pressed={editor.isActive("heading", { level: 1 })}
-          >
-            H1
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Heading 2"
+            icon={Heading2}
+            pressed={editor.isActive("heading", { level: 2 })}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 2 }).run()
             }
-            aria-pressed={editor.isActive("heading", { level: 2 })}
-          >
-            H2
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Heading 3"
+            icon={Heading3}
+            pressed={editor.isActive("heading", { level: 3 })}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 3 }).run()
             }
-            aria-pressed={editor.isActive("heading", { level: 3 })}
-          >
-            H3
-          </button>
+          />
         </div>
 
         <ToolbarDivider />
 
         <div className="toolbar-group">
-          <button
-            type="button"
+          <ToolbarIconButton
+            label="Bullet list"
+            icon={List}
+            pressed={editor.isActive("bulletList")}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            aria-pressed={editor.isActive("bulletList")}
-            title="Bullet list"
-          >
-            Bullets
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Numbered list"
+            icon={ListOrdered}
+            pressed={editor.isActive("orderedList")}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            aria-pressed={editor.isActive("orderedList")}
-            title="Numbered list"
-          >
-            Numbered
-          </button>
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().sinkListItem("listItem").run()}
+          />
+          <ToolbarIconButton
+            label="Indent (Tab)"
+            icon={Indent}
             disabled={!editor.can().sinkListItem("listItem")}
-            title="Indent (Tab)"
-          >
-            Indent
-          </button>
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().liftListItem("listItem").run()}
+            onClick={() => editor.chain().focus().sinkListItem("listItem").run()}
+          />
+          <ToolbarIconButton
+            label="Outdent (Shift+Tab)"
+            icon={Outdent}
             disabled={!editor.can().liftListItem("listItem")}
-            title="Outdent (Shift+Tab)"
-          >
-            Outdent
-          </button>
+            onClick={() => editor.chain().focus().liftListItem("listItem").run()}
+          />
         </div>
 
         <ToolbarDivider />
 
         <div className="toolbar-group">
-          <button
-            type="button"
+          <ToolbarIconButton
+            label="Align left"
+            icon={AlignLeft}
+            pressed={editor.isActive({ textAlign: "left" })}
             onClick={() => editor.chain().focus().setTextAlign("left").run()}
-            aria-pressed={editor.isActive({ textAlign: "left" })}
-            title="Align left"
-          >
-            Left
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Align center"
+            icon={AlignCenter}
+            pressed={editor.isActive({ textAlign: "center" })}
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
-            aria-pressed={editor.isActive({ textAlign: "center" })}
-            title="Align center"
-          >
-            Center
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Align right"
+            icon={AlignRight}
+            pressed={editor.isActive({ textAlign: "right" })}
             onClick={() => editor.chain().focus().setTextAlign("right").run()}
-            aria-pressed={editor.isActive({ textAlign: "right" })}
-            title="Align right"
-          >
-            Right
-          </button>
-          <button
-            type="button"
+          />
+          <ToolbarIconButton
+            label="Justify"
+            icon={AlignJustify}
+            pressed={editor.isActive({ textAlign: "justify" })}
             onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-            aria-pressed={editor.isActive({ textAlign: "justify" })}
-            title="Justify"
-          >
-            Justify
-          </button>
+          />
         </div>
 
         <ToolbarDivider />
@@ -673,60 +675,78 @@ export function EditorCanvas({
 
         <ToolbarDivider />
 
-        <button
-          type="button"
-          className="primary"
-          onClick={() => {
-            setRgdPickerOpen(false);
-            setTemplatesOpen(false);
-            void refreshFlowcharts().then(() => setPickerOpen(true));
-          }}
-        >
-          Insert flowchart
-        </button>
-        <button
-          type="button"
-          aria-expanded={rgdPickerOpen}
-          aria-haspopup="dialog"
-          onClick={() => {
-            setPickerOpen(false);
-            setTemplatesOpen(false);
-            void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
-          }}
-        >
-          Insert RGD…
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPickerOpen(false);
-            setRgdPickerOpen(false);
-            fileInputRef.current?.click();
-          }}
-          title="Insert image, gif, video, or audio"
-        >
-          Insert media
-        </button>
-        <button type="button" onClick={insertWikiLink} title="Insert wiki link">
-          Wiki link
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPickerOpen(false);
-            setRgdPickerOpen(false);
-            setTemplatesOpen((o) => !o);
-          }}
-        >
-          Templates
-        </button>
-        <button type="button" onClick={() => void runWordLookup()}>
-          Lookup
-        </button>
-        <button type="button" onClick={() => void exportPdf()}>
-          Export PDF
-        </button>
-        <span className="muted tiny toolbar-status">
+        <div className="toolbar-group toolbar-actions">
+          <ToolbarIconButton
+            label="Insert flowchart"
+            icon={Workflow}
+            className="primary"
+            onClick={() => {
+              setRgdPickerOpen(false);
+              setTemplatesOpen(false);
+              void refreshFlowcharts().then(() => setPickerOpen(true));
+            }}
+          >
+            Flowchart
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Insert RGD sheet card"
+            icon={Layers}
+            aria-expanded={rgdPickerOpen}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setPickerOpen(false);
+              setTemplatesOpen(false);
+              void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
+            }}
+          >
+            RGD
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Insert media"
+            icon={ImageIcon}
+            onClick={() => {
+              setPickerOpen(false);
+              setRgdPickerOpen(false);
+              fileInputRef.current?.click();
+            }}
+          >
+            Media
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Insert wiki link"
+            icon={Link2}
+            onClick={insertWikiLink}
+          >
+            Wiki
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Templates"
+            icon={FileStack}
+            aria-expanded={templatesOpen}
+            onClick={() => {
+              setPickerOpen(false);
+              setRgdPickerOpen(false);
+              setTemplatesOpen((o) => !o);
+            }}
+          >
+            Templates
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Look up word"
+            icon={BookOpen}
+            onClick={() => void runWordLookup()}
+          >
+            Lookup
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Export PDF"
+            icon={FileDown}
+            onClick={() => void exportPdf()}
+          >
+            PDF
+          </ToolbarIconButton>
+        </div>
+        <span className="muted tiny toolbar-status" role="status">
           {docMeta ? `${docMeta.title} · ` : ""}
           {status}
         </span>

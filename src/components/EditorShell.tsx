@@ -3,6 +3,7 @@ import { openOptionsWindow } from "../api";
 import type { ProjectRecord, ProjectTab } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
+import { HelpPanel } from "./help/HelpPanel";
 import { OptionsPanel } from "./OptionsPanel";
 import { RgdEditor } from "./rgd/RgdEditor";
 
@@ -14,6 +15,7 @@ type EditorShellProps = {
 export function EditorShell({ project, onBack }: EditorShellProps) {
   const [tab, setTab] = useState<ProjectTab>("document");
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [focusFlowchartId, setFocusFlowchartId] = useState<string | null>(null);
   const [focusSheetId, setFocusSheetId] = useState<string | null>(null);
 
@@ -72,6 +74,9 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           <p className="chrome-meta muted path-line" title={project.path}>
             {project.name}
           </p>
+          <button type="button" className="ghost" onClick={() => setHelpOpen(true)}>
+            Help
+          </button>
           <button type="button" className="ghost" onClick={() => void handleOptions()}>
             Options
           </button>
@@ -123,6 +128,12 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           </div>
         </div>
       )}
+
+      <HelpPanel
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        initialSection={tab === "rgd" ? "rgd-overview" : "app"}
+      />
     </div>
   );
 }

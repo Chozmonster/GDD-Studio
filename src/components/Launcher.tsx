@@ -17,6 +17,7 @@ import { emitRgdSheetSaved } from "../lib/rgdEvents";
 import type { HealthStatus, ProjectRecord, UpdateStatus } from "../types";
 import { buildRgdStarterDoc } from "./editor/rgd/migrateRgdBlocks";
 import { emptyRgdSheetDocument } from "./editor/rgd/rgdSheetModel";
+import { HelpPanel } from "./help/HelpPanel";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { OptionsPanel } from "./OptionsPanel";
 
@@ -32,6 +33,7 @@ export function Launcher({ onOpenProject }: LauncherProps) {
   const [error, setError] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -158,6 +160,9 @@ export function Launcher({ onOpenProject }: LauncherProps) {
           <span className="muted tiny">
             {health ? `v${health.version}` : "…"}
           </span>
+          <button type="button" className="ghost" onClick={() => setHelpOpen(true)}>
+            Help
+          </button>
           <button type="button" onClick={() => void handleOptions()}>
             Options
           </button>
@@ -317,6 +322,8 @@ export function Launcher({ onOpenProject }: LauncherProps) {
           </div>
         </div>
       )}
+
+      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
