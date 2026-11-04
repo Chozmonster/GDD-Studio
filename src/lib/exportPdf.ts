@@ -127,10 +127,7 @@ function replaceVariablesAndWiki(root: HTMLElement): void {
     el.replaceWith(document.createTextNode(text));
   });
 
-<<<<<<< HEAD
   // Section links → markdown-ish label
-=======
->>>>>>> 5be21f9 (Rasterize flowchart and RGD embeds in PDF export)
   root.querySelectorAll(".wiki-link").forEach((el) => {
     const text = el.textContent?.trim() ?? "link";
     const span = document.createElement("span");
