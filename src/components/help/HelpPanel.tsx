@@ -130,7 +130,9 @@ function HowAppWorks() {
         </li>
         <li>
           <strong>Export PDF</strong> — opens a print dialog (Save as PDF on
-          most desktops) from a sanitized HTML snapshot.
+          most desktops). Flowchart and RGD embeds are captured as images in
+          place; images/gifs export normally; video may appear as a single
+          frame. Export HTML is sanitized before print.
         </li>
       </ul>
     </article>
