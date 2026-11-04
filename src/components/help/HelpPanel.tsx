@@ -99,9 +99,9 @@ function HowAppWorks() {
           for updates and variable display.
         </li>
         <li>
-          <strong>Document</strong> — rich text GDD pages, heading map, wiki
-          links (<code>[[Page Title]]</code>), variables, media, templates, PDF
-          export.
+          <strong>Document</strong> — one rich-text GDD per project, heading map,
+          section links (<code>[[Heading text]]</code>), variables, media,
+          templates, PDF export.
         </li>
         <li>
           <strong>Flowcharts</strong> — named diagrams with typed nodes and
@@ -116,15 +116,16 @@ function HowAppWorks() {
           chips appear. Toggle “show names” in Options.
         </li>
         <li>
-          <strong>Wiki</strong> — link pages by title; backlinks list pages that
-          point here.
+          <strong>Section links</strong> — toolbar Link or{" "}
+          <code>[[Heading]]</code> jumps to that heading in the same document
+          (Document map lists the same targets).
         </li>
         <li>
           <strong>Media</strong> — paste or Insert media for images, gifs,
           video, and audio with built-in players.
         </li>
         <li>
-          <strong>Templates</strong> — save a page body as app- or
+          <strong>Templates</strong> — save the document body as app- or
           project-scoped template; apply replaces the current body (confirm).
         </li>
         <li>

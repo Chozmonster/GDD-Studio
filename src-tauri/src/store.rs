@@ -587,7 +587,7 @@ pub fn delete_rgd_sheet(
     Ok(())
 }
 
-// ── Multi-document wiki pages ──────────────────────────────────────────────
+// ── Project documents (one primary `main` doc; extras kept for migration) ──
 
 const DOCS_DIR: &str = "docs";
 const LEGACY_DOCUMENT_FILE: &str = "document.json";
@@ -658,7 +658,7 @@ fn default_doc_body(title: &str) -> serde_json::Value {
                 "type": "paragraph",
                 "content": [{
                     "type": "text",
-                    "text": "Start writing. Link other pages with [[Page Title]]."
+                    "text": "Start writing. Link to a heading with [[Heading text]]."
                 }]
             }
         ]

@@ -43,7 +43,7 @@ export function buildExportHtml(
     el.replaceWith(document.createTextNode(text));
   });
 
-  // Wiki links → markdown-ish label
+  // Section links → markdown-ish label
   root.querySelectorAll(".wiki-link").forEach((el) => {
     const text = el.textContent?.trim() ?? "link";
     const span = document.createElement("span");

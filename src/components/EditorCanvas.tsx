@@ -55,8 +55,12 @@ import type {
   RgdSheetSummary,
   WordDefinition,
 } from "../types";
-import { DocsSidebar } from "./editor/DocsSidebar";
 import { DocumentMap } from "./editor/DocumentMap";
+import {
+  collectHeadings,
+  slugifyHeading,
+  type OutlineItem,
+} from "./editor/documentOutline";
 import { FlowchartEmbed } from "./editor/flowchartEmbedExtension";
 import {
   FONT_FAMILY_OPTIONS,
@@ -78,6 +82,9 @@ import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 import { WikiLink } from "./editor/wikiLinkExtension";
 import { WordLookupPanel } from "./editor/WordLookupPanel";
+
+/** One primary document per project. Extra on-disk wiki pages are not surfaced. */
+const PRIMARY_DOC_ID = "main";
 
 type EditorCanvasProps = {
   project: ProjectRecord;
@@ -123,9 +130,9 @@ export function EditorCanvas({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rgdPickerOpen, setRgdPickerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [activeDocId, setActiveDocId] = useState("main");
+  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
+  const [sectionHeadings, setSectionHeadings] = useState<OutlineItem[]>([]);
   const [docMeta, setDocMeta] = useState<ProjectDocument | null>(null);
-  const [docsRefresh, setDocsRefresh] = useState(0);
   const [spellMenu, setSpellMenu] = useState<SpellMenuState>(null);
   const [lookupWordText, setLookupWordText] = useState<string | null>(null);
   const [lookupDef, setLookupDef] = useState<WordDefinition | null>(null);
@@ -152,7 +159,6 @@ export function EditorCanvas({
       const saved = await saveProjectDocument(project.id, next);
       docMetaRef.current = saved;
       setDocMeta(saved);
-      setDocsRefresh((n) => n + 1);
       setStatus(`Saved ${new Date().toLocaleTimeString()}`);
     },
     [project.id],
@@ -202,7 +208,7 @@ export function EditorCanvas({
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
-          placeholder: "Write your GDD here… [[Link]] for wiki pages",
+          placeholder: "Write your GDD here… [[Heading]] links to a section",
         }),
         FlowchartEmbed.configure({
           projectId: project.id,
@@ -214,10 +220,7 @@ export function EditorCanvas({
         MediaEmbed.configure({
           projectId: project.id,
         }),
-        WikiLink.configure({
-          projectId: project.id,
-          onOpenDoc: (docId) => setActiveDocId(docId),
-        }),
+        WikiLink,
         Spellcheck.configure({ enabled: true }),
         RgdSheetEmbed.configure({
           projectId: project.id,
@@ -282,7 +285,6 @@ export function EditorCanvas({
 
   useEffect(() => {
     migratedRef.current = false;
-    setActiveDocId("main");
   }, [project.id]);
 
   useEffect(() => {
@@ -290,7 +292,7 @@ export function EditorCanvas({
     void (async () => {
       try {
         const [doc, list, sheets] = await Promise.all([
-          loadProjectDocument(project.id, activeDocId),
+          loadProjectDocument(project.id, PRIMARY_DOC_ID),
           listFlowcharts(project.id),
           listRgdSheets(project.id),
         ]);
@@ -301,7 +303,7 @@ export function EditorCanvas({
         let content = doc.body;
         let nextMeta = doc;
         let didMigrate = false;
-        if (activeDocId === "main" && !migratedRef.current) {
+        if (!migratedRef.current) {
           const migration = migrateRgdBlocksInDocument(doc.body, {
             sheetName: `${project.name} — Migrated RGD`,
             sheetId: "migrated-rgd",
@@ -352,7 +354,7 @@ export function EditorCanvas({
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, project.name, editor, activeDocId]);
+  }, [project.id, project.name, editor]);
 
   // Spell suggestion context menu host
   useEffect(() => {
@@ -431,19 +433,42 @@ export function EditorCanvas({
     await insertRgdSheet(created.id);
   };
 
-  const insertWikiLink = () => {
-    const title = window.prompt("Link to page title", "");
-    if (!title) return;
-    const slug = title
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+  const openSectionPicker = () => {
+    if (!editor) return;
+    setPickerOpen(false);
+    setRgdPickerOpen(false);
+    setTemplatesOpen(false);
+    const headings = collectHeadings(editor);
+    setSectionHeadings(headings);
+    setSectionPickerOpen(true);
+  };
+
+  const insertSectionLink = (heading: OutlineItem) => {
     editor
       ?.chain()
       .focus()
-      .insertWikiLink({ title: title.trim(), slug })
+      .insertSectionLink({
+        title: heading.text,
+        slug: slugifyHeading(heading.text),
+      })
       .run();
+    setSectionPickerOpen(false);
+    setStatus(`Linked to “${heading.text}”`);
+  };
+
+  const insertSectionLinkCustom = () => {
+    const title = window.prompt("Heading text to link to", "");
+    if (!title?.trim()) return;
+    editor
+      ?.chain()
+      .focus()
+      .insertSectionLink({
+        title: title.trim(),
+        slug: slugifyHeading(title),
+      })
+      .run();
+    setSectionPickerOpen(false);
+    setStatus(`Linked to “${title.trim()}”`);
   };
 
   const runWordLookup = async (word?: string) => {
@@ -683,6 +708,7 @@ export function EditorCanvas({
             onClick={() => {
               setRgdPickerOpen(false);
               setTemplatesOpen(false);
+              setSectionPickerOpen(false);
               void refreshFlowcharts().then(() => setPickerOpen(true));
             }}
           >
@@ -696,6 +722,7 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setTemplatesOpen(false);
+              setSectionPickerOpen(false);
               void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
             }}
           >
@@ -707,17 +734,20 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
+              setSectionPickerOpen(false);
               fileInputRef.current?.click();
             }}
           >
             Media
           </ToolbarIconButton>
           <ToolbarIconButton
-            label="Insert wiki link"
+            label="Insert section link"
             icon={Link2}
-            onClick={insertWikiLink}
+            aria-expanded={sectionPickerOpen}
+            aria-haspopup="dialog"
+            onClick={openSectionPicker}
           >
-            Wiki
+            Link
           </ToolbarIconButton>
           <ToolbarIconButton
             label="Templates"
@@ -726,6 +756,7 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
+              setSectionPickerOpen(false);
               setTemplatesOpen((o) => !o);
             }}
           >
@@ -828,14 +859,55 @@ export function EditorCanvas({
         />
       )}
 
+      {sectionPickerOpen && (
+        <div
+          className="embed-picker"
+          role="dialog"
+          aria-label="Insert section link"
+        >
+          <p className="muted tiny">
+            Link to a heading in this document (same as Document map jump).
+            Type <code>[[Heading text]]</code> in the body as a shortcut.
+          </p>
+          {sectionHeadings.length === 0 ? (
+            <p className="muted tiny">
+              No headings yet. Add H1–H3 first, or enter custom heading text.
+            </p>
+          ) : (
+            <ul>
+              {sectionHeadings.map((h) => (
+                <li key={h.id}>
+                  <button
+                    type="button"
+                    style={{ paddingLeft: `${0.35 + (h.level - 1) * 0.75}rem` }}
+                    onClick={() => insertSectionLink(h)}
+                  >
+                    {h.text}
+                    <span className="muted tiny"> H{h.level}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="primary"
+            onClick={insertSectionLinkCustom}
+          >
+            Custom heading text…
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setSectionPickerOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div className="editor-body">
         <div className="editor-left-rail">
-          <DocsSidebar
-            projectId={project.id}
-            activeDocId={activeDocId}
-            onSelect={setActiveDocId}
-            refreshKey={docsRefresh}
-          />
           <DocumentMap editor={editor} />
         </div>
         <EditorContent editor={editor} className="editor-canvas" />

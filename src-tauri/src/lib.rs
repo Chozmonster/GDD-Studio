@@ -1,7 +1,7 @@
 //! GDD Studio — Tauri entry.
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
-//! RGD sheets + documentation variables + multi-docs / wiki + media assets +
+//! RGD sheets + documentation variables + single primary doc / section links + media assets +
 //! templates + export HTML. Spellcheck runs in the webview (nspell).
 
 mod commands;

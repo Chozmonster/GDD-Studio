@@ -1,53 +1,45 @@
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
-import { resolveWikiSlug } from "../../api";
+import { findHeading, jumpToOutlineItem } from "./documentOutline";
 
-type ExtraProps = {
-  projectId: string;
-  onOpenDoc?: (docId: string) => void;
-};
-
+/**
+ * In-document section link (TipTap node still named wikiLink for stored JSON).
+ * Resolves against current-doc headings; click smooth-scrolls like Document Map.
+ */
 export function WikiLinkView(props: NodeViewProps) {
   const title = String(props.node.attrs.title ?? "");
   const slug = String(props.node.attrs.slug ?? "");
-  const docIdAttr = String(props.node.attrs.docId ?? "");
-  const extra = props.extension.options as ExtraProps;
-  const projectId = extra.projectId;
-  const [resolvedId, setResolvedId] = useState(docIdAttr);
-  const [resolvedTitle, setResolvedTitle] = useState(title);
+  const editor = props.editor;
   const [missing, setMissing] = useState(false);
-  const updateAttributes = props.updateAttributes;
+  const [label, setLabel] = useState(title || slug || "section");
 
   useEffect(() => {
-    let cancelled = false;
-    const needle = docIdAttr || slug || title;
-    if (!needle || !projectId) {
+    if (!editor) {
       setMissing(true);
       return;
     }
-    void resolveWikiSlug(projectId, needle).then((hit) => {
-      if (cancelled) return;
+    const refresh = () => {
+      const hit = findHeading(editor, title, slug);
       if (hit) {
-        setResolvedId(hit.id);
-        setResolvedTitle(hit.title);
         setMissing(false);
-        if (hit.id !== docIdAttr || hit.slug !== slug) {
-          updateAttributes({ docId: hit.id, slug: hit.slug, title: hit.title });
-        }
+        setLabel(title.trim() || hit.text);
       } else {
         setMissing(true);
-        setResolvedId("");
+        setLabel(title || slug || "section");
       }
-    });
-    return () => {
-      cancelled = true;
     };
-  }, [projectId, docIdAttr, slug, title, updateAttributes]);
+    refresh();
+    editor.on("update", refresh);
+    return () => {
+      editor.off("update", refresh);
+    };
+  }, [editor, title, slug]);
 
   const open = () => {
-    if (resolvedId && extra.onOpenDoc) {
-      extra.onOpenDoc(resolvedId);
-    }
+    if (!editor) return;
+    const hit = findHeading(editor, title, slug);
+    if (!hit) return;
+    jumpToOutlineItem(editor, hit.pos, hit.kind);
   };
 
   return (
@@ -57,12 +49,12 @@ export function WikiLinkView(props: NodeViewProps) {
       contentEditable={false}
       title={
         missing
-          ? `No page for “${title || slug}” — create a doc with this title`
-          : `Open “${resolvedTitle}”`
+          ? `No heading “${title || slug}” in this document`
+          : `Jump to “${label}”`
       }
     >
       <button type="button" className="wiki-link-btn" onClick={open}>
-        {resolvedTitle || title || slug || "wiki"}
+        {label}
       </button>
     </NodeViewWrapper>
   );

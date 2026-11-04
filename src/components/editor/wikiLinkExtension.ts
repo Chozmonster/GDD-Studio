@@ -1,28 +1,35 @@
 import { InputRule, mergeAttributes, Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import { slugifyHeading } from "./documentOutline";
 import { WikiLinkView } from "./WikiLinkView";
 
 export type WikiLinkOptions = {
-  projectId: string;
-  onOpenDoc?: (docId: string) => void;
   HTMLAttributes: Record<string, unknown>;
 };
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     wikiLink: {
+      /** Insert an in-document section link (heading target). */
       insertWikiLink: (attrs: {
         title: string;
         slug?: string;
+        /** @deprecated Ignored — section links stay in-document. */
         docId?: string;
+      }) => ReturnType;
+      insertSectionLink: (attrs: {
+        title: string;
+        slug?: string;
       }) => ReturnType;
     };
   }
 }
 
 /**
- * Inline wiki link. Typed as [[Title]] or [[slug|Label]].
+ * In-document section link. Typed as [[Heading text]] or [[slug|Label]].
+ * TipTap node name remains `wikiLink` so existing project JSON keeps loading.
  * Schema: { type: "wikiLink", attrs: { title, slug, docId } }
+ * — `docId` is ignored; title/slug resolve against headings in the open doc.
  */
 export const WikiLink = Node.create<WikiLinkOptions>({
   name: "wikiLink",
@@ -33,8 +40,6 @@ export const WikiLink = Node.create<WikiLinkOptions>({
 
   addOptions() {
     return {
-      projectId: "",
-      onOpenDoc: undefined,
       HTMLAttributes: {},
     };
   },
@@ -81,8 +86,19 @@ export const WikiLink = Node.create<WikiLinkOptions>({
             type: this.name,
             attrs: {
               title: attrs.title,
-              slug: attrs.slug ?? "",
-              docId: attrs.docId ?? "",
+              slug: attrs.slug ?? slugifyHeading(attrs.title),
+              docId: "",
+            },
+          }),
+      insertSectionLink:
+        (attrs) =>
+        ({ commands }) =>
+          commands.insertContent({
+            type: this.name,
+            attrs: {
+              title: attrs.title,
+              slug: attrs.slug ?? slugifyHeading(attrs.title),
+              docId: "",
             },
           }),
     };
@@ -103,10 +119,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
             title = (right ?? left).trim();
           } else {
             title = raw;
-            slug = raw
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-|-$/g, "");
+            slug = slugifyHeading(raw);
           }
           chain()
             .deleteRange(range)
