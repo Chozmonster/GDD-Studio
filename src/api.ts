@@ -494,6 +494,41 @@ export async function saveVariables(
   await invoke("save_variables", { projectId, variables });
 }
 
+/** Normalize a typed / panel variable name (spaces → underscores, length cap). */
+export function normalizeVariableName(raw: string): string {
+  return raw.trim().replace(/\s+/g, "_").slice(0, 48);
+}
+
+/**
+ * Project-scoped: find a variable by name (case-insensitive) or create it.
+ * Used by `{{variablename}}` type-to-insert.
+ */
+export async function ensureVariable(
+  projectId: string,
+  rawName: string,
+): Promise<{ variable: DocVariable; list: DocVariable[]; created: boolean }> {
+  const name = normalizeVariableName(rawName);
+  if (!name) {
+    throw new Error("Variable name required");
+  }
+  const list = await loadVariables(projectId);
+  const existing = list.find(
+    (v) => v.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (existing) {
+    return { variable: existing, list, created: false };
+  }
+  const variable: DocVariable = {
+    id: crypto.randomUUID(),
+    name,
+    kind: "text",
+    value: "",
+  };
+  const next = [...list, variable];
+  await saveVariables(projectId, next);
+  return { variable, list: next, created: true };
+}
+
 /** Create an empty named flowchart and persist it. */
 export async function createFlowchart(
   projectId: string,

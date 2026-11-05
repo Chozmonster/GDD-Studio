@@ -1,9 +1,15 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { InputRule, mergeAttributes, Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import type { DocVariable } from "../../types";
 import { VariableEmbedView } from "./VariableEmbedView";
 
 export type VariableEmbedOptions = {
   projectId: string;
+  /**
+   * Resolve or create a project variable when the user types `{{name}}`.
+   * Should persist + notify listeners; returns the canonical record.
+   */
+  ensureVariable?: (name: string) => Promise<DocVariable>;
   HTMLAttributes: Record<string, unknown>;
 };
 
@@ -15,8 +21,13 @@ declare module "@tiptap/core" {
   }
 }
 
+function normalizeTypedName(raw: string): string {
+  return raw.trim().replace(/\s+/g, "_").slice(0, 48);
+}
+
 /**
  * Inline live reference to a project documentation variable.
+ * Typed as {{variablename}} (mirrors [[Doc Title]] wiki links).
  * Schema: { type: "variableEmbed", attrs: { variableId, name } }
  */
 export const VariableEmbed = Node.create<VariableEmbedOptions>({
@@ -29,6 +40,7 @@ export const VariableEmbed = Node.create<VariableEmbedOptions>({
   addOptions() {
     return {
       projectId: "",
+      ensureVariable: undefined,
       HTMLAttributes: {},
     };
   },
@@ -75,6 +87,26 @@ export const VariableEmbed = Node.create<VariableEmbedOptions>({
             attrs: { variableId, name },
           }),
     };
+  },
+
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /\{\{([^{}]+)\}\}$/,
+        handler: ({ range, match, chain }) => {
+          const name = normalizeTypedName(match[1] ?? "");
+          if (!name) return;
+          chain()
+            .deleteRange(range)
+            .insertContent({
+              type: this.name,
+              attrs: { variableId: "", name },
+            })
+            .run();
+          void this.options.ensureVariable?.(name);
+        },
+      }),
+    ];
   },
 
   addNodeView() {

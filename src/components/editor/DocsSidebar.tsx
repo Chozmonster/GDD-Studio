@@ -104,7 +104,8 @@ export function DocsSidebar({
         ))}
       </ul>
       <p className="muted tiny docs-hint">
-        Type <code>[[Doc Title]]</code> to link across documents.
+        Type <code>[[Doc Title]]</code> to link across documents. Type{" "}
+        <code>{"{{var}}"}</code> for a project variable.
       </p>
     </aside>
   );

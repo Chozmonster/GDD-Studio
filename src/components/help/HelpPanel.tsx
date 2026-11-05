@@ -146,8 +146,11 @@ function HowAppWorks() {
           before placing embeds in the active document. See Help → Mood Board.
         </li>
         <li>
-          <strong>Variables</strong> — named values that resolve live wherever
-          chips appear. Toggle “show names” in Options.
+          <strong>Variables</strong> — project-wide named values that resolve
+          live wherever chips appear (every document shares one registry). Type{" "}
+          <code>{"{{variablename}}"}</code> to insert (creates if missing), or
+          use the Variables panel. Edit a value once and every chip updates.
+          Toggle “Display variable names in document” in Options.
         </li>
         <li>
           <strong>Media</strong> — paste or Insert media for images, gifs,

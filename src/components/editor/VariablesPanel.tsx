@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { loadVariables, saveVariables } from "../../api";
-import { emitVariablesChanged } from "../../lib/variableEvents";
+import {
+  loadVariables,
+  normalizeVariableName,
+  saveVariables,
+} from "../../api";
+import {
+  emitVariablesChanged,
+  onVariablesChanged,
+} from "../../lib/variableEvents";
 import type { DocVariable, DocVariableKind } from "../../types";
 
 type VariablesPanelProps = {
@@ -36,6 +43,13 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
     };
   }, [projectId]);
 
+  useEffect(() => {
+    return onVariablesChanged((detail) => {
+      if (detail.projectId !== projectId) return;
+      setVariables(detail.variables);
+    });
+  }, [projectId]);
+
   const addVariable = () => {
     const id = crypto.randomUUID();
     const next: DocVariable = {
@@ -48,19 +62,33 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
   };
 
   const patch = (id: string, patch: Partial<DocVariable>) => {
-    const next = variables.map((v) => (v.id === id ? { ...v, ...patch } : v));
+    const next = variables.map((v) => {
+      if (v.id !== id) return v;
+      const merged = { ...v, ...patch };
+      if (patch.name !== undefined) {
+        merged.name = normalizeVariableName(patch.name);
+      }
+      return merged;
+    });
     void persist(next);
   };
 
   const remove = (id: string) => {
-    if (!window.confirm("Remove this variable? Embeds in the document will show as missing.")) {
+    if (
+      !window.confirm(
+        "Remove this variable? Embeds in the document will show as missing.",
+      )
+    ) {
       return;
     }
     void persist(variables.filter((v) => v.id !== id));
   };
 
   return (
-    <aside className="doc-side-panel variables-panel" aria-label="Documentation variables">
+    <aside
+      className="doc-side-panel variables-panel"
+      aria-label="Documentation variables"
+    >
       <header className="doc-side-header">
         <h3>Variables</h3>
         <button type="button" className="primary tiny-btn" onClick={addVariable}>
@@ -70,7 +98,9 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
       {status ? <p className="error tiny">{status}</p> : null}
       {variables.length === 0 ? (
         <p className="muted tiny doc-side-empty">
-          Named values that resolve live wherever you insert them.
+          Project-wide named values. Type{" "}
+          <code>{"{{name}}"}</code> in the document to insert (creates if
+          missing).
         </p>
       ) : (
         <ul className="variables-list">
@@ -81,11 +111,7 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
                   className="var-name"
                   aria-label="Variable name"
                   value={v.name}
-                  onChange={(e) =>
-                    patch(v.id, {
-                      name: e.target.value.replace(/\s+/g, "_").slice(0, 48),
-                    })
-                  }
+                  onChange={(e) => patch(v.id, { name: e.target.value })}
                 />
                 <div className="var-row-actions">
                   {onInsert ? (
@@ -132,6 +158,11 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
           ))}
         </ul>
       )}
+      {variables.length > 0 ? (
+        <p className="muted tiny docs-hint">
+          Project-wide. Type <code>{"{{name}}"}</code> to insert.
+        </p>
+      ) : null}
     </aside>
   );
 }

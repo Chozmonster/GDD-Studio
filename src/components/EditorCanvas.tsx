@@ -32,6 +32,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SplitPane } from "./SplitPane";
 import {
   createRgdSheet,
+  ensureVariable,
   flowchartExists,
   listFlowcharts,
   listRgdSheets,
@@ -53,6 +54,7 @@ import {
 } from "../lib/documentMediaInsert";
 import { emitFlowchartSaved } from "../lib/flowchartEvents";
 import { emitRgdSheetSaved } from "../lib/rgdEvents";
+import { emitVariablesChanged } from "../lib/variableEvents";
 import { getSpellEngine } from "../lib/spellcheck";
 import { lookupWord } from "../lib/wordLookup";
 import type {
@@ -136,7 +138,18 @@ export function EditorCanvas({
   const persistBodyRef = useRef<(ed: Editor) => Promise<void>>(async () => undefined);
   const activeDocIdRef = useRef(activeDocId);
   const switchDocRef = useRef<(docId: string) => Promise<void>>(async () => undefined);
+  const ensureVariableRef = useRef<
+    (name: string) => Promise<DocVariable>
+  >(async () => {
+    throw new Error("ensureVariable not ready");
+  });
   activeDocIdRef.current = activeDocId;
+
+  ensureVariableRef.current = async (name: string) => {
+    const { variable, list } = await ensureVariable(project.id, name);
+    emitVariablesChanged(project.id, list);
+    return variable;
+  };
 
   const persistBody = useCallback(
     async (ed: Editor) => {
@@ -199,7 +212,8 @@ export function EditorCanvas({
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
-          placeholder: "Write your GDD here… [[Doc Title]] links to a document",
+          placeholder:
+            "Write your GDD here… [[Doc Title]] links a document, {{var}} inserts a variable",
         }),
         FlowchartEmbed.configure({
           projectId: project.id,
@@ -207,6 +221,7 @@ export function EditorCanvas({
         }),
         VariableEmbed.configure({
           projectId: project.id,
+          ensureVariable: (name) => ensureVariableRef.current(name),
         }),
         MediaEmbed.configure({
           projectId: project.id,

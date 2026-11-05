@@ -6,12 +6,22 @@ export type SettingsChangedDetail = {
 
 const CHANGED = "gdd:settings-changed";
 
+/**
+ * Cross-window bus. Options often runs in a separate Tauri webview
+ * (`?window=options`); `window` CustomEvents stay inside that webview.
+ * BroadcastChannel reaches every same-origin window (editor + options).
+ */
+const channel =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel(CHANGED)
+    : null;
+
 export function emitSettingsChanged(settings: AppSettings): void {
+  const detail: SettingsChangedDetail = { settings };
   window.dispatchEvent(
-    new CustomEvent<SettingsChangedDetail>(CHANGED, {
-      detail: { settings },
-    }),
+    new CustomEvent<SettingsChangedDetail>(CHANGED, { detail }),
   );
+  channel?.postMessage(detail);
 }
 
 export function onSettingsChanged(
@@ -21,5 +31,15 @@ export function onSettingsChanged(
     handler((e as CustomEvent<SettingsChangedDetail>).detail);
   };
   window.addEventListener(CHANGED, listener);
-  return () => window.removeEventListener(CHANGED, listener);
+
+  const onMessage = (e: MessageEvent<SettingsChangedDetail>) => {
+    const detail = e.data;
+    if (detail?.settings) handler(detail);
+  };
+  channel?.addEventListener("message", onMessage);
+
+  return () => {
+    window.removeEventListener(CHANGED, listener);
+    channel?.removeEventListener("message", onMessage);
+  };
 }

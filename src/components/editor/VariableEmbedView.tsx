@@ -18,6 +18,20 @@ function displayValue(v: DocVariable | undefined): string {
   return v.value || "—";
 }
 
+function findVariable(
+  list: DocVariable[],
+  variableId: string,
+  nameHint: string,
+): DocVariable | null {
+  if (variableId) {
+    const byId = list.find((v) => v.id === variableId);
+    if (byId) return byId;
+  }
+  if (!nameHint) return null;
+  const lower = nameHint.toLowerCase();
+  return list.find((v) => v.name.toLowerCase() === lower) ?? null;
+}
+
 export function VariableEmbedView(props: NodeViewProps) {
   const variableId = String(props.node.attrs.variableId ?? "");
   const nameHint = String(props.node.attrs.name ?? "");
@@ -47,14 +61,14 @@ export function VariableEmbedView(props: NodeViewProps) {
     let cancelled = false;
     void loadVariables(projectId).then((list) => {
       if (cancelled) return;
-      const found =
-        list.find((v) => v.id === variableId) ??
-        list.find((v) => v.name === nameHint) ??
-        null;
+      const found = findVariable(list, variableId, nameHint);
       setVariable(found);
       setMissing(!found);
-      if (found && found.name !== nameHint) {
-        updateAttributes({ name: found.name });
+      if (
+        found &&
+        (found.id !== variableId || found.name !== nameHint)
+      ) {
+        updateAttributes({ variableId: found.id, name: found.name });
       }
     });
     return () => {
@@ -65,14 +79,14 @@ export function VariableEmbedView(props: NodeViewProps) {
   useEffect(() => {
     return onVariablesChanged((detail) => {
       if (detail.projectId !== projectId) return;
-      const found =
-        detail.variables.find((v) => v.id === variableId) ??
-        detail.variables.find((v) => v.name === nameHint) ??
-        null;
+      const found = findVariable(detail.variables, variableId, nameHint);
       setVariable(found);
       setMissing(!found);
-      if (found && found.name !== nameHint) {
-        updateAttributes({ name: found.name });
+      if (
+        found &&
+        (found.id !== variableId || found.name !== nameHint)
+      ) {
+        updateAttributes({ variableId: found.id, name: found.name });
       }
     });
   }, [projectId, variableId, nameHint, updateAttributes]);
