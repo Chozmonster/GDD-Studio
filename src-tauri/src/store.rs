@@ -449,13 +449,29 @@ pub fn delete_flowchart(
 
 const VARIABLES_FILE: &str = "variables.json";
 
+/// Project-wide plain-text variable. Legacy `kind` / `value_type` fields and
+/// numeric `value`s are accepted on load and dropped on save.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocVariable {
     pub id: String,
     pub name: String,
-    pub kind: String,
+    #[serde(deserialize_with = "deserialize_stringish_value")]
     pub value: String,
+}
+
+fn deserialize_stringish_value<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = serde_json::Value::deserialize(deserializer).map_err(serde::de::Error::custom)?;
+    Ok(match v {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    })
 }
 
 fn variables_path(project: &ProjectRecord) -> PathBuf {
@@ -469,6 +485,7 @@ pub fn load_variables(app: &AppHandle, project_id: String) -> Result<Vec<DocVari
         return Ok(Vec::new());
     }
     let raw = fs::read_to_string(&path).map_err(|e| format!("read variables: {e}"))?;
+    // Unknown legacy fields (kind, value_type) are ignored by serde defaults.
     serde_json::from_str(&raw).map_err(|e| format!("parse variables: {e}"))
 }
 
@@ -478,6 +495,7 @@ pub fn save_variables(
     variables: Vec<DocVariable>,
 ) -> Result<(), String> {
     let project = project_by_id(app, &project_id)?;
+    // Writes id/name/value only — no type field.
     write_json(&variables_path(&project), &variables)
 }
 

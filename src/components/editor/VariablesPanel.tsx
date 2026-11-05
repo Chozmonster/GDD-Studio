@@ -8,7 +8,7 @@ import {
   emitVariablesChanged,
   onVariablesChanged,
 } from "../../lib/variableEvents";
-import type { DocVariable, DocVariableKind } from "../../types";
+import type { DocVariable } from "../../types";
 
 type VariablesPanelProps = {
   projectId: string;
@@ -55,7 +55,6 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
     const next: DocVariable = {
       id,
       name: `var${variables.length + 1}`,
-      kind: "text",
       value: "",
     };
     void persist([...variables, next]);
@@ -98,7 +97,7 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
       {status ? <p className="error tiny">{status}</p> : null}
       {variables.length === 0 ? (
         <p className="muted tiny doc-side-empty">
-          Project-wide named values. Type{" "}
+          Project-wide plain-text values. Type{" "}
           <code>{"{{name}}"}</code> in the document to insert (creates if
           missing).
         </p>
@@ -134,33 +133,20 @@ export function VariablesPanel({ projectId, onInsert }: VariablesPanelProps) {
                   </button>
                 </div>
               </div>
-              <div className="var-row-fields">
-                <select
-                  className="var-kind"
-                  aria-label="Variable type"
-                  value={v.kind}
-                  onChange={(e) =>
-                    patch(v.id, { kind: e.target.value as DocVariableKind })
-                  }
-                >
-                  <option value="text">Text</option>
-                  <option value="number">Number</option>
-                </select>
-                <input
-                  className="var-value"
-                  aria-label="Variable value"
-                  type={v.kind === "number" ? "number" : "text"}
-                  value={v.value}
-                  onChange={(e) => patch(v.id, { value: e.target.value })}
-                />
-              </div>
+              <input
+                className="var-value"
+                aria-label="Variable value"
+                type="text"
+                value={v.value}
+                onChange={(e) => patch(v.id, { value: e.target.value })}
+              />
             </li>
           ))}
         </ul>
       )}
       {variables.length > 0 ? (
         <p className="muted tiny docs-hint">
-          Project-wide. Type <code>{"{{name}}"}</code> to insert.
+          Project-wide plain text. Type <code>{"{{name}}"}</code> to insert.
         </p>
       ) : null}
     </aside>

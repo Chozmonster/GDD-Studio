@@ -149,13 +149,11 @@ export type RgdSheetDocument = {
   >;
 };
 
-export type DocVariableKind = "text" | "number";
-
+/** Project-wide named plain-text value (no runtime type). */
 export type DocVariable = {
   id: string;
   name: string;
-  kind: DocVariableKind;
-  /** Stored as string; parse as number when kind === "number". */
+  /** Always a string; legacy number/typed values are coerced on load. */
   value: string;
 };
 

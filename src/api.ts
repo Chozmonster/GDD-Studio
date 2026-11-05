@@ -472,26 +472,56 @@ export async function saveDocument(
   await invoke("save_document", { projectId, document });
 }
 
+/**
+ * Coerce legacy variables.json entries (kind / value_type / numeric value)
+ * into plain-text DocVariable records. Drops type fields.
+ */
+export function normalizeVariables(raw: unknown): DocVariable[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DocVariable[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const o = entry as Record<string, unknown>;
+    const id = typeof o.id === "string" ? o.id : "";
+    const name = typeof o.name === "string" ? o.name : "";
+    if (!id || !name) continue;
+    let value = "";
+    if (typeof o.value === "string") value = o.value;
+    else if (typeof o.value === "number" && Number.isFinite(o.value)) {
+      value = String(o.value);
+    } else if (typeof o.value === "boolean") {
+      value = String(o.value);
+    } else if (o.value != null) {
+      value = String(o.value);
+    }
+    out.push({ id, name, value });
+  }
+  return out;
+}
+
 export async function loadVariables(projectId: string): Promise<DocVariable[]> {
   if (!isTauriRuntime()) {
     const store = loadBrowser();
-    return (store.variables?.[projectId] ?? []).slice();
+    return normalizeVariables(store.variables?.[projectId] ?? []);
   }
-  return invoke<DocVariable[]>("load_variables", { projectId });
+  const loaded = await invoke<unknown>("load_variables", { projectId });
+  return normalizeVariables(loaded);
 }
 
 export async function saveVariables(
   projectId: string,
   variables: DocVariable[],
 ): Promise<void> {
+  // Always persist plain text only — no kind / value_type.
+  const plain = normalizeVariables(variables);
   if (!isTauriRuntime()) {
     const store = loadBrowser();
     if (!store.variables) store.variables = {};
-    store.variables[projectId] = variables;
+    store.variables[projectId] = plain;
     saveBrowser(store);
     return;
   }
-  await invoke("save_variables", { projectId, variables });
+  await invoke("save_variables", { projectId, variables: plain });
 }
 
 /** Normalize a typed / panel variable name (spaces → underscores, length cap). */
@@ -521,7 +551,6 @@ export async function ensureVariable(
   const variable: DocVariable = {
     id: crypto.randomUUID(),
     name,
-    kind: "text",
     value: "",
   };
   const next = [...list, variable];

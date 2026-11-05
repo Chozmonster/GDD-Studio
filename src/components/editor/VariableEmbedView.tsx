@@ -11,10 +11,6 @@ type ExtraProps = {
 
 function displayValue(v: DocVariable | undefined): string {
   if (!v) return "???";
-  if (v.kind === "number") {
-    const n = Number(v.value);
-    return Number.isFinite(n) ? String(n) : v.value;
-  }
   return v.value || "—";
 }
 

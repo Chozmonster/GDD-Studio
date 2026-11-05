@@ -848,26 +848,11 @@ code {
   min-width: 0;
 }
 
-.var-row-fields {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  min-width: 0;
+.variable-row .var-value {
+  width: 100%;
 }
 
-.var-row-fields .var-kind {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: 5.75rem;
-}
-
-.var-row-fields .var-value {
-  flex: 1;
-  min-width: 0;
-}
-
-.variable-row input,
-.variable-row select {
+.variable-row input {
   font: inherit;
   font-size: 0.78rem;
   color: var(--ink);
