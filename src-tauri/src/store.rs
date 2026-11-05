@@ -659,7 +659,7 @@ fn default_doc_body(title: &str) -> serde_json::Value {
                 "type": "paragraph",
                 "content": [{
                     "type": "text",
-                    "text": "Start writing. Link to a heading with [[Heading text]]."
+                    "text": "Start writing. Link to another document with [[Doc Title]]."
                 }]
             }
         ]

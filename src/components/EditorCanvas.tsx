@@ -44,6 +44,7 @@ import {
 } from "../api";
 import { exportDocumentPdf } from "../lib/exportPdf";
 import {
+  clearDocSelection,
   getDocSelection,
   onInsertMediaFromMoodBoard,
   rememberDocSelection,
@@ -61,11 +62,7 @@ import type {
   WordDefinition,
 } from "../types";
 import { DocumentMap } from "./editor/DocumentMap";
-import {
-  collectHeadings,
-  slugifyHeading,
-  type OutlineItem,
-} from "./editor/documentOutline";
+import { DocsSidebar } from "./editor/DocsSidebar";
 import { FlowchartEmbed } from "./editor/flowchartEmbedExtension";
 import {
   FONT_FAMILY_OPTIONS,
@@ -87,9 +84,6 @@ import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 import { WikiLink } from "./editor/wikiLinkExtension";
 import { WordLookupPanel } from "./editor/WordLookupPanel";
-
-/** One primary document per project. Extra on-disk wiki pages are not surfaced. */
-const PRIMARY_DOC_ID = "main";
 
 type EditorCanvasProps = {
   project: ProjectRecord;
@@ -135,9 +129,9 @@ export function EditorCanvas({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rgdPickerOpen, setRgdPickerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
-  const [sectionHeadings, setSectionHeadings] = useState<OutlineItem[]>([]);
+  const [activeDocId, setActiveDocId] = useState("main");
   const [docMeta, setDocMeta] = useState<ProjectDocument | null>(null);
+  const [docsRefresh, setDocsRefresh] = useState(0);
   const [spellMenu, setSpellMenu] = useState<SpellMenuState>(null);
   const [lookupWordText, setLookupWordText] = useState<string | null>(null);
   const [lookupDef, setLookupDef] = useState<WordDefinition | null>(null);
@@ -152,6 +146,9 @@ export function EditorCanvas({
     async () => undefined,
   );
   const persistBodyRef = useRef<(ed: Editor) => Promise<void>>(async () => undefined);
+  const activeDocIdRef = useRef(activeDocId);
+  const switchDocRef = useRef<(docId: string) => Promise<void>>(async () => undefined);
+  activeDocIdRef.current = activeDocId;
 
   const persistBody = useCallback(
     async (ed: Editor) => {
@@ -164,6 +161,7 @@ export function EditorCanvas({
       const saved = await saveProjectDocument(project.id, next);
       docMetaRef.current = saved;
       setDocMeta(saved);
+      setDocsRefresh((n) => n + 1);
       setStatus(`Saved ${new Date().toLocaleTimeString()}`);
     },
     [project.id],
@@ -213,7 +211,7 @@ export function EditorCanvas({
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
-          placeholder: "Write your GDD here… [[Heading]] links to a section",
+          placeholder: "Write your GDD here… [[Doc Title]] links to a document",
         }),
         FlowchartEmbed.configure({
           projectId: project.id,
@@ -225,7 +223,12 @@ export function EditorCanvas({
         MediaEmbed.configure({
           projectId: project.id,
         }),
-        WikiLink,
+        WikiLink.configure({
+          projectId: project.id,
+          onOpenDoc: (docId) => {
+            void switchDocRef.current(docId);
+          },
+        }),
         Spellcheck.configure({ enabled: true }),
         RgdSheetEmbed.configure({
           projectId: project.id,
@@ -288,12 +291,14 @@ export function EditorCanvas({
 
   editorRef.current = editor;
 
-  // Snapshot TipTap selection so Mood Board can insert at the last cursor.
+  // Snapshot TipTap selection so Mood Board can insert at the last cursor
+  // in the *active* document (keyed by projectId:docId).
   useEffect(() => {
     if (!editor) return;
+    const selectionKey = `${project.id}:${activeDocId}`;
     const snapshot = () => {
       const { from, to } = editor.state.selection;
-      rememberDocSelection(project.id, from, to);
+      rememberDocSelection(selectionKey, from, to);
     };
     snapshot();
     editor.on("selectionUpdate", snapshot);
@@ -303,16 +308,16 @@ export function EditorCanvas({
       editor.off("selectionUpdate", snapshot);
       editor.off("blur", snapshot);
     };
-  }, [editor, project.id]);
+  }, [editor, project.id, activeDocId]);
 
-  // Mood Board → Document media insert (cursor restore or append at end).
+  // Mood Board → active Document media insert (cursor restore or append at end).
   // Uses insertContentAt so it works while this panel is display:none.
   useEffect(() => {
     if (!editor) return;
     return onInsertMediaFromMoodBoard((detail) => {
       if (detail.projectId !== project.id) return;
       const docSize = editor.state.doc.content.size;
-      const sel = getDocSelection(project.id);
+      const sel = getDocSelection(`${project.id}:${activeDocIdRef.current}`);
       // Fallback: append at end when Document was never focused.
       const pos = sel
         ? Math.max(0, Math.min(sel.from, docSize))
@@ -335,6 +340,7 @@ export function EditorCanvas({
 
   useEffect(() => {
     migratedRef.current = false;
+    setActiveDocId("main");
   }, [project.id]);
 
   useEffect(() => {
@@ -342,7 +348,7 @@ export function EditorCanvas({
     void (async () => {
       try {
         const [doc, list, sheets] = await Promise.all([
-          loadProjectDocument(project.id, PRIMARY_DOC_ID),
+          loadProjectDocument(project.id, activeDocId),
           listFlowcharts(project.id),
           listRgdSheets(project.id),
         ]);
@@ -353,7 +359,7 @@ export function EditorCanvas({
         let content = doc.body;
         let nextMeta = doc;
         let didMigrate = false;
-        if (!migratedRef.current) {
+        if (activeDocId === "main" && !migratedRef.current) {
           const migration = migrateRgdBlocksInDocument(doc.body, {
             sheetName: `${project.name} — Migrated RGD`,
             sheetId: "migrated-rgd",
@@ -413,7 +419,7 @@ export function EditorCanvas({
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, project.name, editor]);
+  }, [project.id, project.name, editor, activeDocId]);
 
   // Spell suggestion context menu host
   useEffect(() => {
@@ -492,41 +498,42 @@ export function EditorCanvas({
     await insertRgdSheet(created.id);
   };
 
-  const openSectionPicker = () => {
-    if (!editor) return;
-    setPickerOpen(false);
-    setRgdPickerOpen(false);
-    setTemplatesOpen(false);
-    const headings = collectHeadings(editor);
-    setSectionHeadings(headings);
-    setSectionPickerOpen(true);
-  };
+  const switchDoc = useCallback(
+    async (docId: string) => {
+      if (docId === activeDocIdRef.current) return;
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const ed = editorRef.current;
+      if (ed && docMetaRef.current) {
+        try {
+          await persistBody(ed);
+        } catch (e) {
+          setStatus(e instanceof Error ? e.message : String(e));
+          return;
+        }
+      }
+      clearDocSelection(`${project.id}:${activeDocIdRef.current}`);
+      setActiveDocId(docId);
+    },
+    [persistBody, project.id],
+  );
+  switchDocRef.current = switchDoc;
 
-  const insertSectionLink = (heading: OutlineItem) => {
-    editor
-      ?.chain()
-      .focus()
-      .insertSectionLink({
-        title: heading.text,
-        slug: slugifyHeading(heading.text),
-      })
-      .run();
-    setSectionPickerOpen(false);
-    setStatus(`Linked to “${heading.text}”`);
-  };
-
-  const insertSectionLinkCustom = () => {
-    const title = window.prompt("Heading text to link to", "");
+  const insertWikiLink = () => {
+    const title = window.prompt("Link to document title", "");
     if (!title?.trim()) return;
+    const slug = title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     editor
       ?.chain()
       .focus()
-      .insertSectionLink({
-        title: title.trim(),
-        slug: slugifyHeading(title),
-      })
+      .insertWikiLink({ title: title.trim(), slug })
       .run();
-    setSectionPickerOpen(false);
     setStatus(`Linked to “${title.trim()}”`);
   };
 
@@ -767,7 +774,6 @@ export function EditorCanvas({
             onClick={() => {
               setRgdPickerOpen(false);
               setTemplatesOpen(false);
-              setSectionPickerOpen(false);
               void refreshFlowcharts().then(() => setPickerOpen(true));
             }}
           >
@@ -781,7 +787,6 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setTemplatesOpen(false);
-              setSectionPickerOpen(false);
               void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
             }}
           >
@@ -793,18 +798,15 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
-              setSectionPickerOpen(false);
               fileInputRef.current?.click();
             }}
           >
             Media
           </ToolbarIconButton>
           <ToolbarIconButton
-            label="Insert section link"
+            label="Link to document"
             icon={Link2}
-            aria-expanded={sectionPickerOpen}
-            aria-haspopup="dialog"
-            onClick={openSectionPicker}
+            onClick={insertWikiLink}
           >
             Link
           </ToolbarIconButton>
@@ -815,7 +817,6 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
-              setSectionPickerOpen(false);
               setTemplatesOpen((o) => !o);
             }}
           >
@@ -918,56 +919,21 @@ export function EditorCanvas({
         />
       )}
 
-      {sectionPickerOpen && (
-        <div
-          className="embed-picker"
-          role="dialog"
-          aria-label="Insert section link"
-        >
-          <p className="muted tiny">
-            Link to a heading in this document (same as Document map jump).
-            Type <code>[[Heading text]]</code> in the body as a shortcut.
-          </p>
-          {sectionHeadings.length === 0 ? (
-            <p className="muted tiny">
-              No headings yet. Add H1–H3 first, or enter custom heading text.
-            </p>
-          ) : (
-            <ul>
-              {sectionHeadings.map((h) => (
-                <li key={h.id}>
-                  <button
-                    type="button"
-                    style={{ paddingLeft: `${0.35 + (h.level - 1) * 0.75}rem` }}
-                    onClick={() => insertSectionLink(h)}
-                  >
-                    {h.text}
-                    <span className="muted tiny"> H{h.level}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            type="button"
-            className="primary"
-            onClick={insertSectionLinkCustom}
-          >
-            Custom heading text…
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => setSectionPickerOpen(false)}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
       <div className="editor-body">
         <div className="editor-left-rail">
-          <DocumentMap editor={editor} />
+          <div className="left-rail-pane left-rail-map">
+            <DocumentMap editor={editor} />
+          </div>
+          {/* Seam for a future resize handle (sibling worker). */}
+          <div className="left-rail-split" aria-hidden="true" />
+          <div className="left-rail-pane left-rail-docs">
+            <DocsSidebar
+              projectId={project.id}
+              activeDocId={activeDocId}
+              onSelect={(docId) => void switchDoc(docId)}
+              refreshKey={docsRefresh}
+            />
+          </div>
         </div>
         <EditorContent editor={editor} className="editor-canvas" />
         <div className="editor-right-rail">

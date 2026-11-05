@@ -106,37 +106,41 @@ function HowAppWorks() {
           for updates and variable display.
         </li>
         <li>
-          <strong>Document</strong> — one rich-text GDD per project, heading map,
-          section links (<code>[[Heading text]]</code>), variables, media,
-          templates, PDF export.
+          <strong>Projects</strong> — launcher lists projects only. Inside a
+          project you can keep multiple documents (left rail → Documents).
+        </li>
+        <li>
+          <strong>Documents</strong> — rich-text GDDs with a heading map (top
+          left), documents list (bottom left), variables, media, templates, PDF
+          export. Use <code>[[Doc Title]]</code> to link across documents.
         </li>
         <li>
           <strong>Flowcharts</strong> — named diagrams with typed nodes and
-          connectors; embed live references in the document.
+          connectors; embed live references in the active document.
         </li>
         <li>
           <strong>RGD</strong> — Rational Game Design sheets (one per gameplay)
-          edited as forms; live mechanic tables in the document.
+          edited as forms; live mechanic tables in the active document.
         </li>
         <li>
           <strong>Mood Board</strong> — scratchpad for reference media before
-          placing embeds in the GDD. See Help → Mood Board.
+          placing embeds in the <em>active</em> document. See Help → Mood Board.
         </li>
         <li>
           <strong>Variables</strong> — named values that resolve live wherever
           chips appear. Toggle “show names” in Options.
         </li>
         <li>
-          <strong>Section links</strong> — toolbar Link or{" "}
-          <code>[[Heading]]</code> jumps to that heading in the same document
-          (Document map lists the same targets).
+          <strong>Document links</strong> — toolbar Link or{" "}
+          <code>[[Doc Title]]</code> opens/switches that document. In-doc
+          navigation uses the Document map (headings).
         </li>
         <li>
           <strong>Media</strong> — paste or Insert media for images, gifs,
-          video, and audio with built-in players.
+          video, and audio with built-in players (into the active document).
         </li>
         <li>
-          <strong>Templates</strong> — save the document body as app- or
+          <strong>Templates</strong> — save the active document body as app- or
           project-scoped template; apply replaces the current body (confirm).
         </li>
         <li>
@@ -156,8 +160,8 @@ function MoodBoardHelp() {
       <h3>Mood Board</h3>
       <p>
         A project-local scratchpad for reference images, gifs, video, and audio
-        before you place them in the Document. Assets stay in the project media
-        store — same pipeline as Document paste/insert.
+        before you place them in the active Document. Assets stay in the project
+        media store — same pipeline as Document paste/insert.
       </p>
       <ul className="help-feature-list">
         <li>
@@ -175,9 +179,10 @@ function MoodBoardHelp() {
         </li>
         <li>
           <strong>Insert into document</strong> — places a media embed at the
-          last TipTap cursor in Document. The Document editor stays mounted
-          (hidden) while you browse other tabs so the selection survives. If
-          Document was never focused, the embed is appended at the end.
+          last TipTap cursor in the <em>active</em> document. The Document
+          editor stays mounted (hidden) while you browse other tabs so the
+          selection survives. If Document was never focused, the embed is
+          appended at the end.
         </li>
       </ul>
       <p className="muted tiny">

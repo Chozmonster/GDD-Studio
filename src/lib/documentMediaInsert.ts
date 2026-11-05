@@ -1,10 +1,10 @@
 /**
- * Bridge between Mood Board and the Document TipTap editor.
+ * Bridge between Mood Board and the active Document TipTap editor.
  *
  * Cursor policy: EditorShell keeps the Document editor mounted (hidden) when
- * other tabs are active so TipTap selection survives. We also snapshot
- * from/to on selectionUpdate/blur as a fallback. Insert restores that
- * selection; if the document was never focused, content is appended at end.
+ * other tabs are active so TipTap selection survives. Selection is keyed by
+ * `projectId:docId` so inserts land in the active document. Insert restores
+ * that selection; if never focused, content is appended at end.
  */
 
 export type MoodBoardMediaInsert = {

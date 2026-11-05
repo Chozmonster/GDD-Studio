@@ -2174,21 +2174,52 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden;
   background: var(--bg-panel);
 }
 
-.editor-left-rail .doc-side-panel,
+.editor-right-rail {
+  overflow: auto;
+}
+
 .editor-right-rail .doc-side-panel {
   flex: 1;
   min-height: 140px;
 }
 
-.docs-sidebar {
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-  max-height: 45%;
+/*
+ * Left rail = vertical flex split (map | seam | docs).
+ * Each pane scrolls independently; `.left-rail-split` is the attach point
+ * for app-wide resizable pane handles.
+ */
+.left-rail-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 50%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.left-rail-pane .doc-side-panel,
+.left-rail-pane .docs-sidebar {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+}
+
+.left-rail-split {
+  flex: 0 0 1px;
+  background: var(--line);
+  min-height: 1px;
+}
+
+.docs-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-panel);
 }
 
 .docs-sidebar-header {

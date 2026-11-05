@@ -639,7 +639,7 @@ function defaultDocBody(title: string): unknown {
         content: [
           {
             type: "text",
-            text: "Start writing. Link to a heading with [[Heading text]].",
+            text: "Start writing. Link to another document with [[Doc Title]].",
           },
         ],
       },
@@ -769,7 +769,7 @@ export async function deleteProjectDocument(
   await invoke("delete_project_document", { projectId, docId });
 }
 
-/** @deprecated Cross-doc wiki resolution — unused after one-doc-per-project. */
+/** Resolve [[title]] / slug / id to a project document summary. */
 export async function resolveWikiSlug(
   projectId: string,
   slugOrTitle: string,
@@ -819,7 +819,7 @@ function bodyLinksTo(
   return Object.values(obj).some((v) => bodyLinksTo(v, target));
 }
 
-/** @deprecated Cross-doc backlinks — unused after one-doc-per-project. */
+/** Documents whose bodies contain a wikiLink targeting `targetDocId`. */
 export async function listBacklinks(
   projectId: string,
   targetDocId: string,
