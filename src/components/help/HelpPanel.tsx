@@ -144,8 +144,15 @@ function HowAppWorks() {
           mechanic table in the active document. See Help → Using RGD here.
         </li>
         <li>
-          <strong>Mood Board</strong> — project scratchpad for reference media
-          before placing embeds in the active document. See Help → Mood Board.
+          <strong>Mood Board</strong> — project scratchpad for reference media;
+          Insert into document embeds a <em>live linked</em> tile (crop, border,
+          and comments update in open docs). See Help → Mood Board.
+        </li>
+        <li>
+          <strong>Live tool → document embeds</strong> — Flowcharts, RGD tables,
+          and Mood Board inserts are references, not snapshots. Edits in those
+          tool tabs propagate automatically into every document embed so docs
+          never show stale tool data.
         </li>
         <li>
           <strong>Variables</strong> — project-wide named values that resolve
@@ -183,18 +190,24 @@ function MoodBoardHelp() {
     <article className="help-article">
       <h3>Mood Board</h3>
       <p>
-        A project-local scratchpad for reference images, gifs, video, and audio
-        before you place them in the <em>active</em> Document. Assets stay in
-        the project media store — same pipeline as Document paste/insert.
+        A project-local scratchpad for reference images, gifs, video, and audio.
+        Assets stay in the project media store. Tile edits (crop, border,
+        comment) are stored on the Mood Board item — not baked into a one-off
+        copy.
       </p>
       <ul className="help-feature-list">
         <li>
           <strong>Add media</strong> — drop files onto the board, paste from the
-          OS clipboard, or use Add media…
+          OS clipboard, or use Add media… (SVG is blocked).
         </li>
         <li>
           <strong>Tile notes</strong> — right-click a tile → Comment. Notes show
-          under the tile (Note badge when set).
+          under the tile and on live document embeds (Note badge when set).
+        </li>
+        <li>
+          <strong>Crop / Border</strong> — right-click → Crop… (images/gifs) or
+          Border… (width, color, optional radius). Edits persist with the tile
+          and update every open document embed of that item.
         </li>
         <li>
           <strong>Board clipboard</strong> — Copy / Cut / Paste / Delete for
@@ -203,15 +216,19 @@ function MoodBoardHelp() {
           empty.
         </li>
         <li>
-          <strong>Insert into Document</strong> — places a media embed at the
-          last TipTap cursor in the active document. The Document editor stays
-          mounted (hidden) while you browse other tabs so the selection
-          survives. If Document was never focused, the embed is appended at the
-          end.
+          <strong>Insert into Document</strong> — embeds a <em>live link</em> to
+          the Mood Board item (by id) at the last TipTap cursor in the active
+          document — same spirit as flowchart and RGD embeds. Crop, border, and
+          comment changes propagate automatically; deleting the tile breaks the
+          embed. The Document editor stays mounted (hidden) on other tabs so
+          the selection survives. If Document was never focused, the embed is
+          appended at the end.
         </li>
       </ul>
       <p className="muted tiny">
-        v1 is a grid with comments — not a free-position canvas.
+        v1 is a grid with comments and basic image edits — not a free-position
+        canvas. Direct Document paste/insert still creates standalone media
+        embeds (not Mood Board-linked).
       </p>
     </article>
   );

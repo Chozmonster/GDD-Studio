@@ -36,13 +36,39 @@ export type View = "launcher" | "editor";
 
 export type ProjectTab = "document" | "flowchart" | "rgd" | "moodboard";
 
+/** Normalized crop rect over the source image (fractions of natural size). */
+export type MoodBoardCrop = {
+  /** Left edge [0, 1). */
+  x: number;
+  /** Top edge [0, 1). */
+  y: number;
+  /** Width (0, 1]. */
+  width: number;
+  /** Height (0, 1]. */
+  height: number;
+};
+
+/** Decorative border applied around the cropped media frame. */
+export type MoodBoardBorder = {
+  /** Border width in CSS pixels. */
+  width: number;
+  /** CSS color (hex preferred). */
+  color: string;
+  /** Optional corner radius in CSS pixels. */
+  radius?: number;
+};
+
 /** One tile on the project Mood Board (references a project asset). */
 export type MoodBoardItem = {
   id: string;
   assetId: string;
-  /** Designer note — shown under the tile. */
+  /** Designer note — shown under the tile and on live doc embeds. */
   comment: string;
   createdAt: number;
+  /** Image/gif crop — persisted with the item; ignored for video/audio. */
+  crop?: MoodBoardCrop | null;
+  /** Border framing — persisted with the item. */
+  border?: MoodBoardBorder | null;
 };
 
 /** Project-persisted Mood Board (scratchpad of reference media). */

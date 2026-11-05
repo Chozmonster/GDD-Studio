@@ -8,12 +8,21 @@ import {
 } from "../../api";
 import { requestInsertMediaFromMoodBoard } from "../../lib/documentMediaInsert";
 import { isAllowedMediaFile } from "../../lib/mediaFile";
+import {
+  emitMoodBoardItemDeleted,
+  emitMoodBoardSaved,
+} from "../../lib/moodBoardEvents";
 import type {
   AssetRecord,
+  MoodBoardBorder,
+  MoodBoardCrop,
   MoodBoardDocument,
   MoodBoardItem,
   ProjectRecord,
 } from "../../types";
+import { MoodBorderDialog } from "./MoodBorderDialog";
+import { MoodCropDialog } from "./MoodCropDialog";
+import { MoodMediaFrame } from "./MoodMediaFrame";
 
 type MoodBoardProps = {
   project: ProjectRecord;
@@ -31,6 +40,10 @@ type BoardClipboard = {
   items: MoodBoardItem[];
 };
 
+type EditDialog =
+  | { kind: "crop"; itemId: string; src: string }
+  | { kind: "border"; itemId: string };
+
 function emptyBoard(): MoodBoardDocument {
   return { format: "gdd-studio-mood-board", version: 1, items: [] };
 }
@@ -42,6 +55,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
   const [dragOver, setDragOver] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
   const clipboardRef = useRef<BoardClipboard | null>(null);
   const boardRef = useRef(board);
   const saveTimer = useRef<number | null>(null);
@@ -51,27 +65,36 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
   boardRef.current = board;
 
   const persist = useCallback(
-    async (next: MoodBoardDocument) => {
+    async (next: MoodBoardDocument, removedIds: string[] = []) => {
       const saved = await saveMoodBoard(project.id, next);
       setBoard(saved);
       boardRef.current = saved;
+      emitMoodBoardSaved(project.id, saved);
+      for (const id of removedIds) {
+        emitMoodBoardItemDeleted(project.id, id);
+      }
       setStatus(`Saved ${new Date().toLocaleTimeString()}`);
     },
     [project.id],
   );
 
   const schedulePersist = useCallback(
-    (next: MoodBoardDocument) => {
+    (next: MoodBoardDocument, removedIds: string[] = []) => {
       setBoard(next);
       boardRef.current = next;
+      // Optimistic live update so open Document embeds refresh immediately.
+      emitMoodBoardSaved(project.id, next);
+      for (const id of removedIds) {
+        emitMoodBoardItemDeleted(project.id, id);
+      }
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
-        void persist(next).catch((e) =>
+        void persist(next, []).catch((e) =>
           setStatus(e instanceof Error ? e.message : String(e)),
         );
       }, 350);
     },
-    [persist],
+    [persist, project.id],
   );
 
   const refreshAssets = useCallback(async () => {
@@ -92,6 +115,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         if (cancelled) return;
         setBoard(doc);
         boardRef.current = doc;
+        emitMoodBoardSaved(project.id, doc);
         setStatus(doc.items.length ? "Ready" : "Drop or paste media to begin");
       } catch (e) {
         if (!cancelled) {
@@ -104,6 +128,24 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
   }, [project.id, refreshAssets]);
+
+  const updateItem = useCallback(
+    (
+      itemId: string,
+      patch: Partial<
+        Pick<MoodBoardItem, "comment" | "crop" | "border">
+      >,
+    ) => {
+      const next: MoodBoardDocument = {
+        ...boardRef.current,
+        items: boardRef.current.items.map((i) =>
+          i.id === itemId ? { ...i, ...patch } : i,
+        ),
+      };
+      schedulePersist(next);
+    },
+    [schedulePersist],
+  );
 
   const addFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -166,7 +208,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         ...boardRef.current,
         items: boardRef.current.items.filter((i) => !idSet.has(i.id)),
       };
-      schedulePersist(next);
+      schedulePersist(next, ids);
       if (selectedId && idSet.has(selectedId)) setSelectedId(null);
     },
     [schedulePersist, selectedId],
@@ -179,7 +221,11 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       if (items.length === 0) return;
       clipboardRef.current = {
         mode,
-        items: items.map((i) => ({ ...i })),
+        items: items.map((i) => ({
+          ...i,
+          crop: i.crop ? { ...i.crop } : i.crop,
+          border: i.border ? { ...i.border } : i.border,
+        })),
       };
       if (mode === "cut") {
         removeItems(ids);
@@ -199,6 +245,8 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         ...i,
         id: crypto.randomUUID(),
         createdAt: Math.floor(Date.now() / 1000),
+        crop: i.crop ? { ...i.crop } : i.crop,
+        border: i.border ? { ...i.border } : i.border,
       }));
       const next: MoodBoardDocument = {
         ...boardRef.current,
@@ -212,7 +260,6 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       return;
     }
 
-    // Fall back to OS clipboard files when available.
     try {
       const items = await navigator.clipboard.read();
       const files: File[] = [];
@@ -256,16 +303,40 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         closeMenu();
         return;
       }
-      const next: MoodBoardDocument = {
-        ...boardRef.current,
-        items: boardRef.current.items.map((i) =>
-          i.id === itemId ? { ...i, comment: nextComment.trim() } : i,
-        ),
-      };
-      schedulePersist(next);
+      updateItem(itemId, { comment: nextComment.trim() });
       closeMenu();
     },
-    [closeMenu, schedulePersist],
+    [closeMenu, updateItem],
+  );
+
+  const openCrop = useCallback(
+    async (itemId: string) => {
+      const item = boardRef.current.items.find((i) => i.id === itemId);
+      if (!item) return;
+      const asset = assets[item.assetId];
+      const kind = String(asset?.kind ?? "image");
+      if (kind !== "image" && kind !== "gif") {
+        setStatus("Crop is available for images and gifs");
+        closeMenu();
+        return;
+      }
+      try {
+        const src = await getAssetSrc(project.id, item.assetId);
+        setEditDialog({ kind: "crop", itemId, src });
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : String(e));
+      }
+      closeMenu();
+    },
+    [assets, closeMenu, project.id],
+  );
+
+  const openBorder = useCallback(
+    (itemId: string) => {
+      setEditDialog({ kind: "border", itemId });
+      closeMenu();
+    },
+    [closeMenu],
   );
 
   const insertIntoDocument = useCallback(
@@ -280,12 +351,11 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       }
       requestInsertMediaFromMoodBoard({
         projectId: project.id,
-        assetId: asset.id,
-        kind: String(asset.kind),
+        moodBoardItemId: item.id,
         filename: asset.filename,
-        mime: asset.mime,
+        kind: String(asset.kind),
       });
-      setStatus(`Inserted ${asset.filename} into Document`);
+      setStatus(`Linked ${asset.filename} into Document (live)`);
       closeMenu();
       onInsertedIntoDocument?.();
     },
@@ -311,10 +381,8 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "v") {
-        // Prefer native paste handler for files; board clipboard via explicit Paste menu / Ctrl+Shift+V
         if (clipboardRef.current && !e.shiftKey) {
           const hasOsFiles =
-            // Can't introspect OS clipboard sync — only hijack when board clip exists and no input focused
             !(e.target instanceof HTMLInputElement) &&
             !(e.target instanceof HTMLTextAreaElement);
           if (hasOsFiles && clipboardRef.current.items.length) {
@@ -358,17 +426,25 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
   const activeMenuItem = menu
     ? board.items.find((i) => i.id === menu.itemId)
     : null;
+  const activeMenuAsset = activeMenuItem
+    ? assets[activeMenuItem.assetId]
+    : undefined;
+  const menuKind = String(activeMenuAsset?.kind ?? "image");
+  const canCrop = menuKind === "image" || menuKind === "gif";
 
-  // Single-column shell (toolbar + mood-main). No sidebars to resize.
+  const editItem = editDialog
+    ? board.items.find((i) => i.id === editDialog.itemId)
+    : null;
+
   return (
     <section className="mood-shell" ref={surfaceRef} tabIndex={0} aria-label="Mood board">
       <header className="mood-toolbar">
         <div className="mood-toolbar-left">
           <h2>Mood Board</h2>
           <p className="muted tiny mood-blurb">
-            Drop or paste reference images, gifs, video, and audio. Right-click
-            a tile to comment, copy/cut/paste/delete, or insert into the
-            Document at the last cursor position.
+            Drop or paste reference media. Crop and border edits stay on the
+            tile and update every live Document embed. Right-click for comment,
+            clipboard, crop/border, or Insert into document.
           </p>
         </div>
         <div className="mood-toolbar-actions">
@@ -474,6 +550,22 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
           <button
             type="button"
             role="menuitem"
+            disabled={!canCrop}
+            title={canCrop ? undefined : "Crop is for images and gifs"}
+            onClick={() => void openCrop(activeMenuItem.id)}
+          >
+            Crop…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openBorder(activeMenuItem.id)}
+          >
+            Border…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             onClick={() => copyItems([activeMenuItem.id], "copy")}
           >
             Copy
@@ -510,6 +602,31 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
           </button>
         </div>
       )}
+
+      {editDialog?.kind === "crop" && editItem && (
+        <MoodCropDialog
+          src={editDialog.src}
+          initial={editItem.crop}
+          onCancel={() => setEditDialog(null)}
+          onApply={(crop: MoodBoardCrop | null) => {
+            updateItem(editDialog.itemId, { crop });
+            setEditDialog(null);
+            setStatus(crop ? "Crop applied" : "Crop cleared");
+          }}
+        />
+      )}
+
+      {editDialog?.kind === "border" && editItem && (
+        <MoodBorderDialog
+          initial={editItem.border}
+          onCancel={() => setEditDialog(null)}
+          onApply={(border: MoodBoardBorder | null) => {
+            updateItem(editDialog.itemId, { border });
+            setEditDialog(null);
+            setStatus(border ? "Border applied" : "Border cleared");
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -536,6 +653,7 @@ function MoodTile({
   const kind = String(asset?.kind ?? "image");
   const label = asset?.filename || item.assetId;
   const hasComment = Boolean(item.comment?.trim());
+  const hasEdits = Boolean(item.crop || (item.border && item.border.width > 0));
 
   useEffect(() => {
     let cancelled = false;
@@ -582,17 +700,23 @@ function MoodTile({
             Note
           </span>
         )}
+        {hasEdits && (
+          <span className="mood-edit-badge" title="Has crop or border edits">
+            Edit
+          </span>
+        )}
         <span className="mood-kind-badge">{kind}</span>
         {error && <p className="muted tiny mood-tile-error">{error}</p>}
         {!error && !src && <p className="muted tiny">Loading…</p>}
-        {src && (kind === "image" || kind === "gif") && (
-          <img src={src} alt={label} draggable={false} />
-        )}
-        {src && kind === "video" && (
-          <video src={src} controls playsInline preload="metadata" />
-        )}
-        {src && kind === "audio" && (
-          <audio src={src} controls preload="metadata" />
+        {src && (
+          <MoodMediaFrame
+            src={src}
+            alt={label}
+            kind={kind}
+            crop={item.crop}
+            border={item.border}
+            className="mood-tile-frame"
+          />
         )}
       </div>
       <div className="mood-tile-meta">

@@ -5,14 +5,18 @@
  * other tabs are active so TipTap selection survives. Selection is keyed by
  * `projectId:docId` so inserts land in the active document. Insert restores
  * that selection; if never focused, content is appended at end.
+ *
+ * Inserts are live references (`moodBoardEmbed` by item id) — crop/border/
+ * comment edits on the board propagate via moodBoardEvents.
  */
 
 export type MoodBoardMediaInsert = {
   projectId: string;
-  assetId: string;
-  kind: string;
-  filename: string;
-  mime: string;
+  /** Mood Board item id — document embeds by reference, not a media snapshot. */
+  moodBoardItemId: string;
+  /** Display hint for status toast only. */
+  filename?: string;
+  kind?: string;
 };
 
 type DocSelection = { from: number; to: number };

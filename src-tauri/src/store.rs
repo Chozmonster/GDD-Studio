@@ -1181,12 +1181,36 @@ const MOOD_BOARD_FILE: &str = "mood-board.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MoodBoardCrop {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoodBoardBorder {
+    pub width: f64,
+    pub color: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoodBoardItem {
     pub id: String,
     pub asset_id: String,
     #[serde(default)]
     pub comment: String,
     pub created_at: u64,
+    /// Normalized image crop; omitted when full-frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop: Option<MoodBoardCrop>,
+    /// Decorative border; omitted when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border: Option<MoodBoardBorder>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1219,6 +1243,68 @@ fn sanitize_mood_comment(comment: &str) -> String {
         .collect()
 }
 
+fn clamp01(v: f64) -> f64 {
+    if !v.is_finite() {
+        return 0.0;
+    }
+    v.clamp(0.0, 1.0)
+}
+
+fn sanitize_mood_crop(crop: MoodBoardCrop) -> Option<MoodBoardCrop> {
+    let width = crop.width.clamp(0.05, 1.0);
+    let height = crop.height.clamp(0.05, 1.0);
+    let x = clamp01(crop.x).min(1.0 - width);
+    let y = clamp01(crop.y).min(1.0 - height);
+    if x <= 0.0001 && y <= 0.0001 && width >= 0.9999 && height >= 0.9999 {
+        return None;
+    }
+    Some(MoodBoardCrop {
+        x,
+        y,
+        width,
+        height,
+    })
+}
+
+fn sanitize_mood_border_color(color: &str) -> String {
+    let t = color.trim();
+    let ok = t.starts_with('#')
+        && (t.len() == 4 || t.len() == 7 || t.len() == 9)
+        && t[1..].chars().all(|c| c.is_ascii_hexdigit());
+    if ok {
+        t.to_ascii_lowercase()
+    } else {
+        "#e8e8e8".into()
+    }
+}
+
+fn sanitize_mood_border(border: MoodBoardBorder) -> Option<MoodBoardBorder> {
+    let width = if border.width.is_finite() {
+        border.width.clamp(0.0, 64.0).round()
+    } else {
+        0.0
+    };
+    let radius = border.radius.and_then(|r| {
+        if !r.is_finite() {
+            return None;
+        }
+        let n = r.clamp(0.0, 64.0).round();
+        if n > 0.0 {
+            Some(n)
+        } else {
+            None
+        }
+    });
+    if width <= 0.0 && radius.is_none() {
+        return None;
+    }
+    Some(MoodBoardBorder {
+        width,
+        color: sanitize_mood_border_color(&border.color),
+        radius,
+    })
+}
+
 fn normalize_mood_board_items(items: &mut Vec<MoodBoardItem>) -> Result<(), String> {
     if items.len() > MAX_MOOD_BOARD_ITEMS {
         return Err(format!(
@@ -1235,6 +1321,8 @@ fn normalize_mood_board_items(items: &mut Vec<MoodBoardItem>) -> Result<(), Stri
             return Err("Mood board item missing assetId".into());
         }
         validate_entity_id(&item.asset_id, "asset")?;
+        item.crop = item.crop.take().and_then(sanitize_mood_crop);
+        item.border = item.border.take().and_then(sanitize_mood_border);
     }
     Ok(())
 }
@@ -1261,6 +1349,8 @@ pub fn load_mood_board(
     }
     for item in &mut doc.items {
         item.comment = sanitize_mood_comment(&item.comment);
+        item.crop = item.crop.take().and_then(sanitize_mood_crop);
+        item.border = item.border.take().and_then(sanitize_mood_border);
     }
     Ok(doc)
 }

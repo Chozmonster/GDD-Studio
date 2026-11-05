@@ -36,6 +36,10 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
     setTab("rgd");
   }, []);
 
+  const openMoodBoard = useCallback(() => {
+    setTab("moodboard");
+  }, []);
+
   const handleOptions = async () => {
     try {
       await openOptionsWindow();
@@ -120,6 +124,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             project={project}
             onOpenFlowchart={openFlowchart}
             onOpenRgdSheet={openRgdSheet}
+            onOpenMoodBoard={openMoodBoard}
           />
         </div>
 

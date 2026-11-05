@@ -158,12 +158,21 @@ export function FlowchartEditor({
   const queueSave = useCallback(
     (nextNodes: Node[], nextEdges: Edge[]) => {
       setDirty(true);
+      // Optimistic live update so Document embeds refresh before disk save.
+      const snapshot = toDoc(
+        flowchartId,
+        nameRef.current,
+        nextNodes,
+        nextEdges,
+        viewportRef.current,
+      );
+      emitFlowchartSaved(project.id, flowchartId, snapshot);
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
         void persist(nextNodes, nextEdges, viewportRef.current);
       }, 450);
     },
-    [persist],
+    [persist, project.id, flowchartId],
   );
 
   const queueSaveRef = useRef(queueSave);

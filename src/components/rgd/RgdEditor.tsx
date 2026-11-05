@@ -124,6 +124,8 @@ export function RgdEditor({
     (next: RgdSheetDocument) => {
       docRef.current = next;
       setDoc(next);
+      // Optimistic live update so Document table embeds refresh before disk save.
+      if (sheetId) emitRgdSheetSaved(project.id, sheetId, next);
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
         void persist(next).catch((e) =>
@@ -131,7 +133,7 @@ export function RgdEditor({
         );
       }, 450);
     },
-    [persist],
+    [persist, project.id, sheetId],
   );
 
   const updateName = (nextName: string) => {

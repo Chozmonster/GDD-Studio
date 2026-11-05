@@ -74,6 +74,7 @@ import {
   FontSize,
 } from "./editor/fontSize";
 import { MediaEmbed } from "./editor/mediaEmbedExtension";
+import { MoodBoardEmbed } from "./editor/moodBoardEmbedExtension";
 import { migrateRgdBlocksInDocument } from "./editor/rgd/migrateRgdBlocks";
 import { RgdBlock } from "./editor/rgd/rgdBlockExtension";
 import { RgdSheetEmbed } from "./editor/rgd/rgdSheetEmbedExtension";
@@ -93,6 +94,7 @@ type EditorCanvasProps = {
   project: ProjectRecord;
   onOpenFlowchart?: (flowchartId: string) => void;
   onOpenRgdSheet?: (sheetId: string) => void;
+  onOpenMoodBoard?: () => void;
 };
 
 type SpellMenuState = {
@@ -112,6 +114,7 @@ export function EditorCanvas({
   project,
   onOpenFlowchart,
   onOpenRgdSheet,
+  onOpenMoodBoard,
 }: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
@@ -226,6 +229,10 @@ export function EditorCanvas({
         MediaEmbed.configure({
           projectId: project.id,
         }),
+        MoodBoardEmbed.configure({
+          projectId: project.id,
+          onOpenMoodBoard,
+        }),
         WikiLink.configure({
           projectId: project.id,
           onOpenDoc: (docId) => {
@@ -297,7 +304,7 @@ export function EditorCanvas({
         }, 500);
       },
     },
-    [project.id, onOpenFlowchart, onOpenRgdSheet],
+    [project.id, onOpenFlowchart, onOpenRgdSheet, onOpenMoodBoard],
   );
 
   editorRef.current = editor;
@@ -321,12 +328,13 @@ export function EditorCanvas({
     };
   }, [editor, project.id, activeDocId]);
 
-  // Mood Board → active Document media insert (cursor restore or append at end).
+  // Mood Board → active Document live embed-by-item-id (cursor restore or append).
   // Uses insertContentAt so it works while this panel is display:none.
   useEffect(() => {
     if (!editor) return;
     return onInsertMediaFromMoodBoard((detail) => {
       if (detail.projectId !== project.id) return;
+      if (!detail.moodBoardItemId) return;
       const docSize = editor.state.doc.content.size;
       const sel = getDocSelection(`${project.id}:${activeDocIdRef.current}`);
       // Fallback: append at end when Document was never focused.
@@ -336,16 +344,15 @@ export function EditorCanvas({
       editor
         .chain()
         .insertContentAt(pos, {
-          type: "mediaEmbed",
+          type: "moodBoardEmbed",
           attrs: {
-            assetId: detail.assetId,
-            kind: detail.kind,
-            filename: detail.filename,
-            mime: detail.mime,
+            moodBoardItemId: detail.moodBoardItemId,
           },
         })
         .run();
-      setStatus(`Embedded ${detail.filename || detail.kind} from Mood Board`);
+      setStatus(
+        `Linked ${detail.filename || detail.kind || "Mood Board item"} (live)`,
+      );
     });
   }, [editor, project.id]);
 
