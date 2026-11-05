@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-05
+
+Code cleanup sweep: dead code removal, shared embed resize, clarifying invariants. No user-facing behavior change.
+
 ### Changed
 
 - Internal code cleanup: removed unused frontend helpers/exports, shared embed resize logic, light Mood Board embed fetch dedupe, and clarifying comments (crop math, live embeds, security allowlists). No user-facing behavior change.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.2] - 2026-11-05
 
@@ -58,7 +66,8 @@ First signed public cut of GDD Studio (v1 merge / release on `main`).
 
 Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
-[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.0
