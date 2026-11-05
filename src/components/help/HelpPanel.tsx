@@ -109,7 +109,7 @@ function HowAppWorks() {
         </li>
         <li>
           <strong>RGD</strong> — Rational Game Design sheets (one per gameplay)
-          with a side step map; compact cards in the document.
+          edited as forms; live mechanic tables in the document.
         </li>
         <li>
           <strong>Variables</strong> — named values that resolve live wherever
@@ -173,9 +173,9 @@ function RgdSteps() {
     <article className="help-article">
       <h3>The 7 steps</h3>
       <p className="muted">
-        Ordered but not gated in the app — fill what you need. Recommend pillars
-        → signs for a full sheet. Industry decks sometimes compress this list;
-        GDD Studio teaches all seven.
+        Teaching scaffold for the methodology. Day-to-day editing centers on the
+        mechanic → skill → parameter table; pillars, patterns, and signs stay
+        available as optional sheet context. Fill what you need.
       </p>
       <ol className="help-step-list">
         {RGD_STEP_HELP.map((s) => (
@@ -204,19 +204,22 @@ function RgdInApp() {
       <ul className="help-feature-list">
         <li>
           <strong>Sheets</strong> — one sheet per gameplay loop (Combat,
-          Stealth, …). Create them under the <strong>RGD</strong> tab.
+          Stealth, …). Create and edit them under the <strong>RGD</strong> tab
+          (library, like Flowcharts).
         </li>
         <li>
-          <strong>Step map</strong> — jump between the seven steps on the side
-          of the sheet editor.
+          <strong>Form editor</strong> — fill mechanics, optional player input,
+          player skills, atomic parameters, and cases. Optional pillars /
+          pattern / signs live in a collapsed context section.
         </li>
         <li>
-          <strong>Document cards</strong> — Insert RGD… embeds a compact
-          reference card; edits update every embed.
+          <strong>Document tables</strong> — Insert RGD… embeds a live table
+          titled with the gameplay name; edits update every embed. PDF export
+          captures the table as an image.
         </li>
         <li>
-          <strong>Flowcharts</strong> — from the Pattern step, link a flowchart;
-          Open jumps to the Flowcharts tab.
+          <strong>Flowcharts</strong> — link a primary or pattern flowchart from
+          the sheet; Open jumps to the Flowcharts tab.
         </li>
         <li>
           <strong>Starter</strong> — New Project can include an RGD starter

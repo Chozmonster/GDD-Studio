@@ -5,7 +5,7 @@ import { writeExportHtml } from "../api";
 /** Soft cap — very tall embeds are cropped so print pages stay usable. */
 const MAX_CAPTURE_HEIGHT_PX = 1800;
 const EMBED_SELECTOR =
-  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-block';
+  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block';
 
 type CapturedEmbed = {
   dataUrl: string;
@@ -69,7 +69,9 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
 
 function embedLabel(el: HTMLElement): string {
   const title =
-    el.querySelector(".flowchart-embed-title, .rgd-sheet-card-title, .rgd-block-title")
+    el.querySelector(
+      ".flowchart-embed-title, .rgd-live-table-title, .rgd-sheet-card-title, .rgd-block-title",
+    )
       ?.textContent?.trim() ||
     el.getAttribute("data-flowchart-id") ||
     el.getAttribute("data-sheet-id") ||
@@ -77,7 +79,11 @@ function embedLabel(el: HTMLElement): string {
   if (el.matches(".flowchart-embed, [data-type='flowchart-embed']")) {
     return title || "Flowchart";
   }
-  if (el.matches(".rgd-sheet-card, [data-type='rgd-sheet-embed'], .rgd-block")) {
+  if (
+    el.matches(
+      ".rgd-sheet-card, .rgd-table-embed, [data-type='rgd-sheet-embed'], .rgd-block",
+    )
+  ) {
     return title || "RGD";
   }
   return title || "Embed";

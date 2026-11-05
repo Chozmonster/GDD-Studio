@@ -509,11 +509,12 @@ function emptyRgdSheet(id: string, name?: string): RgdSheetDocument {
   // Minimal stub for missing files; callers normalize via rgdSheetModel.
   return {
     format: "gdd-studio-rgd-sheet",
-    version: 1,
+    version: 2,
     id,
     name: name ?? (id === "main" ? "Main gameplay" : id),
     primaryFlowchartId: "",
-    steps: {},
+    mechanics: [],
+    meta: {},
   };
 }
 

@@ -7,14 +7,15 @@ import {
 } from "../../api";
 import { emitRgdSheetSaved } from "../../lib/rgdEvents";
 import type { FlowchartSummary, ProjectRecord, RgdSheetDocument } from "../../types";
-import { RgdStepFields } from "../editor/rgd/RgdStepFields";
+import { RgdLiveTable } from "../editor/rgd/RgdLiveTable";
+import { RgdSheetForm } from "../editor/rgd/RgdSheetForm";
+import { normalizeRgdSheet } from "../editor/rgd/rgdSheetModel";
 import {
-  getSheetStep,
-  normalizeRgdSheet,
-  setSheetStep,
-} from "../editor/rgd/rgdSheetModel";
-import type { RgdBlockType, RgdPayloadByType } from "../editor/rgd/rgdTypes";
-import { RGD_INSERT_ORDER, RGD_TYPE_META } from "../editor/rgd/rgdTypes";
+  parseMechanics,
+  parseSheetMeta,
+  type RgdMechanicNode,
+  type RgdSheetMeta,
+} from "../editor/rgd/rgdTableModel";
 import { RgdSidebar } from "./RgdSidebar";
 
 type RgdEditorProps = {
@@ -31,7 +32,6 @@ export function RgdEditor({
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [doc, setDoc] = useState<RgdSheetDocument | null>(null);
-  const [activeStep, setActiveStep] = useState<RgdBlockType>("pillars");
   const [status, setStatus] = useState("Loading…");
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const saveTimer = useRef<number | null>(null);
@@ -144,23 +144,18 @@ export function RgdEditor({
     queueSave({ ...doc, primaryFlowchartId: flowchartId });
   };
 
-  const updateStepPayload = <T extends RgdBlockType>(
-    type: T,
-    payload: RgdPayloadByType[T],
-  ) => {
+  const updateMechanics = (mechanics: RgdMechanicNode[]) => {
     if (!doc) return;
-    const step = getSheetStep(doc, type);
-    queueSave(setSheetStep(doc, type, { ...step, payload }));
+    queueSave({ ...doc, mechanics });
   };
 
-  const updateStepTitle = (type: RgdBlockType, title: string) => {
+  const updateMeta = (meta: RgdSheetMeta) => {
     if (!doc) return;
-    const step = getSheetStep(doc, type);
-    queueSave(setSheetStep(doc, type, { ...step, title }));
+    queueSave({ ...doc, meta });
   };
 
-  const meta = RGD_TYPE_META[activeStep];
-  const active = doc ? getSheetStep(doc, activeStep) : null;
+  const mechanics = parseMechanics(doc?.mechanics);
+  const meta = parseSheetMeta(doc?.meta);
 
   return (
     <div className="flowchart-shell rgd-shell">
@@ -170,13 +165,13 @@ export function RgdEditor({
         onSelect={selectSheet}
       />
       <div className="flowchart-main rgd-main">
-        {!sheetId || !doc || !active ? (
+        {!sheetId || !doc ? (
           <div className="rgd-empty-state">
             <h2>RGD</h2>
             <p className="muted">
-              Create a sheet for one gameplay loop, then fill the seven design
-              steps. Embed a compact card in the Document when you want a
-              reference.
+              Create a sheet for one gameplay loop, then fill the mechanic →
+              skill → parameter table. Embed a live table in the Document when
+              you want it visible in the GDD.
             </p>
             <p className="muted tiny">{status}</p>
           </div>
@@ -184,12 +179,16 @@ export function RgdEditor({
           <>
             <header className="rgd-editor-toolbar">
               <div className="rgd-editor-title-row">
-                <input
-                  className="rgd-sheet-name-input"
-                  value={name}
-                  aria-label="Sheet name"
-                  onChange={(e) => updateName(e.target.value)}
-                />
+                <label className="rgd-field grow rgd-gameplay-name-field">
+                  <span>Gameplay name</span>
+                  <input
+                    className="rgd-sheet-name-input"
+                    value={name}
+                    aria-label="Gameplay name"
+                    placeholder="e.g. Platforming"
+                    onChange={(e) => updateName(e.target.value)}
+                  />
+                </label>
                 <span className="muted tiny toolbar-status">{status}</span>
               </div>
               <label className="rgd-field rgd-primary-flow">
@@ -222,64 +221,21 @@ export function RgdEditor({
               </label>
             </header>
 
-            <div className="rgd-editor-body">
-              <nav className="rgd-step-map" aria-label="RGD step map">
-                <h3>Steps</h3>
-                <ol>
-                  {RGD_INSERT_ORDER.map((type) => {
-                    const stepMeta = RGD_TYPE_META[type];
-                    return (
-                      <li key={type}>
-                        <button
-                          type="button"
-                          className={
-                            type === activeStep
-                              ? "rgd-step-map-btn active"
-                              : "rgd-step-map-btn"
-                          }
-                          onClick={() => setActiveStep(type)}
-                        >
-                          <span className="rgd-step-map-num">
-                            {stepMeta.step}
-                          </span>
-                          <span className="rgd-step-map-label">
-                            {stepMeta.shortLabel}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </nav>
-
-              <section
-                className="rgd-step-panel"
-                aria-label={`${meta.label} editor`}
-              >
-                <header className="rgd-step-panel-header">
-                  <span className="rgd-step-badge">
-                    RGD {meta.step} · {meta.shortLabel}
-                  </span>
-                  <input
-                    className="rgd-title-input"
-                    value={active.title}
-                    aria-label={`${meta.label} title`}
-                    onChange={(e) =>
-                      updateStepTitle(activeStep, e.target.value)
-                    }
-                  />
-                </header>
-                <p className="rgd-hint muted tiny">{meta.description}</p>
-                <RgdStepFields
-                  rgdType={activeStep}
-                  payload={active.payload}
-                  onChange={(payload) =>
-                    updateStepPayload(activeStep, payload)
-                  }
-                  projectId={project.id}
+            <div className="rgd-editor-body rgd-editor-body-form">
+              <section className="rgd-form-panel" aria-label="RGD sheet form">
+                <RgdSheetForm
+                  mechanics={mechanics}
+                  meta={meta}
+                  onMechanicsChange={updateMechanics}
+                  onMetaChange={updateMeta}
+                  flowcharts={flowcharts}
                   onOpenFlowchart={onOpenFlowchart}
                 />
               </section>
+              <aside className="rgd-preview-panel" aria-label="Live table preview">
+                <h3 className="rgd-preview-heading">Document preview</h3>
+                <RgdLiveTable title={name} mechanics={mechanics} />
+              </aside>
             </div>
           </>
         )}

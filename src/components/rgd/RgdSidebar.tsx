@@ -46,7 +46,7 @@ export function RgdSidebar({
       const full = normalizeRgdSheet(
         await loadRgdSheet(project.id, created.id),
       );
-      // Ensure steps skeleton is persisted for new sheets.
+      // Persist normalized v2 sheet (mechanic table skeleton).
       await saveRgdSheet(project.id, created.id, {
         ...full,
         name: created.name,
@@ -83,7 +83,7 @@ export function RgdSidebar({
   const handleDelete = async (item: RgdSheetSummary) => {
     if (
       !window.confirm(
-        `Delete RGD sheet “${item.name}”? Document cards will show a broken state.`,
+        `Delete RGD sheet “${item.name}”? Document table embeds will show a broken state.`,
       )
     ) {
       return;

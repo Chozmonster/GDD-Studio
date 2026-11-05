@@ -46,15 +46,56 @@ export type RgdSheetSummary = {
   name: string;
 };
 
-/** One gameplay loop through the 7 RGD steps (project-persisted). */
+/** Optional context retained from the teaching 7-step pack. */
+export type RgdSheetMetaDocument = {
+  pillars?: string[];
+  pillarsNotes?: string;
+  goal?: string;
+  gameplayNotes?: string;
+  patternName?: string;
+  patternIngredients?: string;
+  patternFlowchartId?: string;
+  patternNotes?: string;
+  signs?: string;
+  feedback?: string;
+  signsNotes?: string;
+};
+
+/**
+ * One gameplay sheet (project-persisted JSON SoT).
+ * v2: mechanic → skill → parameter/case table is the hero model.
+ * Legacy `steps` may still appear on disk and are migrated on load.
+ */
 export type RgdSheetDocument = {
   format: string;
   version: number;
   id: string;
+  /** Gameplay name — also the live table title. */
   name: string;
   /** Optional primary flowchart link for the sheet. */
   primaryFlowchartId: string;
-  steps: Record<
+  /** Mechanic / skill / parameter hierarchy (v2). */
+  mechanics?: Array<{
+    id: string;
+    name: string;
+    /** Empty string when the mechanic has no player input. */
+    playerInput: string;
+    skills: Array<{
+      id: string;
+      name: string;
+      parameters: Array<{
+        id: string;
+        name: string;
+        caseText: string;
+      }>;
+    }>;
+  }>;
+  /** Optional pillars / pattern / signs metadata. */
+  meta?: RgdSheetMetaDocument;
+  /**
+   * @deprecated v1 seven-step payloads — migrated into mechanics + meta.
+   */
+  steps?: Record<
     string,
     {
       title: string;

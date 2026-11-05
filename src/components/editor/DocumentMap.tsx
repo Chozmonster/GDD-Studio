@@ -71,8 +71,8 @@ export function DocumentMap({ editor }: DocumentMapProps) {
       {visible.length === 0 ? (
         <p className="muted tiny doc-side-empty">
           {filter === "rgd"
-            ? "No RGD cards yet. Use Insert RGD… in the toolbar."
-            : "Add H1–H3 headings or RGD cards to build an outline."}
+            ? "No RGD tables yet. Use Insert RGD… in the toolbar."
+            : "Add H1–H3 headings or RGD tables to build an outline."}
         </p>
       ) : (
         <ul className="doc-map-list">

@@ -556,11 +556,12 @@ pub fn save_rgd_sheet(
 fn empty_rgd_sheet_doc(id: &str) -> serde_json::Value {
     serde_json::json!({
         "format": "gdd-studio-rgd-sheet",
-        "version": 1,
+        "version": 2,
         "id": id,
         "name": if id == "main" { "Main gameplay" } else { id },
         "primaryFlowchartId": "",
-        "steps": {}
+        "mechanics": [],
+        "meta": {}
     })
 }
 

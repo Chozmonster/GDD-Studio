@@ -96,8 +96,8 @@ export function NewProjectDialog({
           <span>
             Include Rational Game Design starter
             <span className="muted tiny block">
-              Opt-in — creates one empty RGD sheet and an intro card in the
-              document. Edit steps under the RGD tab.
+              Opt-in — creates one empty RGD sheet and a live table embed in the
+              document. Edit the form under the RGD tab.
             </span>
           </span>
         </label>

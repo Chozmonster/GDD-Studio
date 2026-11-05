@@ -3,12 +3,9 @@ import { useEffect, useState } from "react";
 import { loadRgdSheet, rgdSheetExists } from "../../../api";
 import { onRgdSheetDeleted, onRgdSheetSaved } from "../../../lib/rgdEvents";
 import type { RgdSheetDocument } from "../../../types";
-import {
-  filledStepCount,
-  normalizeRgdSheet,
-  summarizeRgdSheet,
-} from "./rgdSheetModel";
-import { RGD_INSERT_ORDER, RGD_TYPE_META } from "./rgdTypes";
+import { RgdLiveTable } from "./RgdLiveTable";
+import { normalizeRgdSheet } from "./rgdSheetModel";
+import { parseMechanics } from "./rgdTableModel";
 
 type ExtraProps = {
   projectId: string;
@@ -82,13 +79,13 @@ export function RgdSheetEmbedView(props: NodeViewProps) {
     };
   }, [projectId, sheetId]);
 
-  const filled = doc ? filledStepCount(doc) : 0;
-  const summary = doc ? summarizeRgdSheet(doc) : "";
-
   return (
     <NodeViewWrapper
-      className={missing ? "rgd-sheet-card broken" : "rgd-sheet-card"}
+      className={
+        missing ? "rgd-sheet-card rgd-table-embed broken" : "rgd-sheet-card rgd-table-embed"
+      }
       data-drag-handle
+      data-sheet-id={sheetId}
     >
       <div className="rgd-sheet-card-chrome">
         <span className="rgd-step-badge">RGD</span>
@@ -98,9 +95,9 @@ export function RgdSheetEmbedView(props: NodeViewProps) {
               ? `Missing sheet “${sheetId || "?"}”`
               : (doc?.name ?? sheetId)}
           </span>
-          {!missing && !loading && (
+          {!missing && !loading && doc && (
             <span className="muted tiny rgd-sheet-card-summary">
-              {summary} · {filled}/{RGD_INSERT_ORDER.length} steps
+              Live mechanic table
             </span>
           )}
         </div>
@@ -121,16 +118,11 @@ export function RgdSheetEmbedView(props: NodeViewProps) {
         </p>
       )}
       {!missing && doc && !loading && (
-        <ul className="rgd-sheet-card-steps" aria-label="RGD step overview">
-          {RGD_INSERT_ORDER.map((type) => {
-            const meta = RGD_TYPE_META[type];
-            return (
-              <li key={type} title={meta.label}>
-                {meta.step}
-              </li>
-            );
-          })}
-        </ul>
+        <RgdLiveTable
+          title={doc.name}
+          mechanics={parseMechanics(doc.mechanics)}
+          className="rgd-embed-table"
+        />
       )}
     </NodeViewWrapper>
   );

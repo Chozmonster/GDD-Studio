@@ -320,7 +320,16 @@ export function EditorCanvas({
                 );
                 const merged = normalizeRgdSheet({
                   ...loaded,
-                  steps: { ...loaded.steps, ...sheet.steps },
+                  // Prefer newly migrated table rows when the existing sheet is empty.
+                  mechanics:
+                    (sheet.mechanics?.length ?? 0) > 0 &&
+                    !(loaded.mechanics ?? []).some(
+                      (m) => m.name.trim() || m.playerInput?.trim(),
+                    )
+                      ? sheet.mechanics
+                      : loaded.mechanics,
+                  meta: { ...loaded.meta, ...sheet.meta },
+                  steps: { ...(loaded.steps ?? {}), ...(sheet.steps ?? {}) },
                 });
                 await saveRgdSheet(project.id, sheet.id, merged);
                 emitRgdSheetSaved(project.id, sheet.id, merged);
@@ -715,7 +724,7 @@ export function EditorCanvas({
             Flowchart
           </ToolbarIconButton>
           <ToolbarIconButton
-            label="Insert RGD sheet card"
+            label="Insert RGD table"
             icon={Layers}
             aria-expanded={rgdPickerOpen}
             aria-haspopup="dialog"
@@ -821,8 +830,8 @@ export function EditorCanvas({
           aria-label="Insert RGD sheet"
         >
           <p className="muted tiny">
-            Embed a compact card that references an RGD sheet (edit under the
-            RGD tab).
+            Embed a live mechanic table that references an RGD sheet (edit under
+            the RGD tab).
           </p>
           <ul>
             {rgdSheets.map((s) => (

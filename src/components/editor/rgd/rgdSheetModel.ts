@@ -1,171 +1,275 @@
 import type { RgdSheetDocument } from "../../../types";
-import {
-  defaultPayload,
-  defaultTitle,
-  parsePayload,
-} from "./rgdContent";
-import type { RgdBlockType, RgdPayloadByType } from "./rgdTypes";
+import { parsePayload } from "./rgdContent";
+import type { RgdBlockType } from "./rgdTypes";
 import { RGD_INSERT_ORDER } from "./rgdTypes";
+import {
+  countFilledMechanics,
+  emptyMechanic,
+  emptyParameter,
+  emptySheetMeta,
+  parseMechanics,
+  parseSheetMeta,
+  type RgdMechanicNode,
+  type RgdParameterRow,
+  type RgdSheetMeta,
+  type RgdSkillNode,
+} from "./rgdTableModel";
 
-export type RgdSheetStep<T extends RgdBlockType = RgdBlockType> = {
-  title: string;
-  payload: RgdPayloadByType[T];
-};
+export type {
+  RgdMechanicNode,
+  RgdParameterRow,
+  RgdSheetMeta,
+  RgdSkillNode,
+} from "./rgdTableModel";
+
+export {
+  emptyMechanic,
+  emptyParameter,
+  emptySheetMeta,
+  emptySkill,
+  flattenRgdTable,
+  mechanicLeafCount,
+} from "./rgdTableModel";
+
+const SHEET_VERSION = 2;
+
+function newId(): string {
+  return crypto.randomUUID();
+}
 
 export function emptyRgdSheetDocument(
   id: string,
   name?: string,
 ): RgdSheetDocument {
-  const steps: RgdSheetDocument["steps"] = {};
-  for (const type of RGD_INSERT_ORDER) {
-    steps[type] = {
-      title: defaultTitle(type),
-      payload: defaultPayload(type) as unknown as Record<string, unknown>,
-    };
-  }
   return {
     format: "gdd-studio-rgd-sheet",
-    version: 1,
+    version: SHEET_VERSION,
     id,
     name: name ?? (id === "main" ? "Main gameplay" : id),
     primaryFlowchartId: "",
-    steps,
+    mechanics: [emptyMechanic()],
+    meta: emptySheetMeta(),
   };
 }
 
-/** Ensure every RGD step exists with a typed payload. */
+function caseFromAtomicRow(row: {
+  easy: string;
+  medium: string;
+  hard: string;
+  none: boolean;
+  activeBand: string;
+}): string {
+  if (row.none) return "";
+  const band = row.activeBand;
+  if (band === "easy" && row.easy.trim()) return row.easy.trim();
+  if (band === "medium" && row.medium.trim()) return row.medium.trim();
+  if (band === "hard" && row.hard.trim()) return row.hard.trim();
+  const parts = [row.easy, row.medium, row.hard]
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts[0] ?? "";
+}
+
+/** Map legacy 7-step payloads into the mechanic → skill → param tree + meta. */
+export function migrateStepsToTable(
+  steps: RgdSheetDocument["steps"] | undefined,
+  fallbackName: string,
+): {
+  name: string;
+  mechanics: RgdMechanicNode[];
+  meta: RgdSheetMeta;
+} {
+  const meta = emptySheetMeta();
+  let name = fallbackName;
+
+  if (!steps || Object.keys(steps).length === 0) {
+    return { name, mechanics: [emptyMechanic()], meta };
+  }
+
+  const pillars = parsePayload("pillars", steps.pillars?.payload);
+  meta.pillars = pillars.pillars.map((p) => p.trim()).filter(Boolean);
+  meta.pillarsNotes = pillars.notes;
+
+  const gameplay = parsePayload("gameplay", steps.gameplay?.payload);
+  if (gameplay.gameplay.trim()) name = gameplay.gameplay.trim();
+  meta.goal = gameplay.goal;
+  meta.gameplayNotes = gameplay.notes;
+
+  const mechanic = parsePayload("mechanic", steps.mechanic?.payload);
+  const skills = parsePayload("skills", steps.skills?.payload);
+  const atomic = parsePayload("atomicParams", steps.atomicParams?.payload);
+  const pattern = parsePayload("pattern", steps.pattern?.payload);
+  const signs = parsePayload("signsFeedback", steps.signsFeedback?.payload);
+
+  meta.patternName = pattern.name;
+  meta.patternIngredients = pattern.ingredients;
+  meta.patternFlowchartId = pattern.flowchartId;
+  meta.patternNotes = pattern.notes;
+  meta.signs = signs.signs;
+  meta.feedback = signs.feedback;
+  meta.signsNotes = signs.notes;
+
+  const skillNames = [
+    ...skills.physical,
+    ...skills.mental,
+    ...skills.social,
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const paramRows: RgdParameterRow[] = atomic.rows
+    .filter(
+      (r) =>
+        r.name.trim() ||
+        r.easy.trim() ||
+        r.medium.trim() ||
+        r.hard.trim(),
+    )
+    .map((r) => ({
+      id: r.id || newId(),
+      name: r.name.trim(),
+      caseText: caseFromAtomicRow(r),
+    }));
+
+  const skillNodes: RgdSkillNode[] =
+    skillNames.length > 0
+      ? skillNames.map((skillName, i) => ({
+          id: newId(),
+          name: skillName,
+          parameters:
+            i === 0
+              ? paramRows.length
+                ? paramRows
+                : [emptyParameter()]
+              : [emptyParameter()],
+        }))
+      : [
+          {
+            id: newId(),
+            name: "",
+            parameters: paramRows.length ? paramRows : [emptyParameter()],
+          },
+        ];
+
+  const hasMechanicContent =
+    Boolean(mechanic.name.trim()) ||
+    Boolean(skills.inputs.trim()) ||
+    skillNames.length > 0 ||
+    paramRows.length > 0;
+
+  const mechanics: RgdMechanicNode[] = hasMechanicContent
+    ? [
+        {
+          id: newId(),
+          name: mechanic.name.trim() || "Mechanic",
+          playerInput: skills.inputs.trim(),
+          skills: skillNodes,
+        },
+      ]
+    : [emptyMechanic()];
+
+  return { name, mechanics, meta };
+}
+
+function hasV2Mechanics(doc: RgdSheetDocument): boolean {
+  return Array.isArray(doc.mechanics);
+}
+
+/**
+ * Normalize any on-disk sheet to the v2 table model.
+ * Migrates legacy `steps` when `mechanics` is absent.
+ */
 export function normalizeRgdSheet(doc: RgdSheetDocument): RgdSheetDocument {
-  const steps: RgdSheetDocument["steps"] = { ...(doc.steps ?? {}) };
-  for (const type of RGD_INSERT_ORDER) {
-    const raw = steps[type];
-    steps[type] = {
-      title:
-        typeof raw?.title === "string" && raw.title.trim()
-          ? raw.title
-          : defaultTitle(type),
-      payload: parsePayload(type, raw?.payload) as unknown as Record<
-        string,
-        unknown
-      >,
+  const id = doc.id || "main";
+  const primaryFlowchartId = doc.primaryFlowchartId ?? "";
+
+  if (hasV2Mechanics(doc)) {
+    let meta = parseSheetMeta(doc.meta);
+    // If meta is empty but legacy steps still exist, pull optional fields once.
+    if (
+      doc.steps &&
+      !meta.pillars.length &&
+      !meta.goal &&
+      !meta.patternName &&
+      !meta.signs
+    ) {
+      const migrated = migrateStepsToTable(doc.steps, doc.name || id);
+      meta = migrated.meta;
+    }
+    return {
+      format: "gdd-studio-rgd-sheet",
+      version: SHEET_VERSION,
+      id,
+      name: doc.name || id,
+      primaryFlowchartId,
+      mechanics: parseMechanics(doc.mechanics),
+      meta,
     };
   }
+
+  const migrated = migrateStepsToTable(doc.steps, doc.name || id);
   return {
-    format: doc.format || "gdd-studio-rgd-sheet",
-    version: typeof doc.version === "number" ? doc.version : 1,
-    id: doc.id,
-    name: doc.name || doc.id,
-    primaryFlowchartId: doc.primaryFlowchartId ?? "",
-    steps,
+    format: "gdd-studio-rgd-sheet",
+    version: SHEET_VERSION,
+    id,
+    name: migrated.name || doc.name || id,
+    primaryFlowchartId,
+    mechanics: migrated.mechanics,
+    meta: migrated.meta,
   };
 }
 
-export function getSheetStep<T extends RgdBlockType>(
+/** Apply legacy step payloads onto a sheet (used by block migration). */
+export function applyLegacyStep(
   doc: RgdSheetDocument,
-  type: T,
-): RgdSheetStep<T> {
-  const normalized = normalizeRgdSheet(doc);
-  const step = normalized.steps[type]!;
-  return {
-    title: step.title,
-    payload: parsePayload(type, step.payload),
-  };
-}
-
-export function setSheetStep<T extends RgdBlockType>(
-  doc: RgdSheetDocument,
-  type: T,
-  step: RgdSheetStep<T>,
+  type: RgdBlockType,
+  title: string,
+  payload: unknown,
 ): RgdSheetDocument {
-  const next = normalizeRgdSheet(doc);
-  return {
-    ...next,
-    steps: {
-      ...next.steps,
-      [type]: {
-        title: step.title,
-        payload: step.payload as unknown as Record<string, unknown>,
-      },
-    },
+  const steps = { ...(doc.steps ?? {}) };
+  steps[type] = {
+    title: title.trim() || type,
+    payload: parsePayload(type, payload) as unknown as Record<string, unknown>,
   };
+  // Force remigration from steps.
+  const { steps: _drop, mechanics: _m, meta: _meta, ...rest } = doc;
+  void _drop;
+  void _m;
+  void _meta;
+  return normalizeRgdSheet({ ...rest, steps });
 }
 
-/** One-line summary for compact card embeds. */
 export function summarizeRgdSheet(doc: RgdSheetDocument): string {
   const normalized = normalizeRgdSheet(doc);
-  const gameplay = parsePayload(
-    "gameplay",
-    normalized.steps.gameplay?.payload,
-  );
-  if (gameplay.gameplay.trim()) return gameplay.gameplay.trim();
-  const mechanic = parsePayload(
-    "mechanic",
-    normalized.steps.mechanic?.payload,
-  );
-  if (mechanic.name.trim()) return mechanic.name.trim();
-  const pillars = parsePayload("pillars", normalized.steps.pillars?.payload);
-  const filled = pillars.pillars.map((p) => p.trim()).filter(Boolean);
-  if (filled.length) return filled.slice(0, 2).join(" · ");
-  return "7 RGD steps";
+  const mechanics = normalized.mechanics ?? [];
+  const first = mechanics.find((m) => m.name.trim());
+  if (first?.name.trim()) return first.name.trim();
+  if (normalized.meta?.goal?.trim()) return normalized.meta.goal.trim();
+  const filled = countFilledMechanics(mechanics);
+  if (filled) return `${filled} mechanic${filled === 1 ? "" : "s"}`;
+  return "Empty RGD sheet";
 }
 
+export function filledMechanicCount(doc: RgdSheetDocument): number {
+  return countFilledMechanics(normalizeRgdSheet(doc).mechanics ?? []);
+}
+
+/** @deprecated Prefer filledMechanicCount — kept for transitional callers. */
 export function filledStepCount(doc: RgdSheetDocument): number {
-  const normalized = normalizeRgdSheet(doc);
-  let n = 0;
-  for (const type of RGD_INSERT_ORDER) {
-    const payload = parsePayload(type, normalized.steps[type]?.payload);
-    if (stepLooksFilled(type, payload)) n += 1;
-  }
-  return n;
+  return filledMechanicCount(doc);
 }
 
-function stepLooksFilled(
-  type: RgdBlockType,
-  payload: RgdPayloadByType[RgdBlockType],
-): boolean {
-  switch (type) {
-    case "pillars": {
-      const p = payload as RgdPayloadByType["pillars"];
-      return p.pillars.some((s) => s.trim()) || Boolean(p.notes.trim());
-    }
-    case "gameplay": {
-      const p = payload as RgdPayloadByType["gameplay"];
-      return Boolean(p.gameplay.trim() || p.goal.trim() || p.notes.trim());
-    }
-    case "mechanic": {
-      const p = payload as RgdPayloadByType["mechanic"];
-      return Boolean(p.name.trim() || p.notes.trim());
-    }
-    case "skills": {
-      const p = payload as RgdPayloadByType["skills"];
-      return (
-        p.physical.length + p.mental.length + p.social.length > 0 ||
-        Boolean(p.inputs.trim() || p.notes.trim())
-      );
-    }
-    case "atomicParams": {
-      const p = payload as RgdPayloadByType["atomicParams"];
-      return (
-        p.rows.some(
-          (r) =>
-            r.name.trim() ||
-            r.easy.trim() ||
-            r.medium.trim() ||
-            r.hard.trim(),
-        ) || Boolean(p.notes.trim())
-      );
-    }
-    case "pattern": {
-      const p = payload as RgdPayloadByType["pattern"];
-      return Boolean(
-        p.name.trim() ||
-          p.ingredients.trim() ||
-          p.flowchartId.trim() ||
-          p.notes.trim(),
-      );
-    }
-    case "signsFeedback": {
-      const p = payload as RgdPayloadByType["signsFeedback"];
-      return Boolean(p.signs.trim() || p.feedback.trim() || p.notes.trim());
+/** Ensure every legacy step key exists (for callers still reading steps). */
+export function ensureLegacyStepsSkeleton(
+  doc: RgdSheetDocument,
+): NonNullable<RgdSheetDocument["steps"]> {
+  const steps: NonNullable<RgdSheetDocument["steps"]> = {
+    ...(doc.steps ?? {}),
+  };
+  for (const type of RGD_INSERT_ORDER) {
+    if (!steps[type]) {
+      steps[type] = { title: type, payload: {} };
     }
   }
+  return steps;
 }

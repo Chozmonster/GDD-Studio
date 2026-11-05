@@ -70,7 +70,7 @@ function replaceBlocksWithCard(
 }
 
 /**
- * Auto-migrate TipTap `rgdBlock` nodes into one RGD sheet + a compact card.
+ * Auto-migrate TipTap `rgdBlock` nodes into one RGD sheet + a live table embed.
  * Idempotent when no rgdBlock nodes remain.
  */
 export function migrateRgdBlocksInDocument(
@@ -89,27 +89,30 @@ export function migrateRgdBlocksInDocument(
   }
 
   const sheetId = options.sheetId ?? "migrated-rgd";
-  const sheet = emptyRgdSheetDocument(sheetId, options.sheetName);
-
+  const steps: NonNullable<RgdSheetDocument["steps"]> = {};
   for (const block of blocks) {
     const payload = parsePayload(block.type, block.payload);
-    sheet.steps[block.type] = {
-      title: block.title.trim() || sheet.steps[block.type]!.title,
+    steps[block.type] = {
+      title: block.title.trim() || block.type,
       payload: payload as unknown as Record<string, unknown>,
     };
   }
 
-  const normalized = normalizeRgdSheet(sheet);
+  const sheet = normalizeRgdSheet({
+    ...emptyRgdSheetDocument(sheetId, options.sheetName),
+    steps,
+  });
+
   doc.content = replaceBlocksWithCard(content, sheetId);
 
   return {
     migrated: true,
     document: doc,
-    sheets: [normalized],
+    sheets: [sheet],
   };
 }
 
-/** Starter TipTap doc: heading + intro + one RGD sheet card. */
+/** Starter TipTap doc: heading + intro + one RGD sheet table embed. */
 export function buildRgdStarterDoc(
   projectName: string,
   sheetId: string,
@@ -127,7 +130,7 @@ export function buildRgdStarterDoc(
         content: [
           {
             type: "text",
-            text: "Rational Game Design starter — edit the linked sheet under the RGD tab (pillars → signs & feedback). Insert more sheet cards from Insert RGD… anytime.",
+            text: "Rational Game Design starter — edit the linked sheet under the RGD tab (mechanic → skill → parameter table). Insert more tables from Insert RGD… anytime.",
           },
         ],
       },
