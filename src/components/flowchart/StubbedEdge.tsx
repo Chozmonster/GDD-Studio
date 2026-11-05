@@ -80,6 +80,7 @@ function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
       <BaseEdge
         id={props.id}
         path={built.path}
+        markerStart={props.markerStart}
         markerEnd={props.markerEnd}
         style={{ strokeWidth: 2, stroke: "#d0d0d0", ...props.style }}
         interactionWidth={24}

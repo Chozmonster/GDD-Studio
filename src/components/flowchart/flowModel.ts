@@ -4,6 +4,7 @@ import { MarkerType, type Edge, type Node } from "@xyflow/react";
 export type FlowNodeKind = "process" | "start" | "end" | "decision" | "state";
 export type FlowNodeShape = "rectangle" | "rounded" | "diamond" | "ellipse";
 export type FlowEdgePath = "curve" | "step";
+/** @deprecated Legacy single-end style; migrated to startArrow/endArrow. */
 export type FlowEdgeEnd = "none" | "arrow" | "diamond" | "circle";
 
 export type FlowNodeData = {
@@ -16,7 +17,10 @@ export type FlowNodeData = {
 
 export type FlowEdgeData = {
   path: FlowEdgePath;
-  end: FlowEdgeEnd;
+  /** Arrow at the source (start) end of the connector. */
+  startArrow: boolean;
+  /** Arrow at the target (end) end of the connector. */
+  endArrow: boolean;
 };
 
 export type FlowNode = Node<FlowNodeData, "flow">;
@@ -119,17 +123,24 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
   return { ...DEFAULT_NODE_SIZE };
 }
 
+/** Closed arrow marker used for start and/or end of a connector. */
+export function markerForArrow(enabled: boolean): Edge["markerEnd"] {
+  if (!enabled) return undefined;
+  // Keep marker smaller than the perpendicular stub (~22px) so the
+  // stub shaft stays visible (see desired-anchor-stubs.jpg).
+  return {
+    type: MarkerType.ArrowClosed,
+    width: 12,
+    height: 12,
+    color: "#c8c8c8",
+  };
+}
+
+/** @deprecated Prefer markerForArrow — kept for callers still passing FlowEdgeEnd. */
 export function markerForEnd(end: FlowEdgeEnd): Edge["markerEnd"] {
   switch (end) {
     case "arrow":
-      // Keep marker smaller than the perpendicular stub (~22px) so the
-      // stub shaft stays visible (see desired-anchor-stubs.jpg).
-      return {
-        type: MarkerType.ArrowClosed,
-        width: 12,
-        height: 12,
-        color: "#c8c8c8",
-      };
+      return markerForArrow(true);
     case "diamond":
       return "url(#gdd-marker-diamond)";
     case "circle":
@@ -137,6 +148,35 @@ export function markerForEnd(end: FlowEdgeEnd): Edge["markerEnd"] {
     default:
       return undefined;
   }
+}
+
+function readBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+/** Resolve independent start/end arrow flags from saved edge data (incl. legacy `end`). */
+export function resolveEdgeArrows(data: Record<string, unknown>, hasMarkerEnd?: boolean): {
+  startArrow: boolean;
+  endArrow: boolean;
+} {
+  if (typeof data.startArrow === "boolean" || typeof data.endArrow === "boolean") {
+    return {
+      startArrow: readBool(data.startArrow, false),
+      endArrow: readBool(data.endArrow, true),
+    };
+  }
+  // Legacy single-end style: none → no end arrow; anything else → end arrow on.
+  if (data.end === "none") {
+    return { startArrow: false, endArrow: false };
+  }
+  if (
+    data.end === "arrow" ||
+    data.end === "diamond" ||
+    data.end === "circle"
+  ) {
+    return { startArrow: false, endArrow: true };
+  }
+  return { startArrow: false, endArrow: hasMarkerEnd !== false };
 }
 
 export function edgeTypeForPath(path: FlowEdgePath): string {
@@ -236,16 +276,21 @@ export function migrateNode(raw: RawNode): Omit<FlowNode, "data"> & {
 
 export function migrateEdge(raw: RawEdge): FlowEdge {
   const data = raw.data ?? {};
+  // Prefer angled (step) when legacy type is step/smoothstep; otherwise keep
+  // curve unless path is explicitly step. New edges default to step in the editor.
   const path: FlowEdgePath =
-    data.path === "step" || raw.type === "step" || raw.type === "smoothstep"
-      ? "step"
-      : "curve";
-  let end: FlowEdgeEnd = "arrow";
-  if (data.end === "none" || data.end === "arrow" || data.end === "diamond" || data.end === "circle") {
-    end = data.end;
-  } else if (!raw.markerEnd) {
-    end = "arrow";
-  }
+    data.path === "step" ||
+    data.path === "curve"
+      ? (data.path as FlowEdgePath)
+      : raw.type === "step" ||
+          raw.type === "smoothstep" ||
+          raw.type === "stubStep"
+        ? "step"
+        : "curve";
+  const { startArrow, endArrow } = resolveEdgeArrows(
+    data,
+    Boolean(raw.markerEnd),
+  );
 
   // Old graphs without handle ids get a stable default (right → left)
   // so edges still attach to explicit anchors after migration.
@@ -266,8 +311,9 @@ export function migrateEdge(raw: RawEdge): FlowEdge {
     targetHandle,
     label: raw.label,
     type: edgeTypeForPath(path),
-    markerEnd: markerForEnd(end),
-    data: { path, end },
+    markerStart: markerForArrow(startArrow),
+    markerEnd: markerForArrow(endArrow),
+    data: { path, startArrow, endArrow },
   };
 }
 
@@ -312,10 +358,16 @@ export function serializeEdge(edge: Edge): {
   type: string;
   data: FlowEdgeData;
 } {
-  const data = (edge.data as FlowEdgeData | undefined) ?? {
-    path: edge.type === "step" ? "step" : "curve",
-    end: edge.markerEnd ? "arrow" : "none",
-  };
+  const fallbackPath: FlowEdgePath =
+    edge.type === "step" || edge.type === "stubStep" ? "step" : "curve";
+  const rawData = (edge.data as Partial<FlowEdgeData> & { end?: FlowEdgeEnd } | undefined) ?? {};
+  const arrows = resolveEdgeArrows(
+    rawData as Record<string, unknown>,
+    Boolean(edge.markerEnd),
+  );
+  const path = rawData.path === "step" || rawData.path === "curve"
+    ? rawData.path
+    : fallbackPath;
   return {
     id: edge.id,
     source: edge.source,
@@ -323,10 +375,11 @@ export function serializeEdge(edge: Edge): {
     sourceHandle: normalizeHandle(edge.sourceHandle),
     targetHandle: normalizeHandle(edge.targetHandle),
     label: typeof edge.label === "string" ? edge.label : undefined,
-    type: edgeTypeForPath(data.path),
+    type: edgeTypeForPath(path),
     data: {
-      path: data.path,
-      end: data.end,
+      path,
+      startArrow: arrows.startArrow,
+      endArrow: arrows.endArrow,
     },
   };
 }

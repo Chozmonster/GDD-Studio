@@ -48,13 +48,12 @@ import {
   defaultSizeFor,
   edgeTypeForPath,
   kindDefaults,
-  markerForEnd,
+  markerForArrow,
   migrateEdge,
   migrateNode,
   serializeEdge,
   serializeNode,
   type FlowEdge,
-  type FlowEdgeEnd,
   type FlowEdgePath,
   type FlowNode as FlowNodeT,
   type FlowNodeKind,
@@ -127,7 +126,6 @@ export function FlowchartEditor({
   const [status, setStatus] = useState("Loading…");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [addKind, setAddKind] = useState<FlowNodeKind>("process");
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const rfRef = useRef<ReactFlowInstance<FlowNodeT, FlowEdge> | null>(null);
@@ -329,9 +327,11 @@ export function FlowchartEditor({
             sourceHandle: connection.sourceHandle,
             targetHandle: connection.targetHandle,
             id: `e-${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}-${Date.now()}`,
-            type: edgeTypeForPath("curve"),
-            markerEnd: markerForEnd("arrow"),
-            data: { path: "curve", end: "arrow" },
+            // Defaults: angled path, end arrow on, start arrow off.
+            type: edgeTypeForPath("step"),
+            markerStart: markerForArrow(false),
+            markerEnd: markerForArrow(true),
+            data: { path: "step", startArrow: false, endArrow: true },
           },
           eds,
         );
@@ -380,19 +380,25 @@ export function FlowchartEditor({
     });
   };
 
-  const patchSelectedEdge = (path?: FlowEdgePath, end?: FlowEdgeEnd) => {
+  const patchSelectedEdge = (patch: {
+    path?: FlowEdgePath;
+    startArrow?: boolean;
+    endArrow?: boolean;
+  }) => {
     const target = selectedEdge;
     if (!target) return;
     setEdges((eds) => {
       const next = eds.map((e) => {
         if (e.id !== target.id) return e;
-        const nextPath = path ?? e.data?.path ?? "curve";
-        const nextEnd = end ?? e.data?.end ?? "arrow";
+        const nextPath = patch.path ?? e.data?.path ?? "step";
+        const startArrow = patch.startArrow ?? e.data?.startArrow ?? false;
+        const endArrow = patch.endArrow ?? e.data?.endArrow ?? true;
         return {
           ...e,
           type: edgeTypeForPath(nextPath),
-          markerEnd: markerForEnd(nextEnd),
-          data: { path: nextPath, end: nextEnd },
+          markerStart: markerForArrow(startArrow),
+          markerEnd: markerForArrow(endArrow),
+          data: { path: nextPath, startArrow, endArrow },
         };
       });
       queueSave(nodesRef.current, next);
@@ -400,7 +406,7 @@ export function FlowchartEditor({
     });
   };
 
-  const addNode = (kind: FlowNodeKind = addKind) => {
+  const addNode = (kind: FlowNodeKind) => {
     const defaults = kindDefaults(kind);
     const id = `n-${idCounter.current++}`;
     const index = idCounter.current - 1;
@@ -491,23 +497,24 @@ export function FlowchartEditor({
           <span className="muted tiny">{dirty ? "Unsaved…" : status}</span>
         </div>
         <div className="flowchart-toolbar-actions">
-          <label className="tool-inline">
-            <span className="muted tiny">Add</span>
-            <select
-              value={addKind}
-              onChange={(e) => setAddKind(e.target.value as FlowNodeKind)}
-              aria-label="Node type to add"
-            >
-              {NODE_KIND_OPTIONS.map((k) => (
-                <option key={k.kind} value={k.kind}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="primary" onClick={() => addNode()}>
-            Add node
-          </button>
+          <div
+            className="style-group flowchart-create-types"
+            role="group"
+            aria-label="Create node by type"
+          >
+            <span className="muted tiny">Create</span>
+            {NODE_KIND_OPTIONS.map((k) => (
+              <button
+                key={k.kind}
+                type="button"
+                className="chip create-chip"
+                title={`Create ${k.label} node`}
+                onClick={() => addNode(k.kind)}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={renameSelectedNode}
@@ -533,7 +540,7 @@ export function FlowchartEditor({
 
       <div className="flowchart-style-bar" aria-label="Style selected">
         <div className="style-group">
-          <span className="muted tiny">Type</span>
+          <span className="muted tiny">Change type</span>
           {NODE_KIND_OPTIONS.map((k) => (
             <button
               key={k.kind}
@@ -542,6 +549,7 @@ export function FlowchartEditor({
                 selectedNode?.data.kind === k.kind ? "chip active" : "chip"
               }
               disabled={!selectedNode}
+              title="Change type of the selected node"
               onClick={() => {
                 const shape = k.defaultShape;
                 const size = defaultSizeFor(k.kind, shape);
@@ -600,7 +608,7 @@ export function FlowchartEditor({
               selectedEdge?.data?.path === "curve" ? "chip active" : "chip"
             }
             disabled={!selectedEdge}
-            onClick={() => patchSelectedEdge("curve")}
+            onClick={() => patchSelectedEdge({ path: "curve" })}
           >
             Curved
           </button>
@@ -610,33 +618,53 @@ export function FlowchartEditor({
               selectedEdge?.data?.path === "step" ? "chip active" : "chip"
             }
             disabled={!selectedEdge}
-            onClick={() => patchSelectedEdge("step")}
+            onClick={() => patchSelectedEdge({ path: "step" })}
           >
             Angled
           </button>
-          {(["none", "arrow", "diamond", "circle"] as FlowEdgeEnd[]).map(
-            (end) => (
-              <button
-                key={end}
-                type="button"
-                className={
-                  selectedEdge?.data?.end === end ? "chip active" : "chip"
-                }
-                disabled={!selectedEdge}
-                onClick={() => patchSelectedEdge(undefined, end)}
-              >
-                {end}
-              </button>
-            ),
-          )}
+          <button
+            type="button"
+            className={
+              selectedEdge?.data?.startArrow ? "chip active" : "chip"
+            }
+            disabled={!selectedEdge}
+            aria-pressed={Boolean(selectedEdge?.data?.startArrow)}
+            onClick={() =>
+              patchSelectedEdge({
+                startArrow: !selectedEdge?.data?.startArrow,
+              })
+            }
+          >
+            Start arrow
+          </button>
+          <button
+            type="button"
+            className={
+              selectedEdge && selectedEdge.data?.endArrow !== false
+                ? "chip active"
+                : "chip"
+            }
+            disabled={!selectedEdge}
+            aria-pressed={Boolean(
+              selectedEdge && selectedEdge.data?.endArrow !== false,
+            )}
+            onClick={() =>
+              patchSelectedEdge({
+                endArrow: !(selectedEdge?.data?.endArrow !== false),
+              })
+            }
+          >
+            End arrow
+          </button>
         </div>
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Drag from a node’s N/E/S/W anchor dots to connect · nodes snap to a{" "}
-        {GRID_SIZE}px grid and align to other centers/edges · edges stay locked
-        to handles · select a node for type/shape/color · select an edge for
-        curved/angled path. Autosaves into this project.
+        Header Create chips always add a node · Change type / shape / color
+        apply to the selected node · drag N/E/S/W anchors to connect (angled +
+        end arrow by default) · select a connector for path and start/end
+        arrows · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
+        project.
       </p>
 
       {!ready ? (
@@ -655,8 +683,9 @@ export function FlowchartEditor({
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{
               type: "stubStep",
-              markerEnd: markerForEnd("arrow"),
-              data: { path: "step", end: "arrow" },
+              markerStart: markerForArrow(false),
+              markerEnd: markerForArrow(true),
+              data: { path: "step", startArrow: false, endArrow: true },
             }}
             fitView={nodes.length > 0}
             defaultViewport={viewportRef.current}
