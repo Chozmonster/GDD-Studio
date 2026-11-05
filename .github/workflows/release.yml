@@ -2,6 +2,7 @@ name: Release
 
 # Tag a commit on main (e.g. v0.1.1) to draft a GitHub Release with
 # signed updater artifacts (latest.json) plus the portable Windows zip.
+# Release body = that version’s section from CHANGELOG.md (Keep a Changelog).
 on:
   push:
     tags:
@@ -16,6 +17,37 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extract CHANGELOG section for tag
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          FILE=CHANGELOG.md
+          if [ ! -f "$FILE" ]; then
+            echo "CHANGELOG.md missing" >&2
+            exit 1
+          fi
+          # Prefer ## [X.Y.Z], fall back to ## X.Y.Z
+          START=$(grep -n -E "^## \[${VERSION}\]|^## ${VERSION}( |$)" "$FILE" | head -1 | cut -d: -f1 || true)
+          if [ -z "${START}" ]; then
+            echo "No CHANGELOG section for ${VERSION}" >&2
+            exit 1
+          fi
+          NEXT=$(tail -n +$((START + 1)) "$FILE" | grep -n -E '^## ' | head -1 | cut -d: -f1 || true)
+          if [ -n "${NEXT}" ]; then
+            END=$((START + NEXT - 1))
+          else
+            END=$(wc -l < "$FILE")
+          fi
+          BODY=$(sed -n "${START},${END}p" "$FILE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+          {
+            echo "body<<EOF_CHANGELOG"
+            printf '%s\n' "$BODY"
+            echo "EOF_CHANGELOG"
+          } >> "$GITHUB_OUTPUT"
+          echo "Extracted CHANGELOG lines ${START}-${END} for ${VERSION}"
 
       - uses: actions/setup-node@v4
         with:
@@ -41,9 +73,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: GDD Studio ${{ github.ref_name }}
-          releaseBody: |
-            Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`.
-            NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

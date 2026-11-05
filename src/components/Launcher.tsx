@@ -185,12 +185,17 @@ export function Launcher({ onOpenProject }: LauncherProps) {
             <button
               type="button"
               className="ghost"
-              onClick={() =>
+              onClick={() => {
+                if (update?.notes) {
+                  setNotes(update.notes);
+                  setNotesOpen(true);
+                  return;
+                }
                 void fetchPatchNotes().then((n) => {
                   setNotes(n);
                   setNotesOpen(true);
-                })
-              }
+                });
+              }}
             >
               View patch notes
             </button>

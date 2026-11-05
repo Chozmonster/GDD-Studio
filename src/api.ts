@@ -106,7 +106,7 @@ function simulatedNotes(version: string): string {
 
 export async function fetchHealth(): Promise<HealthStatus> {
   if (!isTauriRuntime()) {
-    return { ok: true, app: "GDD Studio", version: "0.1.0" };
+    return { ok: true, app: "GDD Studio", version: "0.1.1" };
   }
   return invoke<HealthStatus>("app_health");
 }
@@ -225,9 +225,9 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
     ) {
       return {
         state: "skipped",
-        currentVersion: "0.1.0",
+        currentVersion: "0.1.1",
         availableVersion: null,
-        notes: null,
+        notes: store.update?.notes ?? null,
         message: "Already checked for updates today.",
         checkedAt: store.settings.lastUpdateCheckAt,
         automaticUpdates: store.settings.automaticUpdates,
@@ -235,10 +235,10 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
     }
     store.settings.lastUpdateCheckAt = now;
     if (simulateUpdateEnv()) {
-      const version = "0.1.1-sim";
+      const version = "0.1.2-sim";
       const status: UpdateStatus = {
         state: "simulated",
-        currentVersion: "0.1.0",
+        currentVersion: "0.1.1",
         availableVersion: version,
         notes: simulatedNotes(version),
         message: store.settings.automaticUpdates
@@ -253,7 +253,7 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
     }
     const status: UpdateStatus = {
       state: "error",
-      currentVersion: "0.1.0",
+      currentVersion: "0.1.1",
       availableVersion: null,
       notes: null,
       message:
@@ -273,9 +273,9 @@ export async function installUpdate(): Promise<UpdateStatus> {
     const store = loadBrowser();
     const status: UpdateStatus = {
       state: "simulated",
-      currentVersion: "0.1.0",
-      availableVersion: store.update?.availableVersion ?? "0.1.1-sim",
-      notes: store.update?.notes ?? simulatedNotes("0.1.1-sim"),
+      currentVersion: "0.1.1",
+      availableVersion: store.update?.availableVersion ?? "0.1.2-sim",
+      notes: store.update?.notes ?? simulatedNotes("0.1.2-sim"),
       message: "Simulated install complete (browser preview).",
       checkedAt: nowSecs(),
       automaticUpdates: store.settings.automaticUpdates,
@@ -293,8 +293,8 @@ export async function fetchPatchNotes(): Promise<string> {
     return (
       store.update?.notes ??
       (simulateUpdateEnv()
-        ? simulatedNotes("0.1.1-sim")
-        : "No patch notes yet. Check for updates first.")
+        ? simulatedNotes("0.1.2-sim")
+        : "No patch notes yet. Check for updates first (notes come from the GitHub Release / CHANGELOG body).")
     );
   }
   return invoke<string>("get_patch_notes");
