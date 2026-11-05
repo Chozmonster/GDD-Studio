@@ -3049,6 +3049,13 @@ code {
   overflow: hidden;
 }
 
+/* Cropped tiles resize the media box to the selection aspect (no stretch). */
+.mood-tile-media.has-crop {
+  aspect-ratio: auto;
+  height: auto;
+  min-height: 0;
+}
+
 .mood-tile-media img,
 .mood-tile-media video {
   width: 100%;
@@ -3105,6 +3112,14 @@ code {
   min-height: 0;
 }
 
+.mood-tile-media.has-crop .mood-media-frame,
+.mood-tile-media.has-crop .mood-tile-frame,
+.mood-media-frame.mood-media-cropped {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
 .mood-media-frame {
   display: block;
   overflow: hidden;
@@ -3118,9 +3133,22 @@ code {
   overflow: hidden;
 }
 
+/* Absolute img needs a definite box; aspect-ratio on the outer frame
+   establishes height when .mood-media-cropped sets height: auto. */
+.mood-media-cropped > .mood-media-crop {
+  position: absolute;
+  inset: 0;
+  height: auto;
+}
+
 .mood-media-raster {
   width: 100%;
   height: 100%;
+}
+
+.mood-media-raster.mood-media-cropped {
+  position: relative;
+  height: auto;
 }
 
 .mood-media-video,
@@ -3147,6 +3175,11 @@ code {
   min-height: 0;
   aspect-ratio: 4 / 3;
   margin: 0;
+}
+
+/* Inline crop aspect on .mood-media-cropped overrides the default 4/3. */
+.mood-board-embed-frame.mood-media-cropped {
+  height: auto;
 }
 
 .mood-board-embed-frame.mood-media-video {

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Mood Board crop no longer stretches the selection to fill the original 4:3 tile/embed frame. The display frame resizes to the crop’s aspect ratio so board tiles and live document embeds stay undistorted.
+
 ## [0.1.3] - 2026-11-05
 
 Code cleanup sweep: dead code removal, shared embed resize, clarifying invariants. No user-facing behavior change.
