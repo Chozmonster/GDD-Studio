@@ -33,10 +33,6 @@ export function normalizeCrop(
   return { x, y, width, height };
 }
 
-export function isFullCrop(crop: MoodBoardCrop | null | undefined): boolean {
-  return normalizeCrop(crop) == null;
-}
-
 /** Accept #RGB / #RRGGBB / #RRGGBBAA; fallback to white. */
 export function sanitizeBorderColor(color: string | null | undefined): string {
   const t = (color ?? "").trim();

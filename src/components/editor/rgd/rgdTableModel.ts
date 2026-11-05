@@ -101,11 +101,11 @@ export function emptySheetMeta(): RgdSheetMeta {
   };
 }
 
-export function skillLeafCount(skill: RgdSkillNode): number {
+function skillLeafCount(skill: RgdSkillNode): number {
   return Math.max(1, skill.parameters.length);
 }
 
-export function mechanicLeafCount(mechanic: RgdMechanicNode): number {
+function mechanicLeafCount(mechanic: RgdMechanicNode): number {
   if (!mechanic.skills.length) return 1;
   return mechanic.skills.reduce((n, s) => n + skillLeafCount(s), 0);
 }
@@ -214,17 +214,4 @@ export function parseSheetMeta(raw: unknown): RgdSheetMeta {
     feedback: typeof m.feedback === "string" ? m.feedback : "",
     signsNotes: typeof m.signsNotes === "string" ? m.signsNotes : "",
   };
-}
-
-export function mechanicHasContent(mechanic: RgdMechanicNode): boolean {
-  if (mechanic.name.trim() || mechanic.playerInput.trim()) return true;
-  return mechanic.skills.some(
-    (s) =>
-      s.name.trim() ||
-      s.parameters.some((p) => p.name.trim() || p.caseText.trim()),
-  );
-}
-
-export function countFilledMechanics(mechanics: RgdMechanicNode[]): number {
-  return mechanics.filter(mechanicHasContent).length;
 }

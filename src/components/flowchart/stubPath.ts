@@ -23,7 +23,7 @@ export function sideFromHandle(
 }
 
 /** Outward along the handle normal (away from the node). */
-export function outward(x: number, y: number, side: Position, len: number): Pt {
+function outward(x: number, y: number, side: Position, len: number): Pt {
   switch (side) {
     case Position.Top:
       return { x, y: y - len };
@@ -110,7 +110,7 @@ function middleOrthogonal(
  * Full orthogonal route with mandatory perpendicular stubs:
  * handle → ≥STUB outward → orthog bends → ≥STUB outward → handle.
  */
-export function buildOrthogonalStubPoints(
+function buildOrthogonalStubPoints(
   sourceX: number,
   sourceY: number,
   targetX: number,
@@ -127,7 +127,7 @@ export function buildOrthogonalStubPoints(
   return dedupe([source, sStub, ...mid, tStub, target]);
 }
 
-export function pointsToSvgPath(points: Pt[]): string {
+function pointsToSvgPath(points: Pt[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
   return [
@@ -221,9 +221,6 @@ export function assertStubGeometry(
   const dx1 = d.x - c.x;
   const dy1 = d.y - c.y;
 
-  const expectOut = outward(a.x, a.y, sourceSide, stubLen);
-  const expectIn = outward(d.x, d.y, targetSide, stubLen); // tip outside target
-
   if (Math.hypot(dx0, dy0) < stubLen - 1) {
     errors.push(`source stub too short: ${Math.hypot(dx0, dy0).toFixed(1)}`);
   }
@@ -232,7 +229,7 @@ export function assertStubGeometry(
       `target stub too short: ${Math.hypot(c.x - d.x, c.y - d.y).toFixed(1)}`,
     );
   }
-  // source stub must be purely along normal
+  // Source stub: leave the handle along its outward normal.
   if (sourceSide === Position.Top || sourceSide === Position.Bottom) {
     if (Math.abs(dx0) > 0.5) errors.push("source stub not vertical");
     if (sourceSide === Position.Top && dy0 >= 0) {
@@ -250,7 +247,7 @@ export function assertStubGeometry(
       errors.push("source east stub must go right");
     }
   }
-  // last segment into target: from c (outside) to d (handle) — opposite of outward
+  // Target approach: last segment into the handle is opposite of outward.
   if (targetSide === Position.Top || targetSide === Position.Bottom) {
     if (Math.abs(dx1) > 0.5) errors.push("target stub not vertical");
     if (targetSide === Position.Top && dy1 <= 0) {
@@ -269,8 +266,5 @@ export function assertStubGeometry(
     }
   }
 
-  // silence unused if tree-shaken
-  void expectOut;
-  void expectIn;
   return errors;
 }

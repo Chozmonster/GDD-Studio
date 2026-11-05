@@ -1,4 +1,7 @@
-//! Tauri IPC for launcher (projects, settings, updates).
+//! Tauri IPC command surface (launcher, projects, docs, tools, updater).
+//!
+//! Thin wrappers over `store` / `updates` — keep validation and path policy in
+//! those modules so the webview never invents filesystem paths itself.
 
 use crate::store::{
     self, AppSettings, AssetRecord, DocSummary, FlowchartSummary, ProjectDocument, ProjectRecord,

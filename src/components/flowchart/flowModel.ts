@@ -4,8 +4,8 @@ import { MarkerType, type Edge, type Node } from "@xyflow/react";
 export type FlowNodeKind = "process" | "start" | "end" | "decision" | "state";
 export type FlowNodeShape = "rectangle" | "rounded" | "diamond" | "ellipse";
 export type FlowEdgePath = "curve" | "step";
-/** @deprecated Legacy single-end style; migrated to startArrow/endArrow. */
-export type FlowEdgeEnd = "none" | "arrow" | "diamond" | "circle";
+/** Legacy single-end style on disk; migrated to startArrow/endArrow on load. */
+type FlowEdgeEnd = "none" | "arrow" | "diamond" | "circle";
 
 export type FlowNodeData = {
   label: string;
@@ -90,8 +90,8 @@ export const COLOR_PALETTE = [
   "#e8e8e8",
 ];
 
-export const DEFAULT_NODE_SIZE = { width: 160, height: 64 };
-export const DIAMOND_SIZE = { width: 140, height: 140 };
+const DEFAULT_NODE_SIZE = { width: 160, height: 64 };
+const DIAMOND_SIZE = { width: 140, height: 140 };
 
 export function kindDefaults(kind: FlowNodeKind) {
   return (
@@ -136,26 +136,12 @@ export function markerForArrow(enabled: boolean): Edge["markerEnd"] {
   };
 }
 
-/** @deprecated Prefer markerForArrow — kept for callers still passing FlowEdgeEnd. */
-export function markerForEnd(end: FlowEdgeEnd): Edge["markerEnd"] {
-  switch (end) {
-    case "arrow":
-      return markerForArrow(true);
-    case "diamond":
-      return "url(#gdd-marker-diamond)";
-    case "circle":
-      return "url(#gdd-marker-circle)";
-    default:
-      return undefined;
-  }
-}
-
 function readBool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
 /** Resolve independent start/end arrow flags from saved edge data (incl. legacy `end`). */
-export function resolveEdgeArrows(data: Record<string, unknown>, hasMarkerEnd?: boolean): {
+function resolveEdgeArrows(data: Record<string, unknown>, hasMarkerEnd?: boolean): {
   startArrow: boolean;
   endArrow: boolean;
 } {

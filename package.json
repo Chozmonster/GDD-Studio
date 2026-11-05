@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test:mood-crop": "node scripts/verify-mood-crop-style.mjs",
     "tauri": "tauri",
     "package:portable": "node scripts/package-windows-portable.mjs",
     "build:portable": "npm run tauri -- build --config src-tauri/tauri.portable.conf.json && npm run package:portable"

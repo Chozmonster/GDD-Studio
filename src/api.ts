@@ -1,5 +1,15 @@
+/**
+ * Frontend IPC façade for GDD Studio.
+ *
+ * In Tauri, every call goes through validated Rust commands. The browser
+ * branch (localStorage) exists so Vite alone can exercise the UI without the
+ * native shell — it must stay behavior-compatible, not become a second product.
+ *
+ * Asset URLs are produced only via getAssetSrc (Rust-validated path →
+ * convertFileSrc). Do not re-export convertFileSrc for arbitrary paths.
+ */
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { bytesToBase64, fileToBase64 } from "./lib/bytes";
+import { fileToBase64 } from "./lib/bytes";
 import type {
   AppSettings,
   AssetRecord,
@@ -106,7 +116,7 @@ function simulatedNotes(version: string): string {
 
 export async function fetchHealth(): Promise<HealthStatus> {
   if (!isTauriRuntime()) {
-    return { ok: true, app: "GDD Studio", version: "0.1.1" };
+    return { ok: true, app: "GDD Studio", version: "0.1.2" };
   }
   return invoke<HealthStatus>("app_health");
 }
@@ -431,33 +441,6 @@ export async function deleteFlowchart(
   await invoke("delete_flowchart", { projectId, flowchartId });
 }
 
-export async function loadDocument(projectId: string): Promise<unknown> {
-  if (!isTauriRuntime()) {
-    const store = loadBrowser();
-    if (store.documents?.[projectId]) return store.documents[projectId];
-    return {
-      type: "doc",
-      content: [
-        {
-          type: "heading",
-          attrs: { level: 1 },
-          content: [{ type: "text", text: "Untitled document" }],
-        },
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "Start writing your game design doc. Use Insert flowchart to embed a live diagram.",
-            },
-          ],
-        },
-      ],
-    };
-  }
-  return invoke("load_document", { projectId });
-}
-
 export async function saveDocument(
   projectId: string,
   document: unknown,
@@ -476,7 +459,7 @@ export async function saveDocument(
  * Coerce legacy variables.json entries (kind / value_type / numeric value)
  * into plain-text DocVariable records. Drops type fields.
  */
-export function normalizeVariables(raw: unknown): DocVariable[] {
+function normalizeVariables(raw: unknown): DocVariable[] {
   if (!Array.isArray(raw)) return [];
   const out: DocVariable[] = [];
   for (const entry of raw) {
@@ -858,51 +841,6 @@ export async function resolveWikiSlug(
   });
 }
 
-function bodyLinksTo(
-  value: unknown,
-  target: DocSummary,
-): boolean {
-  if (!value || typeof value !== "object") return false;
-  if (Array.isArray(value)) return value.some((v) => bodyLinksTo(v, target));
-  const obj = value as Record<string, unknown>;
-  if (obj.type === "wikiLink") {
-    const attrs = (obj.attrs ?? {}) as Record<string, unknown>;
-    const docId = String(attrs.docId ?? "");
-    const slug = String(attrs.slug ?? "");
-    const title = String(attrs.title ?? "");
-    if (
-      (docId && docId === target.id) ||
-      (slug &&
-        (slug.toLowerCase() === target.slug.toLowerCase() ||
-          slug.toLowerCase() === target.id.toLowerCase())) ||
-      (title && title.toLowerCase() === target.title.toLowerCase())
-    ) {
-      return true;
-    }
-  }
-  return Object.values(obj).some((v) => bodyLinksTo(v, target));
-}
-
-/** Documents whose bodies contain a wikiLink targeting `targetDocId`. */
-export async function listBacklinks(
-  projectId: string,
-  targetDocId: string,
-): Promise<DocSummary[]> {
-  if (!isTauriRuntime()) {
-    const docs = await listDocuments(projectId);
-    const target = docs.find((d) => d.id === targetDocId);
-    if (!target) throw new Error(`Unknown document id: ${targetDocId}`);
-    const out: DocSummary[] = [];
-    for (const summary of docs) {
-      if (summary.id === target.id) continue;
-      const full = await loadProjectDocument(projectId, summary.id);
-      if (bodyLinksTo(full.body, target)) out.push(summary);
-    }
-    return out;
-  }
-  return invoke<DocSummary[]>("list_backlinks", { projectId, targetDocId });
-}
-
 function kindFromMime(mime: string, filename: string): string {
   const m = mime.toLowerCase();
   const lower = filename.toLowerCase();
@@ -923,7 +861,7 @@ export async function listAssets(projectId: string): Promise<AssetRecord[]> {
   return invoke<AssetRecord[]>("list_assets", { projectId });
 }
 
-export async function saveAsset(
+async function saveAsset(
   projectId: string,
   filename: string,
   mime: string,
@@ -1005,26 +943,6 @@ export async function getAssetSrc(
     const path = await invoke<string>("get_asset_path", { projectId, assetId });
     return convertFileSrc(path);
   }
-}
-
-export async function deleteAsset(
-  projectId: string,
-  assetId: string,
-): Promise<void> {
-  if (!isTauriRuntime()) {
-    const store = loadBrowser();
-    if (store.assets?.[projectId]) {
-      store.assets[projectId] = store.assets[projectId].filter(
-        (a) => a.id !== assetId,
-      );
-    }
-    if (store.assetData?.[projectId]) {
-      delete store.assetData[projectId][assetId];
-    }
-    saveBrowser(store);
-    return;
-  }
-  await invoke("delete_asset", { projectId, assetId });
 }
 
 export async function loadMoodBoard(
@@ -1136,28 +1054,6 @@ export async function saveTemplate(args: {
   });
 }
 
-export async function loadTemplate(
-  templateId: string,
-  scope: "app" | "project" | string,
-  projectId?: string | null,
-): Promise<TemplateRecord> {
-  if (!isTauriRuntime()) {
-    const store = loadBrowser();
-    const list =
-      scope === "project"
-        ? store.projectTemplates?.[projectId ?? ""] ?? []
-        : store.appTemplates ?? [];
-    const found = list.find((t) => t.id === templateId);
-    if (!found) throw new Error(`Unknown template id: ${templateId}`);
-    return found;
-  }
-  return invoke<TemplateRecord>("load_template", {
-    templateId,
-    scope,
-    projectId: projectId ?? null,
-  });
-}
-
 export async function deleteTemplate(
   templateId: string,
   scope: "app" | "project" | string,
@@ -1190,18 +1086,3 @@ export async function writeExportHtml(html: string): Promise<string> {
   }
   return invoke<string>("write_export_html", { html });
 }
-
-/** Prefer convertFileSrc path when data URL fails for large video. */
-export async function getAssetPath(
-  projectId: string,
-  assetId: string,
-): Promise<string> {
-  if (!isTauriRuntime()) {
-    return getAssetSrc(projectId, assetId);
-  }
-  return invoke<string>("get_asset_path", { projectId, assetId });
-}
-
-export { bytesToBase64 };
-// convertFileSrc is intentionally not re-exported — only getAssetSrc may
-// construct asset:// URLs from Rust-validated paths.

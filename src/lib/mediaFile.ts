@@ -7,7 +7,7 @@
 const EXT_RE =
   /\.(png|jpe?g|gif|webp|bmp|mp4|webm|mov|mkv|mp3|wav|ogg|m4a|flac)$/i;
 
-export function isDisallowedSvgMedia(file: File): boolean {
+function isDisallowedSvgMedia(file: File): boolean {
   const type = file.type.toLowerCase();
   const name = file.name.toLowerCase();
   return (

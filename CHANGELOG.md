@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Internal code cleanup: removed unused frontend helpers/exports, shared embed resize logic, light Mood Board embed fetch dedupe, and clarifying comments (crop math, live embeds, security allowlists). No user-facing behavior change.
+
 ## [0.1.2] - 2026-11-05
 
 Mood Board crop fix for live document embeds.

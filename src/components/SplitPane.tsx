@@ -9,7 +9,7 @@ import {
 } from "react";
 import { readSplitSize, writeSplitSize } from "../lib/splitSizes";
 
-export type SplitOrientation = "horizontal" | "vertical";
+type SplitOrientation = "horizontal" | "vertical";
 
 export type SplitPaneProps = {
   /** Persistence key — sizes stored under `gdd-studio:split:{id}`. */

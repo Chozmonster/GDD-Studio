@@ -1,3 +1,7 @@
+/**
+ * Live variable chip — resolves project-wide variables and mirrors Options
+ * “Display variable names” without requiring a document reload.
+ */
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
 import { fetchSettings, loadVariables } from "../../api";

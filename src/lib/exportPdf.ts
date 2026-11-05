@@ -216,7 +216,7 @@ function enhanceMediaForPrint(root: HTMLElement): void {
  * Build a print-friendly HTML snapshot of the current TipTap document.
  * Flowchart / RGD embeds are rasterized in place; media kept when feasible.
  */
-export async function buildExportHtml(
+async function buildExportHtml(
   title: string,
   editor: Editor,
 ): Promise<string> {

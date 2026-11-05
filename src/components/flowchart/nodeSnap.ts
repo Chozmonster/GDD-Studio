@@ -2,7 +2,7 @@
 export const GRID_SIZE = 20;
 
 /** Magnetic alignment distance (flow units / px at zoom 1). */
-export const ALIGN_THRESHOLD = 10;
+const ALIGN_THRESHOLD = 10;
 
 export type SnapGuide = {
   orientation: "v" | "h";
@@ -17,7 +17,7 @@ export type SnapBox = {
   height: number;
 };
 
-export function snapToGrid(n: number, grid: number = GRID_SIZE): number {
+function snapToGrid(n: number, grid: number = GRID_SIZE): number {
   return Math.round(n / grid) * grid;
 }
 
@@ -61,15 +61,6 @@ export function snapDragPosition(
   const xHits: AxisHit[] = [];
   const yHits: AxisHit[] = [];
 
-  const moving = {
-    left: raw.x,
-    right: raw.x + w,
-    cx: raw.x + w / 2,
-    top: raw.y,
-    bottom: raw.y + h,
-    cy: raw.y + h / 2,
-  };
-
   for (const o of others) {
     const left = o.x;
     const right = o.x + o.width;
@@ -96,7 +87,7 @@ export function snapDragPosition(
       });
     }
 
-    // Y: centers (handle E/W row), edges
+    // Y: centers (handle E/W row), edges, and edge-to-edge
     const yTargets: Array<{ guide: number; nextY: number }> = [
       { guide: cy, nextY: cy - h / 2 },
       { guide: top, nextY: top },
@@ -113,9 +104,6 @@ export function snapDragPosition(
         dist: Math.abs(t.nextY - raw.y),
       });
     }
-
-    // Silence unused moving edges — kept for clarity / future edge-to-edge
-    void moving;
   }
 
   const xHit = pickClosest(xHits, threshold);
