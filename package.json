@@ -9,7 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "package:portable": "node scripts/package-windows-portable.mjs",
+    "build:portable": "npm run tauri -- build --config src-tauri/tauri.portable.conf.json && npm run package:portable"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

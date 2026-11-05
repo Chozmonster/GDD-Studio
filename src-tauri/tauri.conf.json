@@ -61,6 +61,7 @@
       }
     }
   },
+  "mainBinaryName": "gdd-studio",
   "bundle": {
     "active": true,
     "targets": "all",
@@ -71,8 +72,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   },
+
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgOTNCM0YyNzBBMDMwMTQ1QgpSV1JiRkRDZ2NQS3prL1RoMnYxZmdxZmorVWJ6MVhpUG1wd1dBS2RJc0kzMktIYXV1Tjh3L3FpbAo=",
