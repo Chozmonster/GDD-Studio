@@ -73,8 +73,12 @@ export function normalizeBorder(
 
 /**
  * CSS for a cropped <img> inside an overflow:hidden frame.
- * Frame should use aspect-ratio = crop.width / crop.height * (naturalW/naturalH)
- * — callers that don't know natural size can use `object-fit` path via clip.
+ *
+ * Scale the image so the crop rect fills the frame, then offset with
+ * `left`/`top` percentages (relative to the frame). Do not use
+ * `transform: translate(%)` for that offset — transform percentages are
+ * relative to the transformed element itself, which over-shifts any crop
+ * that is not anchored at (0,0) and can leave the embed empty.
  */
 export function cropImageStyle(
   crop: MoodBoardCrop | null | undefined,
@@ -97,13 +101,13 @@ export function cropImageStyle(
     },
     img: {
       position: "absolute",
-      left: 0,
-      top: 0,
+      // Parent-relative offsets: left = -x/width * 100% of frame width.
+      left: `${(-c.x / c.width) * 100}%`,
+      top: `${(-c.y / c.height) * 100}%`,
       width: `${scaleX * 100}%`,
       height: `${scaleY * 100}%`,
       maxWidth: "none",
       objectFit: "fill",
-      transform: `translate(${(-c.x / c.width) * 100}%, ${(-c.y / c.height) * 100}%)`,
     },
   };
 }
