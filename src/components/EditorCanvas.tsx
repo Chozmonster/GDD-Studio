@@ -29,6 +29,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SplitPane } from "./SplitPane";
 import {
   createRgdSheet,
   flowchartExists,
@@ -920,38 +921,65 @@ export function EditorCanvas({
       )}
 
       <div className="editor-body">
-        <div className="editor-left-rail">
-          <div className="left-rail-pane left-rail-map">
-            <DocumentMap editor={editor} />
+        <SplitPane
+          id="document.left"
+          defaultSize={200}
+          minSize={140}
+          maxSize={420}
+          minSecondary={280}
+          stackBelow={840}
+        >
+          <div className="editor-left-rail">
+            <SplitPane
+              id="document.left-rail"
+              orientation="vertical"
+              defaultSize={220}
+              minSize={100}
+              maxSize={560}
+              minSecondary={120}
+              stackBelow={280}
+            >
+              <div className="left-rail-pane left-rail-map">
+                <DocumentMap editor={editor} />
+              </div>
+              <div className="left-rail-pane left-rail-docs">
+                <DocsSidebar
+                  projectId={project.id}
+                  activeDocId={activeDocId}
+                  onSelect={(docId) => void switchDoc(docId)}
+                  refreshKey={docsRefresh}
+                />
+              </div>
+            </SplitPane>
           </div>
-          {/* Seam for a future resize handle (sibling worker). */}
-          <div className="left-rail-split" aria-hidden="true" />
-          <div className="left-rail-pane left-rail-docs">
-            <DocsSidebar
-              projectId={project.id}
-              activeDocId={activeDocId}
-              onSelect={(docId) => void switchDoc(docId)}
-              refreshKey={docsRefresh}
-            />
-          </div>
-        </div>
-        <EditorContent editor={editor} className="editor-canvas" />
-        <div className="editor-right-rail">
-          <VariablesPanel projectId={project.id} onInsert={insertVariable} />
-          {lookupWordText && (
-            <WordLookupPanel
-              word={lookupWordText}
-              definition={lookupDef}
-              loading={lookupLoading}
-              error={lookupError}
-              onClose={() => {
-                setLookupWordText(null);
-                setLookupDef(null);
-                setLookupError(null);
-              }}
-            />
-          )}
-        </div>
+          <SplitPane
+            id="document.right"
+            primary="end"
+            defaultSize={220}
+            minSize={160}
+            maxSize={420}
+            minSecondary={280}
+            stackBelow={640}
+          >
+            <EditorContent editor={editor} className="editor-canvas" />
+            <div className="editor-right-rail">
+              <VariablesPanel projectId={project.id} onInsert={insertVariable} />
+              {lookupWordText && (
+                <WordLookupPanel
+                  word={lookupWordText}
+                  definition={lookupDef}
+                  loading={lookupLoading}
+                  error={lookupError}
+                  onClose={() => {
+                    setLookupWordText(null);
+                    setLookupDef(null);
+                    setLookupError(null);
+                  }}
+                />
+              )}
+            </div>
+          </SplitPane>
+        </SplitPane>
       </div>
 
       {spellMenu && (

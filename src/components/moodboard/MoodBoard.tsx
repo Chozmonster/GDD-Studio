@@ -364,8 +364,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     ? board.items.find((i) => i.id === menu.itemId)
     : null;
 
-  // Single-column shell (toolbar + main). No fixed sidebars — ready for
-  // app-wide resizable pane handles on `.mood-main` later.
+  // Single-column shell (toolbar + mood-main). No sidebars to resize.
   return (
     <section className="mood-shell" ref={surfaceRef} tabIndex={0} aria-label="Mood board">
       <header className="mood-toolbar">

@@ -595,11 +595,138 @@ code {
 }
 
 .editor-body {
-  display: grid;
-  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) minmax(180px, 240px);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   background: var(--bg);
+}
+
+.editor-body > .split-pane {
+  flex: 1;
+  min-height: 0;
+}
+
+/* —— Resizable split panes —— */
+
+.split-pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-pane-h {
+  flex-direction: row;
+}
+
+.split-pane-v {
+  flex-direction: column;
+}
+
+.split-pane.is-stacked.split-pane-h {
+  flex-direction: column;
+}
+
+.split-pane.is-stacked.split-pane-v {
+  flex-direction: column;
+}
+
+.split-pane-region {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-pane-region > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split-pane-gutter {
+  flex: 0 0 5px;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  touch-action: none;
+  transition: background-color 0.12s ease;
+}
+
+.split-pane-h > .split-pane-gutter {
+  cursor: col-resize;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid transparent;
+  margin-left: -1px;
+}
+
+.split-pane-v > .split-pane-gutter {
+  cursor: row-resize;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid transparent;
+  margin-top: -1px;
+}
+
+.split-pane-gutter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.split-pane-h > .split-pane-gutter::after {
+  left: 1px;
+  right: 1px;
+}
+
+.split-pane-v > .split-pane-gutter::after {
+  top: 1px;
+  bottom: 1px;
+}
+
+.split-pane-gutter:hover::after,
+.split-pane-gutter:focus-visible::after,
+.split-pane.is-dragging > .split-pane-gutter::after {
+  background: var(--accent-soft);
+}
+
+.split-pane-gutter:focus-visible {
+  outline: none;
+}
+
+.split-pane-gutter:focus-visible::after {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.split-pane.is-dragging {
+  user-select: none;
+  cursor: inherit;
+}
+
+.split-pane.is-dragging.split-pane-h,
+.split-pane.is-dragging.split-pane-h * {
+  cursor: col-resize !important;
+}
+
+.split-pane.is-dragging.split-pane-v,
+.split-pane.is-dragging.split-pane-v * {
+  cursor: row-resize !important;
+}
+
+.split-pane.is-stacked > .split-pane-gutter {
+  display: none;
+}
+
+.split-pane.is-stacked .flowchart-sidebar,
+.split-pane.is-stacked .rgd-sidebar {
+  width: 100%;
+  max-height: 160px;
+  border-right: none;
+  border-bottom: 1px solid var(--line);
 }
 
 .editor-canvas {
@@ -607,8 +734,6 @@ code {
   overflow: auto;
   padding: 1.15rem 1.35rem 2rem;
   background: var(--bg-paper);
-  border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
   min-height: 0;
 }
 
@@ -834,7 +959,7 @@ code {
 
 .flowchart-shell {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   margin: 0 1rem 1rem;
@@ -842,6 +967,12 @@ code {
   border-radius: 8px;
   background: #1c1c1c;
   overflow: hidden;
+}
+
+.flowchart-shell > .split-pane {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .flowchart-main {
@@ -853,11 +984,11 @@ code {
 }
 
 .flowchart-sidebar {
-  width: 210px;
+  width: 100%;
+  height: 100%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--line);
   background: var(--bg-panel);
   overflow: auto;
 }
@@ -1632,12 +1763,6 @@ code {
   padding: 0.4rem 0.5rem;
 }
 
-@media (max-width: 1100px) {
-  .editor-body {
-    grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) minmax(150px, 200px);
-  }
-}
-
 /* —— RGD workspace —— */
 
 .rgd-shell {
@@ -1721,20 +1846,28 @@ code {
 }
 
 .rgd-form-panel {
-  flex: 1.15;
+  flex: 1;
   min-width: 0;
+  height: 100%;
   overflow: auto;
   padding: 0.75rem 1rem 1.25rem;
   background: linear-gradient(180deg, #222622 0%, #1c1c1c 40%);
 }
 
 .rgd-preview-panel {
-  flex: 0.95;
+  flex: 1;
   min-width: 0;
+  height: 100%;
   overflow: auto;
   padding: 0.75rem 0.85rem 1.25rem;
-  border-left: 1px solid var(--line);
   background: #1a1e1b;
+}
+
+.rgd-editor-body > .split-pane,
+.rgd-body-split {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .rgd-preview-heading {
@@ -2096,39 +2229,8 @@ code {
 }
 
 @media (max-width: 840px) {
-  .editor-body {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
-  }
-
   .editor-canvas {
-    border-left: none;
-    border-right: none;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
     min-height: 280px;
-  }
-
-  .flowchart-shell {
-    flex-direction: column;
-  }
-
-  .flowchart-sidebar {
-    width: 100%;
-    max-height: 160px;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .rgd-editor-body,
-  .rgd-editor-body-form {
-    flex-direction: column;
-  }
-
-  .rgd-preview-panel {
-    border-left: none;
-    border-top: 1px solid var(--line);
-    max-height: 280px;
   }
 
   .rgd-step-map {
@@ -2188,18 +2290,21 @@ code {
   min-height: 140px;
 }
 
-/*
- * Left rail = vertical flex split (map | seam | docs).
- * Each pane scrolls independently; `.left-rail-split` is the attach point
- * for app-wide resizable pane handles.
- */
+/* Left rail panes (map / docs) fill their SplitPane regions. */
+.editor-left-rail > .split-pane {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
 .left-rail-pane {
   display: flex;
   flex-direction: column;
-  flex: 1 1 50%;
+  flex: 1;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 .left-rail-pane .doc-side-panel,
@@ -2207,12 +2312,6 @@ code {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.left-rail-split {
-  flex: 0 0 1px;
-  background: var(--line);
-  min-height: 1px;
 }
 
 .docs-sidebar {

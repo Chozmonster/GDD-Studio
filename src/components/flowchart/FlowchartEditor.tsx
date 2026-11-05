@@ -31,6 +31,7 @@ import { loadFlowchart, saveFlowchart } from "../../api";
 import type { FlowchartDocument, ProjectRecord } from "../../types";
 import { EdgeMarkers } from "./EdgeMarkers";
 import { FlowNode } from "./FlowNode";
+import { SplitPane } from "../SplitPane";
 import { FlowchartSidebar } from "./FlowchartSidebar";
 import { SnapGuides } from "./SnapGuides";
 import { StubCurveEdge, StubStepEdge } from "./StubbedEdge";
@@ -485,12 +486,21 @@ export function FlowchartEditor({
 
   return (
     <section className="flowchart-shell" aria-label="Flowchart editor">
-      <FlowchartSidebar
-        project={project}
-        activeId={flowchartId}
-        onSelect={selectFlowchart}
-      />
-      <div className="flowchart-main">
+      <SplitPane
+        id="flowchart.sidebar"
+        defaultSize={210}
+        minSize={140}
+        maxSize={420}
+        minSecondary={320}
+        stackBelow={840}
+        className="flowchart-split"
+      >
+        <FlowchartSidebar
+          project={project}
+          activeId={flowchartId}
+          onSelect={selectFlowchart}
+        />
+        <div className="flowchart-main">
       <header className="flowchart-toolbar" role="toolbar">
         <div className="flowchart-toolbar-left">
           <strong>{name}</strong>
@@ -710,7 +720,8 @@ export function FlowchartEditor({
           </ReactFlow>
         </div>
       )}
-      </div>
+        </div>
+      </SplitPane>
     </section>
   );
 }

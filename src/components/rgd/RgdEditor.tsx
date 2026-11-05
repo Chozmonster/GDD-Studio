@@ -16,6 +16,7 @@ import {
   type RgdMechanicNode,
   type RgdSheetMeta,
 } from "../editor/rgd/rgdTableModel";
+import { SplitPane } from "../SplitPane";
 import { RgdSidebar } from "./RgdSidebar";
 
 type RgdEditorProps = {
@@ -159,87 +160,114 @@ export function RgdEditor({
 
   return (
     <div className="flowchart-shell rgd-shell">
-      <RgdSidebar
-        project={project}
-        activeId={sheetId}
-        onSelect={selectSheet}
-      />
-      <div className="flowchart-main rgd-main">
-        {!sheetId || !doc ? (
-          <div className="rgd-empty-state">
-            <h2>RGD</h2>
-            <p className="muted">
-              Create a sheet for one gameplay loop, then fill the mechanic →
-              skill → parameter table. Embed a live table in the Document when
-              you want it visible in the GDD.
-            </p>
-            <p className="muted tiny">{status}</p>
-          </div>
-        ) : (
-          <>
-            <header className="rgd-editor-toolbar">
-              <div className="rgd-editor-title-row">
-                <label className="rgd-field grow rgd-gameplay-name-field">
-                  <span>Gameplay name</span>
-                  <input
-                    className="rgd-sheet-name-input"
-                    value={name}
-                    aria-label="Gameplay name"
-                    placeholder="e.g. Platforming"
-                    onChange={(e) => updateName(e.target.value)}
-                  />
-                </label>
-                <span className="muted tiny toolbar-status">{status}</span>
-              </div>
-              <label className="rgd-field rgd-primary-flow">
-                <span>Primary flowchart</span>
-                <div className="rgd-flowchart-row">
-                  <select
-                    value={doc.primaryFlowchartId}
-                    aria-label="Primary flowchart"
-                    onChange={(e) => updatePrimaryFlowchart(e.target.value)}
-                  >
-                    <option value="">None</option>
-                    {flowcharts.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="ghost tiny-btn"
-                    disabled={!doc.primaryFlowchartId}
-                    onClick={() =>
-                      doc.primaryFlowchartId &&
-                      onOpenFlowchart?.(doc.primaryFlowchartId)
-                    }
-                  >
-                    Open
-                  </button>
-                </div>
-              </label>
-            </header>
-
-            <div className="rgd-editor-body rgd-editor-body-form">
-              <section className="rgd-form-panel" aria-label="RGD sheet form">
-                <RgdSheetForm
-                  mechanics={mechanics}
-                  meta={meta}
-                  onMechanicsChange={updateMechanics}
-                  onMetaChange={updateMeta}
-                  flowcharts={flowcharts}
-                  onOpenFlowchart={onOpenFlowchart}
-                />
-              </section>
-              <aside className="rgd-preview-panel" aria-label="Live table preview">
-                <h3 className="rgd-preview-heading">Document preview</h3>
-                <RgdLiveTable title={name} mechanics={mechanics} />
-              </aside>
+      <SplitPane
+        id="rgd.sidebar"
+        defaultSize={210}
+        minSize={140}
+        maxSize={420}
+        minSecondary={320}
+        stackBelow={840}
+        className="rgd-split"
+      >
+        <RgdSidebar
+          project={project}
+          activeId={sheetId}
+          onSelect={selectSheet}
+        />
+        <div className="flowchart-main rgd-main">
+          {!sheetId || !doc ? (
+            <div className="rgd-empty-state">
+              <h2>RGD</h2>
+              <p className="muted">
+                Create a sheet for one gameplay loop, then fill the mechanic →
+                skill → parameter table. Embed a live table in the Document when
+                you want it visible in the GDD.
+              </p>
+              <p className="muted tiny">{status}</p>
             </div>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <header className="rgd-editor-toolbar">
+                <div className="rgd-editor-title-row">
+                  <label className="rgd-field grow rgd-gameplay-name-field">
+                    <span>Gameplay name</span>
+                    <input
+                      className="rgd-sheet-name-input"
+                      value={name}
+                      aria-label="Gameplay name"
+                      placeholder="e.g. Platforming"
+                      onChange={(e) => updateName(e.target.value)}
+                    />
+                  </label>
+                  <span className="muted tiny toolbar-status">{status}</span>
+                </div>
+                <label className="rgd-field rgd-primary-flow">
+                  <span>Primary flowchart</span>
+                  <div className="rgd-flowchart-row">
+                    <select
+                      value={doc.primaryFlowchartId}
+                      aria-label="Primary flowchart"
+                      onChange={(e) => updatePrimaryFlowchart(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {flowcharts.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="ghost tiny-btn"
+                      disabled={!doc.primaryFlowchartId}
+                      onClick={() =>
+                        doc.primaryFlowchartId &&
+                        onOpenFlowchart?.(doc.primaryFlowchartId)
+                      }
+                    >
+                      Open
+                    </button>
+                  </div>
+                </label>
+              </header>
+
+              <div className="rgd-editor-body rgd-editor-body-form">
+                <SplitPane
+                  id="rgd.preview"
+                  primary="end"
+                  defaultSize={360}
+                  minSize={220}
+                  maxSize={720}
+                  minSecondary={280}
+                  stackBelow={720}
+                  className="rgd-body-split"
+                >
+                  <section
+                    className="rgd-form-panel"
+                    aria-label="RGD sheet form"
+                  >
+                    <RgdSheetForm
+                      mechanics={mechanics}
+                      meta={meta}
+                      onMechanicsChange={updateMechanics}
+                      onMetaChange={updateMeta}
+                      flowcharts={flowcharts}
+                      onOpenFlowchart={onOpenFlowchart}
+                    />
+                  </section>
+                  <aside
+                    className="rgd-preview-panel"
+                    aria-label="Live table preview"
+                  >
+                    <h3 className="rgd-preview-heading">Document preview</h3>
+                    <RgdLiveTable title={name} mechanics={mechanics} />
+                  </aside>
+                </SplitPane>
+              </div>
+            </>
+          )}
+        </div>
+      </SplitPane>
     </div>
   );
 }
