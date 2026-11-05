@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mood Board crop visual verify</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font: 14px/1.4 system-ui, sans-serif;
+        background: #121212;
+        color: #e8e8e8;
+      }
+      h1 { font-size: 16px; margin: 0 0 16px; }
+      .row { display: flex; gap: 24px; flex-wrap: wrap; }
+      .panel { width: 320px; }
+      .label { margin: 0 0 8px; color: #9a9a9a; font-size: 12px; }
+      /* Matches app: 4/3 frame + overflow crop */
+      .frame {
+        width: 320px;
+        aspect-ratio: 4 / 3;
+        background: #1a1a1a;
+        overflow: hidden;
+        position: relative;
+        border: 8px solid #e8c84a;
+        box-sizing: border-box;
+        border-radius: 8px;
+      }
+      .crop {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+      canvas { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Mood Board crop — fixed left/top vs buggy transform(%)</h1>
+    <p class="label">
+      Synthetic concept art; crop ≈ bottom-left (x=0.05 y=0.55 w=0.4 h=0.35).
+      Fixed panel must show blue corner + yellow border edge + red circle sliver.
+      Buggy panel should look empty/dark (image scrolled out).
+    </p>
+    <canvas id="src" width="800" height="600"></canvas>
+    <div class="row">
+      <div class="panel">
+        <p class="label">Fixed (left/top, parent-relative)</p>
+        <div class="frame" id="fixed"></div>
+      </div>
+      <div class="panel">
+        <p class="label">Buggy (transform % of self)</p>
+        <div class="frame" id="buggy"></div>
+      </div>
+    </div>
+    <script>
+      const crop = { x: 0.05, y: 0.55, width: 0.4, height: 0.35 };
+      const canvas = document.getElementById("src");
+      const ctx = canvas.getContext("2d");
+      // Synthetic concept art matching the repro media
+      ctx.fillStyle = "#1e3a5f";
+      ctx.fillRect(0, 0, 800, 600);
+      ctx.strokeStyle = "#e8c84a";
+      ctx.lineWidth = 28;
+      ctx.strokeRect(40, 40, 720, 520);
+      ctx.fillStyle = "#c8c8c8";
+      ctx.font = "48px sans-serif";
+      ctx.fillText("Concept Art", 80, 140);
+      ctx.fillStyle = "#c62828";
+      ctx.beginPath();
+      ctx.arc(480, 300, 140, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2e7d32";
+      ctx.fillRect(360, 280, 200, 50);
+      const url = canvas.toDataURL("image/png");
+
+      function mount(hostId, mode) {
+        const host = document.getElementById(hostId);
+        const wrap = document.createElement("div");
+        wrap.className = "crop";
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = mode;
+        const scaleX = 1 / crop.width;
+        const scaleY = 1 / crop.height;
+        img.style.position = "absolute";
+        img.style.width = `${scaleX * 100}%`;
+        img.style.height = `${scaleY * 100}%`;
+        img.style.maxWidth = "none";
+        img.style.objectFit = "fill";
+        if (mode === "fixed") {
+          img.style.left = `${(-crop.x / crop.width) * 100}%`;
+          img.style.top = `${(-crop.y / crop.height) * 100}%`;
+        } else {
+          img.style.left = "0";
+          img.style.top = "0";
+          img.style.transform = `translate(${(-crop.x / crop.width) * 100}%, ${(-crop.y / crop.height) * 100}%)`;
+        }
+        wrap.appendChild(img);
+        host.appendChild(wrap);
+      }
+      mount("fixed", "fixed");
+      mount("buggy", "buggy");
+    </script>
+  </body>
+</html>

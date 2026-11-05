@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Mood Board crop now shows the selected region in live document embeds (and board tiles). Offsets use frame-relative `left`/`top` instead of self-relative `transform` percentages, which previously scrolled non-top-left crops out of view.
+
 ## [0.1.1] - 2026-11-05
 
 Patch-notes practice cut: release bodies now feed the in-app updater UI.
