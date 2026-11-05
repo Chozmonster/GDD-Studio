@@ -1,4 +1,8 @@
-/** In-app Help copy. RGD text follows docs/rgd-help-sources.md + rgd-integration.md. */
+/**
+ * In-app Help copy (nav + RGD step/skill data).
+ * Body prose lives in HelpPanel.tsx. RGD text follows project store
+ * docs/rgd-help-sources.md + rgd-integration.md.
+ */
 
 import {
   SKILL_CATEGORIES,

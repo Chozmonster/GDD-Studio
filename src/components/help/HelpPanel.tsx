@@ -102,17 +102,35 @@ function HowAppWorks() {
       </p>
       <ul className="help-feature-list">
         <li>
-          <strong>Launcher</strong> — create, open, or remove projects; Options
-          for updates and variable display.
+          <strong>Launcher</strong> — projects only: create, open, or remove.
+          Options covers updates and variable display. Open Help from the
+          launcher or the editor chrome.
         </li>
         <li>
-          <strong>Projects</strong> — launcher lists projects only. Inside a
-          project you can keep multiple documents (left rail → Documents).
+          <strong>Multi-document projects</strong> — each project holds many
+          documents. Left rail → <strong>Documents</strong> pane: create,
+          switch, or delete (the main doc cannot be deleted). The active doc is
+          what Flowchart / RGD / Mood Board inserts target.
         </li>
         <li>
-          <strong>Documents</strong> — rich-text GDDs with a heading map (top
-          left), documents list (bottom left), variables, media, templates, PDF
-          export. Use <code>[[Doc Title]]</code> to link across documents.
+          <strong>Document editing</strong> — rich-text GDD with headings,
+          lists, alignment, fonts, variables, media, flowchart embeds, and live
+          RGD tables. Left rail top is the <strong>Document map</strong>{" "}
+          (heading outline for in-doc jump navigation). Right rail holds
+          variables (and word lookup when open).
+        </li>
+        <li>
+          <strong>Wiki links</strong> — type <code>[[Doc Title]]</code> or use
+          toolbar <strong>Link</strong> to link to another document in the same
+          project. Clicking opens/switches that doc. There is no heading / section
+          link picker — use the Document map for in-doc navigation.
+        </li>
+        <li>
+          <strong>Resizable panes</strong> — drag the handles between panes.
+          Document: map|docs, left rail|editor|variables. Flowcharts:
+          list|canvas. RGD: sheets|editor and form|preview. Sizes persist in
+          localStorage across reloads; narrow windows stack panes instead of
+          dragging.
         </li>
         <li>
           <strong>Flowcharts</strong> — named diagrams with typed nodes and
@@ -120,20 +138,16 @@ function HowAppWorks() {
         </li>
         <li>
           <strong>RGD</strong> — Rational Game Design sheets (one per gameplay)
-          edited as forms; live mechanic tables in the active document.
+          in a library tab, edited as forms; Insert RGD table embeds a live
+          mechanic table in the active document. See Help → Using RGD here.
         </li>
         <li>
-          <strong>Mood Board</strong> — scratchpad for reference media before
-          placing embeds in the <em>active</em> document. See Help → Mood Board.
+          <strong>Mood Board</strong> — project scratchpad for reference media
+          before placing embeds in the active document. See Help → Mood Board.
         </li>
         <li>
           <strong>Variables</strong> — named values that resolve live wherever
           chips appear. Toggle “show names” in Options.
-        </li>
-        <li>
-          <strong>Document links</strong> — toolbar Link or{" "}
-          <code>[[Doc Title]]</code> opens/switches that document. In-doc
-          navigation uses the Document map (headings).
         </li>
         <li>
           <strong>Media</strong> — paste or Insert media for images, gifs,
@@ -142,6 +156,11 @@ function HowAppWorks() {
         <li>
           <strong>Templates</strong> — save the active document body as app- or
           project-scoped template; apply replaces the current body (confirm).
+        </li>
+        <li>
+          <strong>Spellcheck</strong> — offline dictionary underlines
+          misspellings. Right-click or Alt+Click a word for suggestions, Add to
+          dictionary, or Look up. Toolbar Look up opens a definition panel.
         </li>
         <li>
           <strong>Export PDF</strong> — opens a print dialog (Save as PDF on
@@ -160,8 +179,8 @@ function MoodBoardHelp() {
       <h3>Mood Board</h3>
       <p>
         A project-local scratchpad for reference images, gifs, video, and audio
-        before you place them in the active Document. Assets stay in the project
-        media store — same pipeline as Document paste/insert.
+        before you place them in the <em>active</em> Document. Assets stay in
+        the project media store — same pipeline as Document paste/insert.
       </p>
       <ul className="help-feature-list">
         <li>
@@ -169,20 +188,21 @@ function MoodBoardHelp() {
           OS clipboard, or use Add media…
         </li>
         <li>
-          <strong>Comment</strong> — right-click → Comment. Notes show under each
-          tile (and a Note badge when set).
+          <strong>Tile notes</strong> — right-click a tile → Comment. Notes show
+          under the tile (Note badge when set).
         </li>
         <li>
-          <strong>Clipboard</strong> — Copy / Cut / Paste / Delete for board
-          tiles. Paste also imports OS clipboard files when the board clipboard
-          is empty.
+          <strong>Board clipboard</strong> — Copy / Cut / Paste / Delete for
+          selected tiles (context menu or shortcuts when the board is focused).
+          Paste also imports OS clipboard files when the board clipboard is
+          empty.
         </li>
         <li>
-          <strong>Insert into document</strong> — places a media embed at the
-          last TipTap cursor in the <em>active</em> document. The Document
-          editor stays mounted (hidden) while you browse other tabs so the
-          selection survives. If Document was never focused, the embed is
-          appended at the end.
+          <strong>Insert into Document</strong> — places a media embed at the
+          last TipTap cursor in the active document. The Document editor stays
+          mounted (hidden) while you browse other tabs so the selection
+          survives. If Document was never focused, the embed is appended at the
+          end.
         </li>
       </ul>
       <p className="muted tiny">
