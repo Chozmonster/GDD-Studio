@@ -1,9 +1,17 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  HELP_APP,
+  HELP_MOOD_BOARD,
   HELP_NAV,
+  HELP_RGD_APP,
+  HELP_RGD_OVERVIEW,
+  HELP_RGD_SKILLS_LEAD,
+  HELP_RGD_STEPS_LEAD,
   RGD_SKILL_HELP,
   RGD_STEP_HELP,
+  type HelpArticleContent,
   type HelpSectionId,
+  type HelpTopic,
 } from "./helpContent";
 
 type HelpPanelProps = {
@@ -24,7 +32,6 @@ export function HelpPanel({
   useEffect(() => {
     if (open) {
       setSection(initialSection);
-      // Focus close control for keyboard users
       window.setTimeout(() => closeRef.current?.focus(), 0);
     }
   }, [open, initialSection]);
@@ -79,12 +86,14 @@ export function HelpPanel({
           </nav>
 
           <div className="help-content" tabIndex={0}>
-            {section === "app" && <HowAppWorks />}
-            {section === "moodboard" && <MoodBoardHelp />}
-            {section === "rgd-overview" && <RgdOverview />}
+            {section === "app" && <Article article={HELP_APP} />}
+            {section === "moodboard" && <Article article={HELP_MOOD_BOARD} />}
+            {section === "rgd-overview" && (
+              <Article article={HELP_RGD_OVERVIEW} />
+            )}
             {section === "rgd-steps" && <RgdSteps />}
             {section === "rgd-skills" && <RgdSkills />}
-            {section === "rgd-app" && <RgdInApp />}
+            {section === "rgd-app" && <Article article={HELP_RGD_APP} />}
           </div>
         </div>
       </div>
@@ -92,174 +101,52 @@ export function HelpPanel({
   );
 }
 
-function HowAppWorks() {
+function Article({ article }: { article: HelpArticleContent }) {
   return (
     <article className="help-article">
-      <h3>How GDD Studio works</h3>
-      <p className="muted">
-        Local-first game design docs. Projects live on disk; no account required
-        for v1.
-      </p>
-      <ul className="help-feature-list">
-        <li>
-          <strong>Launcher</strong> — projects only: create, open, or remove.
-          Options covers updates and variable display. Open Help from the
-          launcher or the editor chrome.
-        </li>
-        <li>
-          <strong>Multi-document projects</strong> — each project holds many
-          documents. Left rail → <strong>Documents</strong> pane: create,
-          switch, or delete (the main doc cannot be deleted). The active doc is
-          what Flowchart / RGD / Mood Board inserts target.
-        </li>
-        <li>
-          <strong>Document editing</strong> — rich-text GDD with headings,
-          lists, alignment, fonts, variables, media, flowchart embeds, and live
-          RGD tables. Left rail top is the <strong>Document map</strong>{" "}
-          (heading outline for in-doc jump navigation). Right rail holds
-          variables (and word lookup when open).
-        </li>
-        <li>
-          <strong>Wiki links</strong> — type <code>[[Doc Title]]</code> or use
-          toolbar <strong>Link</strong> to link to another document in the same
-          project. Clicking opens/switches that doc. There is no heading / section
-          link picker — use the Document map for in-doc navigation.
-        </li>
-        <li>
-          <strong>Resizable panes</strong> — drag the handles between panes.
-          Document: map|docs, left rail|editor|variables. Flowcharts:
-          list|canvas. RGD: sheets|editor and form|preview. Sizes persist in
-          localStorage across reloads; narrow windows stack panes instead of
-          dragging.
-        </li>
-        <li>
-          <strong>Flowcharts</strong> — named diagrams with typed nodes and
-          connectors. Type chips create a node when nothing is selected, or
-          change the highlighted node’s type; drag a connector end to reattach
-          it. Embed live references in the active document.
-        </li>
-        <li>
-          <strong>RGD</strong> — Rational Game Design sheets (one per gameplay)
-          in a library tab, edited as forms; Insert RGD table embeds a live
-          mechanic table in the active document. See Help → Using RGD here.
-        </li>
-        <li>
-          <strong>Mood Board</strong> — project scratchpad for reference media;
-          Insert into document embeds a <em>live linked</em> tile (crop, border,
-          and comments update in open docs). See Help → Mood Board.
-        </li>
-        <li>
-          <strong>Live tool → document embeds</strong> — Flowcharts, RGD tables,
-          and Mood Board inserts are references, not snapshots. Edits in those
-          tool tabs propagate automatically into every document embed so docs
-          never show stale tool data.
-        </li>
-        <li>
-          <strong>Variables</strong> — project-wide plain-text values that
-          resolve live wherever chips appear (every document shares one
-          registry). Type <code>{"{{variablename}}"}</code> to insert (creates
-          if missing), or use the Variables panel. Edit a value once and every
-          chip updates. Toggle “Display variable names in document” in Options.
-        </li>
-        <li>
-          <strong>Media</strong> — paste or Insert media for images, gifs,
-          video, and audio with built-in players (into the active document).
-        </li>
-        <li>
-          <strong>Templates</strong> — save the active document body as app- or
-          project-scoped template; apply replaces the current body (confirm).
-        </li>
-        <li>
-          <strong>Spellcheck</strong> — offline dictionary underlines
-          misspellings. Right-click or Alt+Click a word for suggestions, Add to
-          dictionary, or Look up. Toolbar Look up opens a definition panel.
-        </li>
-        <li>
-          <strong>Export PDF</strong> — opens a print dialog (Save as PDF on
-          most desktops). Flowchart and RGD embeds are captured as images in
-          place; images/gifs export normally; video may appear as a single
-          frame. Export HTML is sanitized before print.
-        </li>
-      </ul>
+      <h3>{article.title}</h3>
+      {article.lead ? <p className="muted">{article.lead}</p> : null}
+      {article.topics?.map((topic) => (
+        <TopicBlock key={topic.title} topic={topic} />
+      ))}
+      {article.furtherReading && article.furtherReading.length > 0 ? (
+        <>
+          <h4 className="help-subhead">Further reading</h4>
+          <ul className="help-feature-list muted">
+            {article.furtherReading.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {article.footnote ? (
+        <p className="muted tiny">{article.footnote}</p>
+      ) : null}
     </article>
   );
 }
 
-function MoodBoardHelp() {
+function TopicBlock({ topic }: { topic: HelpTopic }) {
   return (
-    <article className="help-article">
-      <h3>Mood Board</h3>
-      <p>
-        A project-local scratchpad for reference images, gifs, video, and audio.
-        Assets stay in the project media store. Tile edits (crop, border,
-        comment) are stored on the Mood Board item — not baked into a one-off
-        copy.
-      </p>
-      <ul className="help-feature-list">
-        <li>
-          <strong>Add media</strong> — drop files onto the board, paste from the
-          OS clipboard, or use Add media… (SVG is blocked).
-        </li>
-        <li>
-          <strong>Tile notes</strong> — right-click a tile → Comment. Notes show
-          under the tile and on live document embeds (Note badge when set).
-        </li>
-        <li>
-          <strong>Crop / Border</strong> — right-click → Crop… (images/gifs) or
-          Border… (width, color, optional radius). Edits persist with the tile
-          and update every open document embed of that item.
-        </li>
-        <li>
-          <strong>Board clipboard</strong> — Copy / Cut / Paste / Delete for
-          selected tiles (context menu or shortcuts when the board is focused).
-          Paste also imports OS clipboard files when the board clipboard is
-          empty.
-        </li>
-        <li>
-          <strong>Insert into Document</strong> — embeds a <em>live link</em> to
-          the Mood Board item (by id) at the last TipTap cursor in the active
-          document — same spirit as flowchart and RGD embeds. Crop, border, and
-          comment changes propagate automatically; deleting the tile breaks the
-          embed. The Document editor stays mounted (hidden) on other tabs so
-          the selection survives. If Document was never focused, the embed is
-          appended at the end.
-        </li>
-      </ul>
-      <p className="muted tiny">
-        v1 is a grid with comments and basic image edits — not a free-position
-        canvas. Direct Document paste/insert still creates standalone media
-        embeds (not Mood Board-linked).
-      </p>
-    </article>
-  );
-}
-
-function RgdOverview() {
-  return (
-    <article className="help-article">
-      <h3>What is Rational Game Design?</h3>
-      <p>
-        A Ubisoft-origin methodology for <strong>rationalizing</strong>{" "}
-        gameplay: strip a challenge to skills, inputs, and measurable{" "}
-        <strong>atomic parameters</strong>, then recombine those into{" "}
-        <strong>patterns</strong> with readable <strong>signs/feedback</strong>.
-        The goal is intentional difficulty and variety — not “feel-based” tweaks
-        alone.
-      </p>
-      <p className="muted">
-        It is a design lens for documentation. GDD Studio does not add telemetry
-        or auto-balance.
-      </p>
-      <p>
-        <strong>Form vs function:</strong> function = skills, inputs,
-        parameters; form = art/story/aesthetics that communicate those
-        functions.
-      </p>
-      <p className="muted tiny">
-        Methods associated with Ubisoft practice and public writeups (e.g.
-        McEntee 2012). Not an official Ubisoft product endorsement.
-      </p>
-    </article>
+    <section className="help-topic">
+      <h4 className="help-subhead">{topic.title}</h4>
+      {topic.lead ? <p>{topic.lead}</p> : null}
+      {topic.steps && topic.steps.length > 0 ? (
+        <ol className="help-howto-list">
+          {topic.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      ) : null}
+      {topic.tips && topic.tips.length > 0 ? (
+        <ul className="help-feature-list">
+          {topic.tips.map((tip) => (
+            <li key={tip}>{tip}</li>
+          ))}
+        </ul>
+      ) : null}
+      {topic.note ? <p className="muted tiny">{topic.note}</p> : null}
+    </section>
   );
 }
 
@@ -267,11 +154,7 @@ function RgdSteps() {
   return (
     <article className="help-article">
       <h3>The 7 steps</h3>
-      <p className="muted">
-        Teaching scaffold for the methodology. Day-to-day editing centers on the
-        mechanic → skill → parameter table; pillars, patterns, and signs stay
-        available as optional sheet context. Fill what you need.
-      </p>
+      <p className="muted">{HELP_RGD_STEPS_LEAD}</p>
       <ol className="help-step-list">
         {RGD_STEP_HELP.map((s) => (
           <li key={s.n}>
@@ -296,10 +179,7 @@ function RgdSkills() {
   return (
     <article className="help-article">
       <h3>Player skills</h3>
-      <p className="muted">
-        Every skill on an RGD sheet has a required category. Document tables
-        color-code skill cells to match.
-      </p>
+      <p className="muted">{HELP_RGD_SKILLS_LEAD}</p>
       <div className="help-skill-grid">
         {RGD_SKILL_HELP.map((cat) => (
           <section
@@ -324,48 +204,6 @@ function RgdSkills() {
           </section>
         ))}
       </div>
-    </article>
-  );
-}
-
-function RgdInApp() {
-  return (
-    <article className="help-article">
-      <h3>Using RGD in this app</h3>
-      <ul className="help-feature-list">
-        <li>
-          <strong>Sheets</strong> — one sheet per gameplay loop (Combat,
-          Stealth, …). Create and edit them under the <strong>RGD</strong> tab
-          (library, like Flowcharts).
-        </li>
-        <li>
-          <strong>Form editor</strong> — fill mechanics, optional player input,
-          player skills (with Physical / Mental / Social category), atomic
-          parameters, and cases. Optional pillars / pattern / signs live in a
-          collapsed context section.
-        </li>
-        <li>
-          <strong>Document tables</strong> — Insert RGD… embeds a live table
-          titled with the gameplay name; edits update every embed. PDF export
-          captures the table as an image.
-        </li>
-        <li>
-          <strong>Flowcharts</strong> — link a primary or pattern flowchart from
-          the sheet; Open jumps to the Flowcharts tab.
-        </li>
-        <li>
-          <strong>Starter</strong> — New Project can include an RGD starter
-          sheet; RGD is never forced on every project.
-        </li>
-      </ul>
-      <h4 className="help-subhead">Further reading</h4>
-      <ul className="help-feature-list muted">
-        <li>
-          Chris McEntee — “Rational Design: The Core of Rayman Origins” (Game
-          Developer, 2012)
-        </li>
-        <li>Project PDF: Rational Game Design intro (in project docs)</li>
-      </ul>
     </article>
   );
 }
