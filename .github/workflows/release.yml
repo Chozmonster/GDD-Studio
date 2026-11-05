@@ -1,0 +1,66 @@
+name: Release
+
+# Tag a commit on main (e.g. v0.1.1) to draft a GitHub Release with
+# signed updater artifacts (latest.json) plus the portable Windows zip.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Windows (signed + portable)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and upload signed release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Empty / unset is fine — this keypair was generated without a password.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: GDD Studio ${{ github.ref_name }}
+          releaseBody: |
+            Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`.
+            NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
+
+      - name: Package portable zip
+        run: npm run package:portable
+
+      - name: Upload portable zip to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          zips=(src-tauri/target/release/bundle/portable/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No portable zip found under bundle/portable/" >&2
+            exit 1
+          fi
+          gh release upload "${{ github.ref_name }}" "${zips[@]}" --clobber
