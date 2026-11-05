@@ -1,6 +1,17 @@
 /** In-app Help copy. RGD text follows docs/rgd-help-sources.md + rgd-integration.md. */
 
-export type HelpSectionId = "app" | "rgd-overview" | "rgd-steps" | "rgd-app";
+import {
+  SKILL_CATEGORIES,
+  SKILL_CATEGORY_META,
+  type SkillCategory,
+} from "../editor/rgd/rgdPresets";
+
+export type HelpSectionId =
+  | "app"
+  | "rgd-overview"
+  | "rgd-steps"
+  | "rgd-skills"
+  | "rgd-app";
 
 export type HelpNavItem = {
   id: HelpSectionId;
@@ -11,8 +22,20 @@ export const HELP_NAV: HelpNavItem[] = [
   { id: "app", label: "How GDD Studio works" },
   { id: "rgd-overview", label: "What is RGD?" },
   { id: "rgd-steps", label: "The 7 steps" },
+  { id: "rgd-skills", label: "Player skills" },
   { id: "rgd-app", label: "Using RGD here" },
 ];
+
+export type SkillHelpCategory = {
+  id: SkillCategory;
+  label: string;
+  definition: string;
+  examples: readonly string[];
+};
+
+export const RGD_SKILL_HELP: SkillHelpCategory[] = SKILL_CATEGORIES.map(
+  (id) => SKILL_CATEGORY_META[id],
+);
 
 export type RgdStepHelp = {
   n: number;
@@ -45,7 +68,7 @@ export const RGD_STEP_HELP: RgdStepHelp[] = [
     n: 4,
     title: "Skills & inputs",
     why: "Player skills: Physical (timing, reflexes…), Mental (strategy, observation…), Social (cooperation…). Map to concrete inputs. Input cost is part of difficulty.",
-    map: "Form → Player skill under each mechanic (presets available).",
+    map: "Form → Player skill + Category under each mechanic. See Help → Player skills.",
   },
   {
     n: 5,

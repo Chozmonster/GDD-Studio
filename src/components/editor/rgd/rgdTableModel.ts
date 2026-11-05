@@ -1,3 +1,8 @@
+import {
+  parseSkillCategory,
+  type SkillCategory,
+} from "./rgdPresets";
+
 /** Mechanic → skill → parameter/case hierarchy for RGD live tables. */
 
 export type RgdParameterRow = {
@@ -11,6 +16,8 @@ export type RgdParameterRow = {
 export type RgdSkillNode = {
   id: string;
   name: string;
+  /** Physical | Mental | Social — required for form + table color coding. */
+  category: SkillCategory;
   parameters: RgdParameterRow[];
 };
 
@@ -57,8 +64,16 @@ export function emptyParameter(name = "", caseText = ""): RgdParameterRow {
   return { id: newId(), name, caseText };
 }
 
-export function emptySkill(name = ""): RgdSkillNode {
-  return { id: newId(), name, parameters: [emptyParameter()] };
+export function emptySkill(
+  name = "",
+  category: SkillCategory = "physical",
+): RgdSkillNode {
+  return {
+    id: newId(),
+    name,
+    category,
+    parameters: [emptyParameter()],
+  };
 }
 
 export function emptyMechanic(name = ""): RgdMechanicNode {
@@ -155,10 +170,12 @@ export function parseMechanics(raw: unknown): RgdMechanicNode[] {
                     };
                   })
                 : [emptyParameter()];
+            const name = typeof skill.name === "string" ? skill.name : "";
             return {
               id:
                 typeof skill.id === "string" && skill.id ? skill.id : newId(),
-              name: typeof skill.name === "string" ? skill.name : "",
+              name,
+              category: parseSkillCategory(skill.category, name),
               parameters,
             };
           })

@@ -1,5 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { HELP_NAV, RGD_STEP_HELP, type HelpSectionId } from "./helpContent";
+import {
+  HELP_NAV,
+  RGD_SKILL_HELP,
+  RGD_STEP_HELP,
+  type HelpSectionId,
+} from "./helpContent";
 
 type HelpPanelProps = {
   open: boolean;
@@ -77,6 +82,7 @@ export function HelpPanel({
             {section === "app" && <HowAppWorks />}
             {section === "rgd-overview" && <RgdOverview />}
             {section === "rgd-steps" && <RgdSteps />}
+            {section === "rgd-skills" && <RgdSkills />}
             {section === "rgd-app" && <RgdInApp />}
           </div>
         </div>
@@ -197,6 +203,42 @@ function RgdSteps() {
   );
 }
 
+function RgdSkills() {
+  return (
+    <article className="help-article">
+      <h3>Player skills</h3>
+      <p className="muted">
+        Every skill on an RGD sheet has a required category. Document tables
+        color-code skill cells to match.
+      </p>
+      <div className="help-skill-grid">
+        {RGD_SKILL_HELP.map((cat) => (
+          <section
+            key={cat.id}
+            className={`help-skill-card rgd-skill-cat-${cat.id}`}
+            aria-labelledby={`help-skill-${cat.id}`}
+          >
+            <h4 id={`help-skill-${cat.id}`}>{cat.label} Skills</h4>
+            <p className="help-skill-def">{cat.definition}</p>
+            <ul className="help-skill-examples">
+              {cat.examples.map((skill) => (
+                <li key={skill}>
+                  <span className={`help-skill-chip rgd-skill-cat-${cat.id}`}>
+                    {skill}
+                  </span>
+                </li>
+              ))}
+              <li>
+                <span className="help-skill-chip help-skill-chip-etc">Etc.</span>
+              </li>
+            </ul>
+          </section>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function RgdInApp() {
   return (
     <article className="help-article">
@@ -209,8 +251,9 @@ function RgdInApp() {
         </li>
         <li>
           <strong>Form editor</strong> — fill mechanics, optional player input,
-          player skills, atomic parameters, and cases. Optional pillars /
-          pattern / signs live in a collapsed context section.
+          player skills (with Physical / Mental / Social category), atomic
+          parameters, and cases. Optional pillars / pattern / signs live in a
+          collapsed context section.
         </li>
         <li>
           <strong>Document tables</strong> — Insert RGD… embeds a live table

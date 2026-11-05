@@ -83,6 +83,8 @@ export type RgdSheetDocument = {
     skills: Array<{
       id: string;
       name: string;
+      /** Physical | Mental | Social — persisted for table color coding. */
+      category: "physical" | "mental" | "social";
       parameters: Array<{
         id: string;
         name: string;

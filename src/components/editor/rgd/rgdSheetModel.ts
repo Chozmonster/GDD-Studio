@@ -109,13 +109,23 @@ export function migrateStepsToTable(
   meta.feedback = signs.feedback;
   meta.signsNotes = signs.notes;
 
-  const skillNames = [
-    ...skills.physical,
-    ...skills.mental,
-    ...skills.social,
-  ]
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const categorizedSkills: Array<{
+    name: string;
+    category: "physical" | "mental" | "social";
+  }> = [
+    ...skills.physical
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name, category: "physical" as const })),
+    ...skills.mental
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name, category: "mental" as const })),
+    ...skills.social
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name, category: "social" as const })),
+  ];
 
   const paramRows: RgdParameterRow[] = atomic.rows
     .filter(
@@ -132,10 +142,11 @@ export function migrateStepsToTable(
     }));
 
   const skillNodes: RgdSkillNode[] =
-    skillNames.length > 0
-      ? skillNames.map((skillName, i) => ({
+    categorizedSkills.length > 0
+      ? categorizedSkills.map((skill, i) => ({
           id: newId(),
-          name: skillName,
+          name: skill.name,
+          category: skill.category,
           parameters:
             i === 0
               ? paramRows.length
@@ -147,6 +158,7 @@ export function migrateStepsToTable(
           {
             id: newId(),
             name: "",
+            category: "physical",
             parameters: paramRows.length ? paramRows : [emptyParameter()],
           },
         ];
@@ -154,7 +166,7 @@ export function migrateStepsToTable(
   const hasMechanicContent =
     Boolean(mechanic.name.trim()) ||
     Boolean(skills.inputs.trim()) ||
-    skillNames.length > 0 ||
+    categorizedSkills.length > 0 ||
     paramRows.length > 0;
 
   const mechanics: RgdMechanicNode[] = hasMechanicContent

@@ -1,4 +1,9 @@
-import { SKILL_PRESETS } from "./rgdPresets";
+import {
+  SKILL_CATEGORIES,
+  SKILL_CATEGORY_META,
+  SKILL_PRESETS,
+  type SkillCategory,
+} from "./rgdPresets";
 import {
   emptyMechanic,
   emptyParameter,
@@ -15,12 +20,6 @@ type RgdSheetFormProps = {
   flowcharts: Array<{ id: string; name: string }>;
   onOpenFlowchart?: (flowchartId: string) => void;
 };
-
-const ALL_SKILL_PRESETS = [
-  ...SKILL_PRESETS.physical,
-  ...SKILL_PRESETS.mental,
-  ...SKILL_PRESETS.social,
-];
 
 export function RgdSheetForm({
   mechanics,
@@ -100,14 +99,17 @@ export function RgdSheetForm({
 
               <ul className="rgd-skill-list">
                 {mechanic.skills.map((skill, si) => (
-                  <li key={skill.id} className="rgd-skill-block">
+                  <li
+                    key={skill.id}
+                    className={`rgd-skill-block rgd-skill-cat-${skill.category}`}
+                  >
                     <div className="rgd-skill-head">
                       <label className="rgd-field grow">
                         <span>Player skill</span>
                         <input
-                          list="rgd-skill-presets"
+                          list={`rgd-skill-presets-${skill.category}`}
                           value={skill.name}
-                          placeholder="e.g. Timing"
+                          placeholder={`e.g. ${SKILL_PRESETS[skill.category][0] ?? "Timing"}`}
                           aria-label={`Mechanic ${mi + 1} skill ${si + 1}`}
                           onChange={(e) => {
                             const skills = mechanic.skills.slice();
@@ -115,6 +117,27 @@ export function RgdSheetForm({
                             updateMechanic(mi, { ...mechanic, skills });
                           }}
                         />
+                      </label>
+                      <label className="rgd-field rgd-skill-category-field">
+                        <span>Category</span>
+                        <select
+                          value={skill.category}
+                          required
+                          aria-label={`Mechanic ${mi + 1} skill ${si + 1} category`}
+                          className={`rgd-skill-category-select rgd-skill-cat-${skill.category}`}
+                          onChange={(e) => {
+                            const category = e.target.value as SkillCategory;
+                            const skills = mechanic.skills.slice();
+                            skills[si] = { ...skill, category };
+                            updateMechanic(mi, { ...mechanic, skills });
+                          }}
+                        >
+                          {SKILL_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {SKILL_CATEGORY_META[cat].label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <button
                         type="button"
@@ -246,11 +269,13 @@ export function RgdSheetForm({
           Add mechanic
         </button>
 
-        <datalist id="rgd-skill-presets">
-          {ALL_SKILL_PRESETS.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
+        {SKILL_CATEGORIES.map((cat) => (
+          <datalist key={cat} id={`rgd-skill-presets-${cat}`}>
+            {SKILL_PRESETS[cat].map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        ))}
       </section>
 
       <details className="rgd-meta-details">

@@ -47,39 +47,42 @@ export function RgdLiveTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  {row.showMechanic && row.mechanic && (
-                    <td
-                      className="rgd-matrix-mechanic"
-                      rowSpan={row.mechanicRowspan}
-                    >
-                      <span className="rgd-matrix-mechanic-name">
-                        {row.mechanic.name.trim() || "—"}
-                      </span>
-                      {row.mechanic.playerInput.trim() ? (
-                        <span className="rgd-matrix-input">
-                          {row.mechanic.playerInput.trim()}
+              {rows.map((row) => {
+                const cat = row.skill?.category ?? "physical";
+                return (
+                  <tr key={row.key} className={`rgd-matrix-row-cat-${cat}`}>
+                    {row.showMechanic && row.mechanic && (
+                      <td
+                        className="rgd-matrix-mechanic"
+                        rowSpan={row.mechanicRowspan}
+                      >
+                        <span className="rgd-matrix-mechanic-name">
+                          {row.mechanic.name.trim() || "—"}
                         </span>
-                      ) : null}
+                        {row.mechanic.playerInput.trim() ? (
+                          <span className="rgd-matrix-input">
+                            {row.mechanic.playerInput.trim()}
+                          </span>
+                        ) : null}
+                      </td>
+                    )}
+                    {row.showSkill && row.skill && (
+                      <td
+                        className={`rgd-matrix-skill rgd-skill-cat-${cat}`}
+                        rowSpan={row.skillRowspan}
+                      >
+                        {row.skill.name.trim() || "—"}
+                      </td>
+                    )}
+                    <td className={`rgd-matrix-param rgd-param-cat-${cat}`}>
+                      {row.parameter.name.trim() || "—"}
                     </td>
-                  )}
-                  {row.showSkill && row.skill && (
-                    <td
-                      className="rgd-matrix-skill"
-                      rowSpan={row.skillRowspan}
-                    >
-                      {row.skill.name.trim() || "—"}
+                    <td className={`rgd-matrix-case rgd-case-cat-${cat}`}>
+                      {row.parameter.caseText.trim() || ""}
                     </td>
-                  )}
-                  <td className="rgd-matrix-param">
-                    {row.parameter.name.trim() || "—"}
-                  </td>
-                  <td className="rgd-matrix-case">
-                    {row.parameter.caseText.trim() || ""}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
