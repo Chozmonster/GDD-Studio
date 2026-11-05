@@ -2698,3 +2698,234 @@ code {
   }
 }
 
+/* ── Mood Board ─────────────────────────────────────────────────────────── */
+
+.editor-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-tab-panel.is-hidden {
+  display: none;
+}
+
+.mood-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  outline: none;
+}
+
+.mood-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.85rem 1.1rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.mood-toolbar-left h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--ink-strong);
+}
+
+.mood-blurb {
+  margin: 0;
+  max-width: 42rem;
+  line-height: 1.4;
+}
+
+.mood-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mood-status {
+  margin-left: 0.35rem;
+}
+
+.mood-surface {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.1rem 1.5rem;
+  background:
+    radial-gradient(ellipse at top, #323232 0%, transparent 55%),
+    linear-gradient(180deg, #2a2a2a 0%, var(--bg) 100%);
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mood-surface.is-dragover {
+  border-color: var(--accent);
+  background:
+    radial-gradient(ellipse at top, var(--accent-soft) 0%, transparent 60%),
+    linear-gradient(180deg, #2a2a2a 0%, var(--bg) 100%);
+}
+
+.mood-empty {
+  display: grid;
+  place-content: center;
+  min-height: 16rem;
+  text-align: center;
+  gap: 0.35rem;
+}
+
+.mood-empty p {
+  margin: 0;
+}
+
+.mood-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.9rem;
+}
+
+.mood-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: context-menu;
+}
+
+.mood-tile.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.mood-tile-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background: #222;
+  overflow: hidden;
+}
+
+.mood-tile-media img,
+.mood-tile-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mood-tile-media audio {
+  width: calc(100% - 1rem);
+  margin: 0.5rem;
+}
+
+.mood-kind-badge,
+.mood-comment-badge {
+  position: absolute;
+  top: 0.4rem;
+  z-index: 1;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  background: rgba(20, 20, 20, 0.78);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.mood-kind-badge {
+  right: 0.4rem;
+}
+
+.mood-comment-badge {
+  left: 0.4rem;
+  color: #d8f0e2;
+  border-color: #3d7a5c;
+  background: rgba(47, 74, 63, 0.92);
+}
+
+.mood-tile-error {
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.mood-tile-meta {
+  padding: 0.5rem 0.6rem 0.55rem;
+  border-top: 1px solid var(--line);
+  background: var(--bg-row);
+}
+
+.mood-tile-name {
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mood-tile-comment {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 4.2em;
+  overflow: hidden;
+}
+
+.mood-tile-comment.is-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.mood-ctx-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.mood-ctx-menu button {
+  text-align: left;
+  font-size: 0.82rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+.mood-ctx-menu button:hover:not(:disabled) {
+  background: var(--bg-row-active);
+  border-color: transparent;
+}
+
+.mood-ctx-sep {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 0.2rem 0.15rem;
+}
+

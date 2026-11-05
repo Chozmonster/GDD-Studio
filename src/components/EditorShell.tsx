@@ -4,6 +4,7 @@ import type { ProjectRecord, ProjectTab } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
 import { HelpPanel } from "./help/HelpPanel";
+import { MoodBoard } from "./moodboard/MoodBoard";
 import { OptionsPanel } from "./OptionsPanel";
 import { RgdEditor } from "./rgd/RgdEditor";
 
@@ -11,6 +12,12 @@ type EditorShellProps = {
   project: ProjectRecord;
   onBack: () => void;
 };
+
+function helpSectionForTab(tab: ProjectTab) {
+  if (tab === "rgd") return "rgd-overview" as const;
+  if (tab === "moodboard") return "moodboard" as const;
+  return "app" as const;
+}
 
 export function EditorShell({ project, onBack }: EditorShellProps) {
   const [tab, setTab] = useState<ProjectTab>("document");
@@ -69,6 +76,14 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           >
             RGD
           </button>
+          <button
+            type="button"
+            className={tab === "moodboard" ? "tab active" : "tab"}
+            onClick={() => setTab("moodboard")}
+            aria-current={tab === "moodboard" ? "page" : undefined}
+          >
+            Mood Board
+          </button>
         </nav>
         <div className="chrome-right">
           <p className="chrome-meta muted path-line" title={project.path}>
@@ -86,28 +101,45 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
         </div>
       </header>
       <main className="main-pane editor-alone">
-        {tab === "document" ? (
-          <>
-            <div className="doc-header">
-              <h2>{project.name}</h2>
-              <p className="muted status path-line">{project.path}</p>
-            </div>
-            <EditorCanvas
-              project={project}
-              onOpenFlowchart={openFlowchart}
-              onOpenRgdSheet={openRgdSheet}
-            />
-          </>
-        ) : tab === "flowchart" ? (
+        {/*
+          Keep Document mounted (hidden) so TipTap selection/cursor survives
+          tab switches — Mood Board "Insert into document" restores that position.
+        */}
+        <div
+          className={
+            tab === "document" ? "editor-tab-panel" : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "document"}
+          aria-hidden={tab !== "document"}
+        >
+          <div className="doc-header">
+            <h2>{project.name}</h2>
+            <p className="muted status path-line">{project.path}</p>
+          </div>
+          <EditorCanvas
+            project={project}
+            onOpenFlowchart={openFlowchart}
+            onOpenRgdSheet={openRgdSheet}
+          />
+        </div>
+
+        {tab === "flowchart" && (
           <FlowchartEditor
             project={project}
             focusFlowchartId={focusFlowchartId}
           />
-        ) : (
+        )}
+        {tab === "rgd" && (
           <RgdEditor
             project={project}
             focusSheetId={focusSheetId}
             onOpenFlowchart={openFlowchart}
+          />
+        )}
+        {tab === "moodboard" && (
+          <MoodBoard
+            project={project}
+            onInsertedIntoDocument={() => setTab("document")}
           />
         )}
       </main>
@@ -132,7 +164,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
       <HelpPanel
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
-        initialSection={tab === "rgd" ? "rgd-overview" : "app"}
+        initialSection={helpSectionForTab(tab)}
       />
     </div>
   );

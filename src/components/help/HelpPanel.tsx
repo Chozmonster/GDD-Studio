@@ -80,6 +80,7 @@ export function HelpPanel({
 
           <div className="help-content" tabIndex={0}>
             {section === "app" && <HowAppWorks />}
+            {section === "moodboard" && <MoodBoardHelp />}
             {section === "rgd-overview" && <RgdOverview />}
             {section === "rgd-steps" && <RgdSteps />}
             {section === "rgd-skills" && <RgdSkills />}
@@ -118,6 +119,10 @@ function HowAppWorks() {
           edited as forms; live mechanic tables in the document.
         </li>
         <li>
+          <strong>Mood Board</strong> — scratchpad for reference media before
+          placing embeds in the GDD. See Help → Mood Board.
+        </li>
+        <li>
           <strong>Variables</strong> — named values that resolve live wherever
           chips appear. Toggle “show names” in Options.
         </li>
@@ -141,6 +146,43 @@ function HowAppWorks() {
           frame. Export HTML is sanitized before print.
         </li>
       </ul>
+    </article>
+  );
+}
+
+function MoodBoardHelp() {
+  return (
+    <article className="help-article">
+      <h3>Mood Board</h3>
+      <p>
+        A project-local scratchpad for reference images, gifs, video, and audio
+        before you place them in the Document. Assets stay in the project media
+        store — same pipeline as Document paste/insert.
+      </p>
+      <ul className="help-feature-list">
+        <li>
+          <strong>Add media</strong> — drop files onto the board, paste from the
+          OS clipboard, or use Add media…
+        </li>
+        <li>
+          <strong>Comment</strong> — right-click → Comment. Notes show under each
+          tile (and a Note badge when set).
+        </li>
+        <li>
+          <strong>Clipboard</strong> — Copy / Cut / Paste / Delete for board
+          tiles. Paste also imports OS clipboard files when the board clipboard
+          is empty.
+        </li>
+        <li>
+          <strong>Insert into document</strong> — places a media embed at the
+          last TipTap cursor in Document. The Document editor stays mounted
+          (hidden) while you browse other tabs so the selection survives. If
+          Document was never focused, the embed is appended at the end.
+        </li>
+      </ul>
+      <p className="muted tiny">
+        v1 is a grid with comments — not a free-position canvas.
+      </p>
     </article>
   );
 }

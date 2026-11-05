@@ -8,6 +8,7 @@ import {
 
 export type HelpSectionId =
   | "app"
+  | "moodboard"
   | "rgd-overview"
   | "rgd-steps"
   | "rgd-skills"
@@ -20,6 +21,7 @@ export type HelpNavItem = {
 
 export const HELP_NAV: HelpNavItem[] = [
   { id: "app", label: "How GDD Studio works" },
+  { id: "moodboard", label: "Mood Board" },
   { id: "rgd-overview", label: "What is RGD?" },
   { id: "rgd-steps", label: "The 7 steps" },
   { id: "rgd-skills", label: "Player skills" },

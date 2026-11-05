@@ -1159,6 +1159,77 @@ pub fn delete_asset(app: &AppHandle, project_id: String, asset_id: String) -> Re
     Ok(())
 }
 
+// ── Mood Board ─────────────────────────────────────────────────────────────
+
+const MOOD_BOARD_FILE: &str = "mood-board.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoodBoardItem {
+    pub id: String,
+    pub asset_id: String,
+    #[serde(default)]
+    pub comment: String,
+    pub created_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoodBoardDocument {
+    pub format: String,
+    pub version: u32,
+    pub items: Vec<MoodBoardItem>,
+}
+
+fn mood_board_path(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(MOOD_BOARD_FILE)
+}
+
+fn empty_mood_board() -> MoodBoardDocument {
+    MoodBoardDocument {
+        format: "gdd-studio-mood-board".into(),
+        version: 1,
+        items: Vec::new(),
+    }
+}
+
+pub fn load_mood_board(
+    app: &AppHandle,
+    project_id: String,
+) -> Result<MoodBoardDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = mood_board_path(&project);
+    if !path.exists() {
+        return Ok(empty_mood_board());
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read mood board: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| format!("parse mood board: {e}"))
+}
+
+pub fn save_mood_board(
+    app: &AppHandle,
+    project_id: String,
+    document: MoodBoardDocument,
+) -> Result<MoodBoardDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let mut document = document;
+    document.format = "gdd-studio-mood-board".into();
+    document.version = 1;
+    // Normalize items (trim comments; keep stable ids).
+    for item in &mut document.items {
+        item.comment = item.comment.trim().to_string();
+        if item.id.trim().is_empty() {
+            item.id = Uuid::new_v4().to_string();
+        }
+        if item.asset_id.trim().is_empty() {
+            return Err("Mood board item missing assetId".into());
+        }
+        validate_entity_id(&item.asset_id, "asset")?;
+    }
+    write_json(&mood_board_path(&project), &document)?;
+    Ok(document)
+}
+
 // ── Templates (app-level + project-level) ──────────────────────────────────
 
 const TEMPLATES_DIR: &str = "templates";

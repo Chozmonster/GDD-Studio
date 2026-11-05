@@ -34,7 +34,23 @@ export type UpdateStatus = {
 
 export type View = "launcher" | "editor";
 
-export type ProjectTab = "document" | "flowchart" | "rgd";
+export type ProjectTab = "document" | "flowchart" | "rgd" | "moodboard";
+
+/** One tile on the project Mood Board (references a project asset). */
+export type MoodBoardItem = {
+  id: string;
+  assetId: string;
+  /** Designer note — shown under the tile. */
+  comment: string;
+  createdAt: number;
+};
+
+/** Project-persisted Mood Board (scratchpad of reference media). */
+export type MoodBoardDocument = {
+  format: "gdd-studio-mood-board";
+  version: 1;
+  items: MoodBoardItem[];
+};
 
 export type FlowchartSummary = {
   id: string;

@@ -1,8 +1,9 @@
 //! GDD Studio — Tauri entry.
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
-//! RGD sheets + documentation variables + single primary doc / section links + media assets +
-//! templates + export HTML. Spellcheck runs in the webview (nspell).
+//! RGD sheets + mood board + documentation variables + single primary doc /
+//! section links + media assets + templates + export HTML.
+//! Spellcheck runs in the webview (nspell).
 
 mod commands;
 mod store;
@@ -15,10 +16,11 @@ use commands::{
     delete_template, flowchart_exists, get_asset_data_url, get_asset_path, get_patch_notes,
     get_settings, install_update, list_assets, list_backlinks, list_documents, list_flowcharts,
     list_projects, list_rgd_sheets, list_templates, load_document, load_flowchart,
-    load_project_document, load_rgd_sheet, load_template, load_variables, open_options_window,
-    open_project, resolve_wiki_slug, rgd_sheet_exists, save_asset, save_document, save_flowchart,
-    save_project_document, save_rgd_sheet, save_template, save_variables, set_automatic_updates,
-    set_display_variable_names, write_export_html,
+    load_mood_board, load_project_document, load_rgd_sheet, load_template, load_variables,
+    open_options_window, open_project, resolve_wiki_slug, rgd_sheet_exists, save_asset,
+    save_document, save_flowchart, save_mood_board, save_project_document, save_rgd_sheet,
+    save_template, save_variables, set_automatic_updates, set_display_variable_names,
+    write_export_html,
 };
 use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
@@ -81,6 +83,8 @@ pub fn run() {
             get_asset_path,
             get_asset_data_url,
             delete_asset,
+            load_mood_board,
+            save_mood_board,
             list_templates,
             save_template,
             load_template,

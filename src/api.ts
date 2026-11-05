@@ -8,6 +8,7 @@ import type {
   FlowchartDocument,
   FlowchartSummary,
   HealthStatus,
+  MoodBoardDocument,
   ProjectDocument,
   ProjectRecord,
   RgdSheetDocument,
@@ -36,11 +37,21 @@ type BrowserStore = {
   assets?: Record<string, AssetRecord[]>;
   /** projectId → assetId → base64 payload */
   assetData?: Record<string, Record<string, string>>;
+  /** projectId → mood board document */
+  moodBoards?: Record<string, MoodBoardDocument>;
   /** app-level templates */
   appTemplates?: TemplateRecord[];
   /** projectId → templates */
   projectTemplates?: Record<string, TemplateRecord[]>;
 };
+
+function emptyMoodBoard(): MoodBoardDocument {
+  return {
+    format: "gdd-studio-mood-board",
+    version: 1,
+    items: [],
+  };
+}
 
 function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -939,6 +950,38 @@ export async function deleteAsset(
     return;
   }
   await invoke("delete_asset", { projectId, assetId });
+}
+
+export async function loadMoodBoard(
+  projectId: string,
+): Promise<MoodBoardDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return store.moodBoards?.[projectId] ?? emptyMoodBoard();
+  }
+  return invoke<MoodBoardDocument>("load_mood_board", { projectId });
+}
+
+export async function saveMoodBoard(
+  projectId: string,
+  document: MoodBoardDocument,
+): Promise<MoodBoardDocument> {
+  const next: MoodBoardDocument = {
+    format: "gdd-studio-mood-board",
+    version: 1,
+    items: document.items ?? [],
+  };
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.moodBoards) store.moodBoards = {};
+    store.moodBoards[projectId] = next;
+    saveBrowser(store);
+    return next;
+  }
+  return invoke<MoodBoardDocument>("save_mood_board", {
+    projectId,
+    document: next,
+  });
 }
 
 export async function listTemplates(

@@ -43,6 +43,11 @@ import {
   saveRgdSheet,
 } from "../api";
 import { exportDocumentPdf } from "../lib/exportPdf";
+import {
+  getDocSelection,
+  onInsertMediaFromMoodBoard,
+  rememberDocSelection,
+} from "../lib/documentMediaInsert";
 import { emitFlowchartSaved } from "../lib/flowchartEvents";
 import { emitRgdSheetSaved } from "../lib/rgdEvents";
 import { getSpellEngine } from "../lib/spellcheck";
@@ -282,6 +287,51 @@ export function EditorCanvas({
   );
 
   editorRef.current = editor;
+
+  // Snapshot TipTap selection so Mood Board can insert at the last cursor.
+  useEffect(() => {
+    if (!editor) return;
+    const snapshot = () => {
+      const { from, to } = editor.state.selection;
+      rememberDocSelection(project.id, from, to);
+    };
+    snapshot();
+    editor.on("selectionUpdate", snapshot);
+    editor.on("blur", snapshot);
+    return () => {
+      snapshot();
+      editor.off("selectionUpdate", snapshot);
+      editor.off("blur", snapshot);
+    };
+  }, [editor, project.id]);
+
+  // Mood Board → Document media insert (cursor restore or append at end).
+  // Uses insertContentAt so it works while this panel is display:none.
+  useEffect(() => {
+    if (!editor) return;
+    return onInsertMediaFromMoodBoard((detail) => {
+      if (detail.projectId !== project.id) return;
+      const docSize = editor.state.doc.content.size;
+      const sel = getDocSelection(project.id);
+      // Fallback: append at end when Document was never focused.
+      const pos = sel
+        ? Math.max(0, Math.min(sel.from, docSize))
+        : docSize;
+      editor
+        .chain()
+        .insertContentAt(pos, {
+          type: "mediaEmbed",
+          attrs: {
+            assetId: detail.assetId,
+            kind: detail.kind,
+            filename: detail.filename,
+            mime: detail.mime,
+          },
+        })
+        .run();
+      setStatus(`Embedded ${detail.filename || detail.kind} from Mood Board`);
+    });
+  }, [editor, project.id]);
 
   useEffect(() => {
     migratedRef.current = false;

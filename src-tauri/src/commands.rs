@@ -342,6 +342,23 @@ pub fn delete_asset(app: AppHandle, project_id: String, asset_id: String) -> Res
 }
 
 #[tauri::command]
+pub fn load_mood_board(
+    app: AppHandle,
+    project_id: String,
+) -> Result<store::MoodBoardDocument, String> {
+    store::load_mood_board(&app, project_id)
+}
+
+#[tauri::command]
+pub fn save_mood_board(
+    app: AppHandle,
+    project_id: String,
+    document: store::MoodBoardDocument,
+) -> Result<store::MoodBoardDocument, String> {
+    store::save_mood_board(&app, project_id, document)
+}
+
+#[tauri::command]
 pub fn list_templates(
     app: AppHandle,
     project_id: Option<String>,
