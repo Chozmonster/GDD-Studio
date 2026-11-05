@@ -93,6 +93,8 @@ function isDangerousUrl(value: string): boolean {
   const v = value.trim();
   if (/^(javascript|vbscript|file):/i.test(v)) return true;
   if (/^data:/i.test(v)) {
+    // SVG-in-data-URL can execute script if navigated; never allow in export HTML.
+    if (/^data:image\/svg\+xml/i.test(v)) return true;
     // Allow raster/media data URLs used by export snapshots and asset fallbacks
     return !/^data:(image\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+|audio\/[a-z0-9.+-]+)[;,]/i.test(
       v,
@@ -108,9 +110,9 @@ function scrubExportRoot(root: HTMLElement): void {
   root.querySelectorAll(".media-embed-chrome").forEach((el) => el.remove());
 
   // Harden export HTML: drop executable / navigable attack surfaces from cloned TipTap DOM
-  root.querySelectorAll("script, iframe, object, embed, link, meta").forEach((el) =>
-    el.remove(),
-  );
+  root
+    .querySelectorAll("script, iframe, object, embed, link, meta, svg")
+    .forEach((el) => el.remove());
   root.querySelectorAll("*").forEach((el) => {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
@@ -246,6 +248,7 @@ export async function buildExportHtml(
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"/>
 <title>${escapeHtml(title)} — GDD Studio</title>
 <style>
   @page { margin: 18mm; }

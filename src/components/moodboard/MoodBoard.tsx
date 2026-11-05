@@ -7,6 +7,7 @@ import {
   saveMoodBoard,
 } from "../../api";
 import { requestInsertMediaFromMoodBoard } from "../../lib/documentMediaInsert";
+import { isAllowedMediaFile } from "../../lib/mediaFile";
 import type {
   AssetRecord,
   MoodBoardDocument,
@@ -29,20 +30,6 @@ type BoardClipboard = {
   mode: "copy" | "cut";
   items: MoodBoardItem[];
 };
-
-function isMediaFile(file: File): boolean {
-  const t = file.type.toLowerCase();
-  if (
-    t.startsWith("image/") ||
-    t.startsWith("video/") ||
-    t.startsWith("audio/")
-  ) {
-    return true;
-  }
-  return /\.(png|jpe?g|gif|webp|bmp|svg|mp4|webm|mov|mkv|mp3|wav|ogg|m4a|flac)$/i.test(
-    file.name,
-  );
-}
 
 function emptyBoard(): MoodBoardDocument {
   return { format: "gdd-studio-mood-board", version: 1, items: [] };
@@ -120,9 +107,9 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
 
   const addFiles = useCallback(
     async (files: FileList | File[]) => {
-      const list = Array.from(files).filter(isMediaFile);
+      const list = Array.from(files).filter(isAllowedMediaFile);
       if (list.length === 0) {
-        setStatus("No supported media in drop/paste");
+        setStatus("No supported media in drop/paste (SVG is blocked)");
         return;
       }
       const added: MoodBoardItem[] = [];
@@ -231,6 +218,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       const files: File[] = [];
       for (const item of items) {
         for (const type of item.types) {
+          if (type.toLowerCase().includes("svg")) continue;
           if (
             type.startsWith("image/") ||
             type.startsWith("video/") ||
@@ -238,9 +226,12 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
           ) {
             const blob = await item.getType(type);
             const ext = type.split("/")[1]?.split(";")[0] || "bin";
-            files.push(
-              new File([blob], `paste.${ext}`, { type: blob.type || type }),
-            );
+            if (ext.toLowerCase().includes("svg")) continue;
+            const file = new File([blob], `paste.${ext}`, {
+              type: blob.type || type,
+            });
+            if (!isAllowedMediaFile(file)) continue;
+            files.push(file);
           }
         }
       }
@@ -307,7 +298,11 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
 
     const onPaste = (e: ClipboardEvent) => {
       const files = e.clipboardData?.files;
-      if (files && files.length > 0 && Array.from(files).some(isMediaFile)) {
+      if (
+        files &&
+        files.length > 0 &&
+        Array.from(files).some(isAllowedMediaFile)
+      ) {
         e.preventDefault();
         void addFiles(files);
       }
@@ -394,7 +389,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*,audio/*,.gif,.mp4,.webm,.mov,.mp3,.wav,.ogg,.m4a"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,video/*,audio/*,.png,.jpg,.jpeg,.gif,.webp,.bmp,.mp4,.webm,.mov,.mp3,.wav,.ogg,.m4a"
           multiple
           hidden
           onChange={(e) => {

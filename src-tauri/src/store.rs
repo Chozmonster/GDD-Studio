@@ -166,7 +166,17 @@ fn sanitize_mime(mime: &str) -> String {
     }
 }
 
+/// SVG / SVGZ are scriptable XML — block at ingest for Mood Board + doc media.
+fn is_disallowed_svg(filename: &str, mime: &str) -> bool {
+    let m = mime.to_ascii_lowercase();
+    let f = filename.to_ascii_lowercase();
+    m.contains("svg") || f.ends_with(".svg") || f.ends_with(".svgz")
+}
+
 const MAX_ASSET_BYTES: usize = 200 * 1024 * 1024;
+const MAX_EXPORT_HTML_BYTES: usize = 32 * 1024 * 1024;
+const MAX_MOOD_BOARD_ITEMS: usize = 500;
+const MAX_MOOD_COMMENT_CHARS: usize = 2_000;
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<T, String> {
     if !path.exists() {
@@ -1048,6 +1058,12 @@ pub fn save_asset(
     }
     let filename = sanitize_filename(&filename);
     let mime = sanitize_mime(&mime);
+    if is_disallowed_svg(&filename, &mime) {
+        return Err(
+            "SVG media is not allowed (scriptable XML). Use PNG, JPEG, GIF, WebP, video, or audio."
+                .into(),
+        );
+    }
     let kind = kind_from_mime(&mime, &filename);
     let ext = extension_for(&filename, &mime, &kind);
     // Extension must stay a simple suffix — never path segments.
@@ -1181,8 +1197,10 @@ pub struct MoodBoardDocument {
     pub items: Vec<MoodBoardItem>,
 }
 
-fn mood_board_path(project: &ProjectRecord) -> PathBuf {
-    PathBuf::from(&project.path).join(MOOD_BOARD_FILE)
+fn mood_board_path(project: &ProjectRecord) -> Result<PathBuf, String> {
+    let root = PathBuf::from(&project.path);
+    let path = root.join(MOOD_BOARD_FILE);
+    ensure_path_within(&root, &path)
 }
 
 fn empty_mood_board() -> MoodBoardDocument {
@@ -1193,17 +1211,58 @@ fn empty_mood_board() -> MoodBoardDocument {
     }
 }
 
+fn sanitize_mood_comment(comment: &str) -> String {
+    comment
+        .trim()
+        .chars()
+        .take(MAX_MOOD_COMMENT_CHARS)
+        .collect()
+}
+
+fn normalize_mood_board_items(items: &mut Vec<MoodBoardItem>) -> Result<(), String> {
+    if items.len() > MAX_MOOD_BOARD_ITEMS {
+        return Err(format!(
+            "Mood board exceeds {MAX_MOOD_BOARD_ITEMS} item limit"
+        ));
+    }
+    for item in items.iter_mut() {
+        item.comment = sanitize_mood_comment(&item.comment);
+        if item.id.trim().is_empty() {
+            item.id = Uuid::new_v4().to_string();
+        }
+        validate_entity_id(&item.id, "mood board item")?;
+        if item.asset_id.trim().is_empty() {
+            return Err("Mood board item missing assetId".into());
+        }
+        validate_entity_id(&item.asset_id, "asset")?;
+    }
+    Ok(())
+}
+
 pub fn load_mood_board(
     app: &AppHandle,
     project_id: String,
 ) -> Result<MoodBoardDocument, String> {
     let project = project_by_id(app, &project_id)?;
-    let path = mood_board_path(&project);
+    let path = mood_board_path(&project)?;
     if !path.exists() {
         return Ok(empty_mood_board());
     }
     let raw = fs::read_to_string(&path).map_err(|e| format!("read mood board: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse mood board: {e}"))
+    let mut doc: MoodBoardDocument =
+        serde_json::from_str(&raw).map_err(|e| format!("parse mood board: {e}"))?;
+    // Drop malformed ids from tampered boards; keep the rest usable.
+    doc.items.retain(|item| {
+        validate_entity_id(&item.id, "mood board item").is_ok()
+            && validate_entity_id(&item.asset_id, "asset").is_ok()
+    });
+    if doc.items.len() > MAX_MOOD_BOARD_ITEMS {
+        doc.items.truncate(MAX_MOOD_BOARD_ITEMS);
+    }
+    for item in &mut doc.items {
+        item.comment = sanitize_mood_comment(&item.comment);
+    }
+    Ok(doc)
 }
 
 pub fn save_mood_board(
@@ -1215,18 +1274,8 @@ pub fn save_mood_board(
     let mut document = document;
     document.format = "gdd-studio-mood-board".into();
     document.version = 1;
-    // Normalize items (trim comments; keep stable ids).
-    for item in &mut document.items {
-        item.comment = item.comment.trim().to_string();
-        if item.id.trim().is_empty() {
-            item.id = Uuid::new_v4().to_string();
-        }
-        if item.asset_id.trim().is_empty() {
-            return Err("Mood board item missing assetId".into());
-        }
-        validate_entity_id(&item.asset_id, "asset")?;
-    }
-    write_json(&mood_board_path(&project), &document)?;
+    normalize_mood_board_items(&mut document.items)?;
+    write_json(&mood_board_path(&project)?, &document)?;
     Ok(document)
 }
 
@@ -1416,9 +1465,16 @@ pub fn load_template(
 
 /// Write a UTF-8 export HTML file under app cache for print/PDF workflows.
 pub fn write_export_html(app: &AppHandle, html: String) -> Result<String, String> {
+    if html.len() > MAX_EXPORT_HTML_BYTES {
+        return Err(format!(
+            "Export HTML exceeds {} MB limit",
+            MAX_EXPORT_HTML_BYTES / (1024 * 1024)
+        ));
+    }
     let dir = data_dir(app)?.join("exports");
     fs::create_dir_all(&dir).map_err(|e| format!("create exports dir: {e}"))?;
     let path = dir.join(format!("export-{}.html", now_secs()));
+    let path = ensure_path_within(&dir, &path)?;
     fs::write(&path, html.as_bytes()).map_err(|e| format!("write export html: {e}"))?;
     Ok(path.to_string_lossy().into_owned())
 }

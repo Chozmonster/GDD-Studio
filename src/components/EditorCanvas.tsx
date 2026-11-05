@@ -44,6 +44,7 @@ import {
   saveRgdSheet,
 } from "../api";
 import { exportDocumentPdf } from "../lib/exportPdf";
+import { isAllowedMediaFile } from "../lib/mediaFile";
 import {
   clearDocSelection,
   getDocSelection,
@@ -105,20 +106,6 @@ function ToolbarDivider() {
   return <span className="toolbar-divider" aria-hidden />;
 }
 
-function isMediaFile(file: File): boolean {
-  const t = file.type.toLowerCase();
-  if (
-    t.startsWith("image/") ||
-    t.startsWith("video/") ||
-    t.startsWith("audio/")
-  ) {
-    return true;
-  }
-  return /\.(png|jpe?g|gif|webp|bmp|svg|mp4|webm|mov|mkv|mp3|wav|ogg|m4a|flac)$/i.test(
-    file.name,
-  );
-}
-
 export function EditorCanvas({
   project,
   onOpenFlowchart,
@@ -172,7 +159,7 @@ export function EditorCanvas({
     async (files: FileList | File[]) => {
       const ed = editorRef.current;
       if (!ed) return;
-      const list = Array.from(files).filter(isMediaFile);
+      const list = Array.from(files).filter(isAllowedMediaFile);
       if (list.length === 0) return;
       for (const file of list) {
         try {
@@ -261,7 +248,11 @@ export function EditorCanvas({
         },
         handlePaste: (_view, event) => {
           const files = event.clipboardData?.files;
-          if (files && files.length > 0 && Array.from(files).some(isMediaFile)) {
+          if (
+            files &&
+            files.length > 0 &&
+            Array.from(files).some(isAllowedMediaFile)
+          ) {
             event.preventDefault();
             void insertMediaFilesRef.current(files);
             return true;
@@ -270,7 +261,11 @@ export function EditorCanvas({
         },
         handleDrop: (_view, event) => {
           const files = event.dataTransfer?.files;
-          if (files && files.length > 0 && Array.from(files).some(isMediaFile)) {
+          if (
+            files &&
+            files.length > 0 &&
+            Array.from(files).some(isAllowedMediaFile)
+          ) {
             event.preventDefault();
             void insertMediaFilesRef.current(files);
             return true;
@@ -845,7 +840,7 @@ export function EditorCanvas({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*,audio/*,.gif"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,video/*,audio/*,.png,.jpg,.jpeg,.gif,.webp,.bmp,.mp4,.webm,.mov,.mp3,.wav,.ogg,.m4a"
           multiple
           hidden
           onChange={(e) => {

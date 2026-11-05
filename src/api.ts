@@ -865,6 +865,17 @@ export async function saveAsset(
   mime: string,
   dataBase64: string,
 ): Promise<AssetRecord> {
+  const lowerMime = mime.toLowerCase();
+  const lowerName = filename.toLowerCase();
+  if (
+    lowerMime.includes("svg") ||
+    lowerName.endsWith(".svg") ||
+    lowerName.endsWith(".svgz")
+  ) {
+    throw new Error(
+      "SVG media is not allowed (scriptable XML). Use PNG, JPEG, GIF, WebP, video, or audio.",
+    );
+  }
   if (!isTauriRuntime()) {
     const store = loadBrowser();
     if (!store.assets) store.assets = {};
