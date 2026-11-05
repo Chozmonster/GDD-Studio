@@ -21,7 +21,7 @@ function toggleSkill(list: string[], skill: string, on: boolean): string[] {
   return list.filter((s) => s !== skill);
 }
 
-export function NotesField({
+function NotesField({
   value,
   onChange,
   placeholder,
@@ -43,7 +43,7 @@ export function NotesField({
   );
 }
 
-export function PillarsFields({
+function PillarsFields({
   payload,
   onChange,
 }: {
@@ -102,7 +102,7 @@ export function PillarsFields({
   );
 }
 
-export function GameplayFields({
+function GameplayFields({
   payload,
   onChange,
 }: {
@@ -136,7 +136,7 @@ export function GameplayFields({
   );
 }
 
-export function MechanicFields({
+function MechanicFields({
   payload,
   onChange,
 }: {
@@ -174,7 +174,7 @@ export function MechanicFields({
   );
 }
 
-export function SkillsFields({
+function SkillsFields({
   payload,
   onChange,
 }: {
@@ -234,7 +234,7 @@ export function SkillsFields({
 
 const BANDS: DifficultyBand[] = ["easy", "medium", "hard", "none"];
 
-export function AtomicParamsFields({
+function AtomicParamsFields({
   payload,
   onChange,
 }: {
@@ -365,7 +365,7 @@ export function AtomicParamsFields({
   );
 }
 
-export function PatternFields({
+function PatternFields({
   payload,
   onChange,
   projectId,
@@ -446,7 +446,7 @@ export function PatternFields({
   );
 }
 
-export function SignsFeedbackFields({
+function SignsFeedbackFields({
   payload,
   onChange,
 }: {

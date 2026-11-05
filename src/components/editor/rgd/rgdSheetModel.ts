@@ -1,9 +1,6 @@
 import type { RgdSheetDocument } from "../../../types";
 import { parsePayload } from "./rgdContent";
-import type { RgdBlockType } from "./rgdTypes";
-import { RGD_INSERT_ORDER } from "./rgdTypes";
 import {
-  countFilledMechanics,
   emptyMechanic,
   emptyParameter,
   emptySheetMeta,
@@ -13,22 +10,6 @@ import {
   type RgdParameterRow,
   type RgdSheetMeta,
   type RgdSkillNode,
-} from "./rgdTableModel";
-
-export type {
-  RgdMechanicNode,
-  RgdParameterRow,
-  RgdSheetMeta,
-  RgdSkillNode,
-} from "./rgdTableModel";
-
-export {
-  emptyMechanic,
-  emptyParameter,
-  emptySheetMeta,
-  emptySkill,
-  flattenRgdTable,
-  mechanicLeafCount,
 } from "./rgdTableModel";
 
 const SHEET_VERSION = 2;
@@ -71,7 +52,7 @@ function caseFromAtomicRow(row: {
 }
 
 /** Map legacy 7-step payloads into the mechanic → skill → param tree + meta. */
-export function migrateStepsToTable(
+function migrateStepsToTable(
   steps: RgdSheetDocument["steps"] | undefined,
   fallbackName: string,
 ): {
@@ -229,59 +210,4 @@ export function normalizeRgdSheet(doc: RgdSheetDocument): RgdSheetDocument {
     mechanics: migrated.mechanics,
     meta: migrated.meta,
   };
-}
-
-/** Apply legacy step payloads onto a sheet (used by block migration). */
-export function applyLegacyStep(
-  doc: RgdSheetDocument,
-  type: RgdBlockType,
-  title: string,
-  payload: unknown,
-): RgdSheetDocument {
-  const steps = { ...(doc.steps ?? {}) };
-  steps[type] = {
-    title: title.trim() || type,
-    payload: parsePayload(type, payload) as unknown as Record<string, unknown>,
-  };
-  // Force remigration from steps.
-  const { steps: _drop, mechanics: _m, meta: _meta, ...rest } = doc;
-  void _drop;
-  void _m;
-  void _meta;
-  return normalizeRgdSheet({ ...rest, steps });
-}
-
-export function summarizeRgdSheet(doc: RgdSheetDocument): string {
-  const normalized = normalizeRgdSheet(doc);
-  const mechanics = normalized.mechanics ?? [];
-  const first = mechanics.find((m) => m.name.trim());
-  if (first?.name.trim()) return first.name.trim();
-  if (normalized.meta?.goal?.trim()) return normalized.meta.goal.trim();
-  const filled = countFilledMechanics(mechanics);
-  if (filled) return `${filled} mechanic${filled === 1 ? "" : "s"}`;
-  return "Empty RGD sheet";
-}
-
-export function filledMechanicCount(doc: RgdSheetDocument): number {
-  return countFilledMechanics(normalizeRgdSheet(doc).mechanics ?? []);
-}
-
-/** @deprecated Prefer filledMechanicCount — kept for transitional callers. */
-export function filledStepCount(doc: RgdSheetDocument): number {
-  return filledMechanicCount(doc);
-}
-
-/** Ensure every legacy step key exists (for callers still reading steps). */
-export function ensureLegacyStepsSkeleton(
-  doc: RgdSheetDocument,
-): NonNullable<RgdSheetDocument["steps"]> {
-  const steps: NonNullable<RgdSheetDocument["steps"]> = {
-    ...(doc.steps ?? {}),
-  };
-  for (const type of RGD_INSERT_ORDER) {
-    if (!steps[type]) {
-      steps[type] = { title: type, payload: {} };
-    }
-  }
-  return steps;
 }

@@ -25,7 +25,7 @@ export const MEDIA_EMBED_DEFAULT_WIDTH = 560;
 export const MEDIA_EMBED_MIN_WIDTH = 160;
 export const MEDIA_EMBED_MAX_WIDTH = 1200;
 
-export function parseMediaEmbedWidth(raw: string | null): number {
+function parseMediaEmbedWidth(raw: string | null): number {
   if (!raw) return MEDIA_EMBED_DEFAULT_WIDTH;
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n)) return MEDIA_EMBED_DEFAULT_WIDTH;

@@ -1,3 +1,7 @@
+/**
+ * Live flowchart embed — listens for flowchart save/delete events so Document
+ * previews stay in sync with the Flowcharts tab without a page reload.
+ */
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
 import {
@@ -10,10 +14,6 @@ import {
 } from "../../lib/flowchartEvents";
 import type { FlowchartDocument } from "../../types";
 import { FlowchartPreview } from "../flowchart/FlowchartPreview";
-
-export type FlowchartEmbedAttrs = {
-  flowchartId: string;
-};
 
 type ExtraProps = {
   projectId: string;

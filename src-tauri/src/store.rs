@@ -1,6 +1,10 @@
-//! Local persistence for project library metadata and app settings.
-//! JSON files under the app data directory — good enough for launcher v1;
-//! document bodies / SQLite land later.
+//! Local persistence for the project library, settings, and on-disk project
+//! payloads (docs, flowcharts, RGD sheets, mood board, assets, templates).
+//!
+//! Security invariants:
+//! - Entity ids are filename-safe (`validate_entity_id`) — no path traversal.
+//! - Asset / export paths must stay under the project root (`ensure_path_within`).
+//! - SVG/SVGZ media is rejected at ingest (`is_disallowed_svg`).
 
 use serde::{Deserialize, Serialize};
 use std::fs;

@@ -30,7 +30,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import { loadFlowchart, saveFlowchart } from "../../api";
 import type { FlowchartDocument, ProjectRecord } from "../../types";
-import { EdgeMarkers } from "./EdgeMarkers";
 import { FlowNode } from "./FlowNode";
 import { SplitPane } from "../SplitPane";
 import { FlowchartSidebar } from "./FlowchartSidebar";
@@ -748,7 +747,6 @@ export function FlowchartEditor({
             deleteKeyCode={["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}
           >
-            <EdgeMarkers />
             <SnapGuides guides={snapGuides} />
             <Background gap={GRID_SIZE} size={1} color="#4a4a4a" />
             <Controls />

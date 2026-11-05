@@ -1,6 +1,6 @@
 /** Skill presets from Rational Game Design (non-exhaustive lists). */
 
-export const PHYSICAL_SKILLS = [
+const PHYSICAL_SKILLS = [
   "Timing",
   "Reflexes",
   "Precision",
@@ -8,7 +8,7 @@ export const PHYSICAL_SKILLS = [
   "Measurement",
 ] as const;
 
-export const MENTAL_SKILLS = [
+const MENTAL_SKILLS = [
   "Strategy",
   "Tactics",
   "Management",
@@ -19,7 +19,7 @@ export const MENTAL_SKILLS = [
   "Concentration",
 ] as const;
 
-export const SOCIAL_SKILLS = [
+const SOCIAL_SKILLS = [
   "Communication",
   "Cooperation",
   "Decision Making",
@@ -79,12 +79,12 @@ for (const cat of SKILL_CATEGORIES) {
   }
 }
 
-export function isSkillCategory(value: unknown): value is SkillCategory {
+function isSkillCategory(value: unknown): value is SkillCategory {
   return value === "physical" || value === "mental" || value === "social";
 }
 
 /** Infer category from a known preset name; default Physical. */
-export function inferSkillCategory(name: string): SkillCategory {
+function inferSkillCategory(name: string): SkillCategory {
   const key = name.trim().toLowerCase();
   if (!key) return "physical";
   return PRESET_TO_CATEGORY.get(key) ?? "physical";

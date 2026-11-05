@@ -32,8 +32,6 @@ export type UpdateStatus = {
   automaticUpdates: boolean;
 };
 
-export type View = "launcher" | "editor";
-
 export type ProjectTab = "document" | "flowchart" | "rgd" | "moodboard";
 
 /** Normalized crop rect over the source image (fractions of natural size). */

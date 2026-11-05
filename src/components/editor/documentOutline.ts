@@ -12,14 +12,7 @@ export type OutlineItem = {
   rgdType?: RgdBlockType;
 };
 
-export function slugifyHeading(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
+/** Heading + RGD outline for the Document map sidebar. */
 export function collectOutline(editor: Editor): OutlineItem[] {
   const items: OutlineItem[] = [];
   editor.state.doc.descendants((node, pos) => {
@@ -79,42 +72,6 @@ export function collectOutline(editor: Editor): OutlineItem[] {
     }
   });
   return items;
-}
-
-/** Headings only — targets for in-document section links. */
-export function collectHeadings(editor: Editor): OutlineItem[] {
-  return collectOutline(editor).filter((i) => i.kind === "heading");
-}
-
-export function findHeading(
-  editor: Editor,
-  title: string,
-  slug = "",
-): OutlineItem | null {
-  const headings = collectHeadings(editor);
-  const titleNeedle = title.trim().toLowerCase();
-  const slugNeedle = (slug || slugifyHeading(title)).toLowerCase();
-
-  if (titleNeedle) {
-    const byTitle = headings.find(
-      (h) => h.text.trim().toLowerCase() === titleNeedle,
-    );
-    if (byTitle) return byTitle;
-  }
-  if (slugNeedle) {
-    const bySlug = headings.find(
-      (h) => slugifyHeading(h.text) === slugNeedle,
-    );
-    if (bySlug) return bySlug;
-  }
-  // Soft match: heading contains the needle (for short titles)
-  if (titleNeedle.length >= 2) {
-    const soft = headings.find((h) =>
-      h.text.trim().toLowerCase().includes(titleNeedle),
-    );
-    if (soft) return soft;
-  }
-  return null;
 }
 
 export function jumpToOutlineItem(

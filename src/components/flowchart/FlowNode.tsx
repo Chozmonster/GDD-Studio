@@ -11,8 +11,8 @@ import {
 } from "./flowModel";
 
 /** Explicit N/E/S/W anchor ids — stored on edges as sourceHandle/targetHandle. */
-export const ANCHOR_IDS = ["top", "right", "bottom", "left"] as const;
-export type AnchorId = (typeof ANCHOR_IDS)[number];
+const ANCHOR_IDS = ["top", "right", "bottom", "left"] as const;
+type AnchorId = (typeof ANCHOR_IDS)[number];
 
 const ANCHORS: Array<{ id: AnchorId; position: Position }> = [
   { id: "top", position: Position.Top },
