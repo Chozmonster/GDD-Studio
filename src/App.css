@@ -2716,7 +2716,17 @@ code {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   outline: none;
+}
+
+/* Main pane region — sibling resizable-pane work can wrap/split this. */
+.mood-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .mood-toolbar {

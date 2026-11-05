@@ -364,8 +364,10 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     ? board.items.find((i) => i.id === menu.itemId)
     : null;
 
+  // Single-column shell (toolbar + main). No fixed sidebars — ready for
+  // app-wide resizable pane handles on `.mood-main` later.
   return (
-    <div className="mood-shell" ref={surfaceRef} tabIndex={0}>
+    <section className="mood-shell" ref={surfaceRef} tabIndex={0} aria-label="Mood board">
       <header className="mood-toolbar">
         <div className="mood-toolbar-left">
           <h2>Mood Board</h2>
@@ -403,61 +405,63 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
         />
       </header>
 
-      <div
-        className={
-          dragOver ? "mood-surface is-dragover" : "mood-surface"
-        }
-        onDragEnter={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "copy";
-          setDragOver(true);
-        }}
-        onDragLeave={(e) => {
-          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-          setDragOver(false);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          if (e.dataTransfer.files?.length) {
-            void addFiles(e.dataTransfer.files);
+      <div className="mood-main">
+        <div
+          className={
+            dragOver ? "mood-surface is-dragover" : "mood-surface"
           }
-        }}
-        onClick={() => {
-          setSelectedId(null);
-          closeMenu();
-        }}
-      >
-        {board.items.length === 0 ? (
-          <div className="mood-empty muted">
-            <p>No reference media yet.</p>
-            <p className="tiny">
-              Drop files here, paste from the clipboard, or use Add media…
-            </p>
-          </div>
-        ) : (
-          <ul className="mood-grid" aria-label="Mood board items">
-            {board.items.map((item) => (
-              <li key={item.id}>
-                <MoodTile
-                  item={item}
-                  asset={assets[item.assetId]}
-                  projectId={project.id}
-                  selected={selectedId === item.id}
-                  onSelect={() => setSelectedId(item.id)}
-                  onContextMenu={(x, y) => {
-                    setSelectedId(item.id);
-                    setMenu({ x, y, itemId: item.id });
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            setDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files?.length) {
+              void addFiles(e.dataTransfer.files);
+            }
+          }}
+          onClick={() => {
+            setSelectedId(null);
+            closeMenu();
+          }}
+        >
+          {board.items.length === 0 ? (
+            <div className="mood-empty muted">
+              <p>No reference media yet.</p>
+              <p className="tiny">
+                Drop files here, paste from the clipboard, or use Add media…
+              </p>
+            </div>
+          ) : (
+            <ul className="mood-grid" aria-label="Mood board items">
+              {board.items.map((item) => (
+                <li key={item.id}>
+                  <MoodTile
+                    item={item}
+                    asset={assets[item.assetId]}
+                    projectId={project.id}
+                    selected={selectedId === item.id}
+                    onSelect={() => setSelectedId(item.id)}
+                    onContextMenu={(x, y) => {
+                      setSelectedId(item.id);
+                      setMenu({ x, y, itemId: item.id });
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {menu && activeMenuItem && (
@@ -512,7 +516,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
           </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
