@@ -4,6 +4,8 @@
 //! - GitHub Releases for `Chozmonster/GDD-Studio` with updater artifacts
 //!   (`latest.json` + signed bundles) — typically via `tauri-apps/tauri-action`
 //! - Matching minisign private key in CI (`TAURI_SIGNING_PRIVATE_KEY`)
+//! - Release body sourced from that version’s `CHANGELOG.md` section (feeds
+//!   `latest.json` `notes` and in-app **View patch notes**)
 //!
 //! When no endpoint/release/signing is available, checks fail soft and the UI
 //! stays demoable. Set env `GDD_STUDIO_SIMULATE_UPDATE=1` to force an
@@ -16,6 +18,8 @@ use tauri_plugin_updater::UpdaterExt;
 
 const DAY_SECS: u64 = 24 * 60 * 60;
 const CACHE_FILE: &str = "update-cache.json";
+const LATEST_JSON_URL: &str =
+    "https://github.com/Chozmonster/GDD-Studio/releases/latest/download/latest.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +40,12 @@ struct UpdateCache {
     available_version: Option<String>,
     notes: Option<String>,
     last_status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LatestJson {
+    notes: Option<String>,
+    version: Option<String>,
 }
 
 fn simulate_enabled() -> bool {
@@ -92,6 +102,21 @@ fn base_status(app: &AppHandle, state: &str, message: impl Into<String>) -> Resu
     })
 }
 
+/// Pull release notes from `latest.json` (same source the Tauri updater uses).
+async fn fetch_latest_release_notes() -> Option<(Option<String>, String)> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("gdd-studio/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .ok()?;
+    let latest: LatestJson = client.get(LATEST_JSON_URL).send().await.ok()?.json().await.ok()?;
+    let notes = latest
+        .notes
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())?;
+    Some((latest.version, notes))
+}
+
 pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStatus, String> {
     let mut settings = store::load_settings(&app)?;
     let now = now_secs();
@@ -128,7 +153,7 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStat
             state: "skipped".into(),
             current_version: env!("CARGO_PKG_VERSION").into(),
             available_version: None,
-            notes: None,
+            notes: cache.notes,
             message: "Already checked for updates today.".into(),
             checked_at: settings.last_update_check_at.unwrap_or(now),
             automatic_updates: settings.automatic_updates,
@@ -202,16 +227,20 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStat
                 })
             }
             Ok(None) => {
+                // Still cache latest release notes so Options → View patch notes works
+                // Godot-style even when already up to date.
+                let notes = fetch_latest_release_notes().await.map(|(_, n)| n);
                 save_disk_cache(
                     &app,
                     &UpdateCache {
                         available_version: None,
-                        notes: None,
+                        notes: notes.clone(),
                         last_status: Some("upToDate".into()),
                     },
                 );
                 base_status(&app, "upToDate", "You're on the latest version.").map(|mut s| {
                     s.checked_at = now;
+                    s.notes = notes;
                     s
                 })
             }
@@ -282,7 +311,7 @@ pub async fn install_update(app: AppHandle) -> Result<UpdateStatus, String> {
     }
 }
 
-pub fn get_cached_patch_notes(app: &AppHandle) -> Result<String, String> {
+pub async fn get_cached_patch_notes(app: &AppHandle) -> Result<String, String> {
     let cache = load_disk_cache(app);
     if let Some(notes) = cache.notes.filter(|n| !n.trim().is_empty()) {
         return Ok(notes);
@@ -293,7 +322,22 @@ pub fn get_cached_patch_notes(app: &AppHandle) -> Result<String, String> {
             .unwrap_or_else(|| format!("{}.1-sim", env!("CARGO_PKG_VERSION")));
         return Ok(simulated_notes(&version));
     }
-    Ok("No patch notes cached yet. Run an update check first, or publish a GitHub Release with a body.".into())
+    if let Some((version, notes)) = fetch_latest_release_notes().await {
+        save_disk_cache(
+            app,
+            &UpdateCache {
+                available_version: None,
+                notes: Some(notes.clone()),
+                last_status: Some("notesFetched".into()),
+            },
+        );
+        let _ = version;
+        return Ok(notes);
+    }
+    Ok(
+        "No patch notes available yet. Check for updates after a GitHub Release is published with a CHANGELOG body."
+            .into(),
+    )
 }
 
 fn simulated_notes(version: &str) -> String {

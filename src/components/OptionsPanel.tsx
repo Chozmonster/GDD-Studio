@@ -71,7 +71,16 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
     try {
       const result: UpdateStatus = await checkForUpdates(true);
       setStatus(result.message);
-      if (result.notes) setNotes(result.notes);
+      if (result.notes) {
+        setNotes(result.notes);
+      } else if (result.state === "upToDate" || result.state === "available") {
+        // Updater may omit body on some paths — fall back to cached / GitHub notes.
+        try {
+          setNotes(await fetchPatchNotes());
+        } catch {
+          /* status message already set */
+        }
+      }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -80,10 +89,13 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
   };
 
   const showNotes = async () => {
+    setBusy(true);
     try {
       setNotes(await fetchPatchNotes());
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -140,14 +152,19 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
           <button type="button" onClick={() => void runCheck()} disabled={busy}>
             Check for updates
           </button>
-          <button type="button" className="ghost" onClick={() => void showNotes()}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void showNotes()}
+            disabled={busy}
+          >
             View patch notes
           </button>
         </div>
 
         {status && <p className="options-status muted">{status}</p>}
         {notes && (
-          <pre className="patch-notes" tabIndex={0}>
+          <pre className="patch-notes" tabIndex={0} aria-label="Release patch notes">
             {notes}
           </pre>
         )}
@@ -155,9 +172,9 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
         <p className="muted tiny">
           Updates use the Tauri updater against{" "}
           <code>Chozmonster/GDD-Studio</code> GitHub Releases (
-          <code>latest.json</code> + signed artifacts). Configure signing via{" "}
-          <code>TAURI_SIGNING_PRIVATE_KEY</code> in CI. Demo without releases:{" "}
-          <code>GDD_STUDIO_SIMULATE_UPDATE=1</code>.
+          <code>latest.json</code> + signed artifacts). Patch notes come from the
+          GitHub Release body (CHANGELOG section for that tag). Demo without
+          releases: <code>GDD_STUDIO_SIMULATE_UPDATE=1</code>.
         </p>
       </section>
     </div>

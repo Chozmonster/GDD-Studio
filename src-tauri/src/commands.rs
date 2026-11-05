@@ -86,8 +86,8 @@ pub async fn install_update(app: AppHandle) -> Result<UpdateStatus, String> {
 }
 
 #[tauri::command]
-pub fn get_patch_notes(app: AppHandle) -> Result<String, String> {
-    updates::get_cached_patch_notes(&app)
+pub async fn get_patch_notes(app: AppHandle) -> Result<String, String> {
+    updates::get_cached_patch_notes(&app).await
 }
 
 /// Open (or focus) the Options window.

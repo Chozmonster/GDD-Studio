@@ -52,7 +52,7 @@ npm run build:portable
 
 Artifact to distribute:
 
-`src-tauri/target/release/bundle/portable/gdd-studio-v0.1.0-windows-x64-portable.zip`
+`src-tauri/target/release/bundle/portable/gdd-studio-v0.1.1-windows-x64-portable.zip`
 
 Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from `npm run tauri build` remain optional extras under `src-tauri/target/release/bundle/`. Details: Project doc `docs/portable-packaging.md`.
 
@@ -88,7 +88,8 @@ Configured in `src-tauri/tauri.conf.json`:
 
 1. Keep the matching **minisign private key** secret (CI secret `TAURI_SIGNING_PRIVATE_KEY`, optional password `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
 2. Build/publish with [`tauri-apps/tauri-action`](https://github.com/tauri-apps/tauri-action) so each GitHub Release includes the **portable zip** (primary), optional signed NSIS/MSI extras, **and** `latest.json`.
-3. Release body text is shown as patch notes in the app.
+3. Keep `CHANGELOG.md` updated; the release workflow copies that version’s section into the GitHub Release body (and thus `latest.json` `notes`).
+4. Release body text is shown as patch notes in Options / the launcher update banner.
 
 Until releases exist, update checks fail softly (UI stays usable). Use `GDD_STUDIO_SIMULATE_UPDATE=1` / `VITE_GDD_SIMULATE_UPDATE=1` to demo the notify + Install + patch notes flow.
 
@@ -97,6 +98,7 @@ Until releases exist, update checks fail softly (UI stays usable). Use `GDD_STUD
 - **Auto on:** about once per day (`lastUpdateCheckAt`); if an update exists, download/install automatically.
 - **Auto off:** same daily check; launcher shows a banner with **Install** + **View patch notes**.
 - Manual **Check for updates** in Options always forces a network check.
+- **View patch notes** shows the updater body / cached notes, and falls back to `latest.json` notes from GitHub.
 
 ## Scope notes
 
