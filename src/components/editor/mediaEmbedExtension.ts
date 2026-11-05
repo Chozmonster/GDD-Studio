@@ -20,9 +20,66 @@ declare module "@tiptap/core" {
   }
 }
 
+/** Default embed width — readable, not forced full editor width. */
+export const MEDIA_EMBED_DEFAULT_WIDTH = 560;
+export const MEDIA_EMBED_MIN_WIDTH = 160;
+export const MEDIA_EMBED_MAX_WIDTH = 1200;
+
+export function parseMediaEmbedWidth(raw: string | null): number {
+  if (!raw) return MEDIA_EMBED_DEFAULT_WIDTH;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return MEDIA_EMBED_DEFAULT_WIDTH;
+  return Math.min(
+    MEDIA_EMBED_MAX_WIDTH,
+    Math.max(MEDIA_EMBED_MIN_WIDTH, n),
+  );
+}
+
+/** Shared textAlign attr for atom media embeds (media + mood board). */
+export const mediaEmbedTextAlignAttribute = {
+  default: "left" as const,
+  parseHTML: (element: HTMLElement) => {
+    const fromData = element.getAttribute("data-text-align");
+    if (
+      fromData === "left" ||
+      fromData === "center" ||
+      fromData === "right" ||
+      fromData === "justify"
+    ) {
+      return fromData;
+    }
+    const fromStyle = element.style?.textAlign;
+    if (
+      fromStyle === "left" ||
+      fromStyle === "center" ||
+      fromStyle === "right" ||
+      fromStyle === "justify"
+    ) {
+      return fromStyle;
+    }
+    return "left";
+  },
+  renderHTML: (attributes: Record<string, unknown>) => {
+    const align = String(attributes.textAlign || "left");
+    return {
+      "data-text-align": align,
+      style: `text-align: ${align}`,
+    };
+  },
+};
+
+export const mediaEmbedWidthAttribute = {
+  default: MEDIA_EMBED_DEFAULT_WIDTH,
+  parseHTML: (element: HTMLElement) =>
+    parseMediaEmbedWidth(element.getAttribute("data-width")),
+  renderHTML: (attributes: Record<string, unknown>) => ({
+    "data-width": String(attributes.width ?? MEDIA_EMBED_DEFAULT_WIDTH),
+  }),
+};
+
 /**
  * Block media embed. Schema:
- * { type: "mediaEmbed", attrs: { assetId, kind, filename, mime } }
+ * { type: "mediaEmbed", attrs: { assetId, kind, filename, mime, width, textAlign } }
  * Binary lives in the project asset store — not inlined in the JSON body.
  */
 export const MediaEmbed = Node.create<MediaEmbedOptions>({
@@ -61,6 +118,10 @@ export const MediaEmbed = Node.create<MediaEmbedOptions>({
         parseHTML: (el) => el.getAttribute("data-mime") ?? "",
         renderHTML: (attrs) => ({ "data-mime": attrs.mime }),
       },
+      width: mediaEmbedWidthAttribute,
+      // Declared on the node (not only via TextAlign globals) so JSON
+      // round-trips keep left/center/right for this atom embed.
+      textAlign: mediaEmbedTextAlignAttribute,
     };
   },
 

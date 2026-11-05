@@ -1,5 +1,9 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import {
+  mediaEmbedTextAlignAttribute,
+  mediaEmbedWidthAttribute,
+} from "./mediaEmbedExtension";
 import { MoodBoardEmbedView } from "./MoodBoardEmbedView";
 
 export type MoodBoardEmbedOptions = {
@@ -20,10 +24,10 @@ declare module "@tiptap/core" {
  * TipTap node that stores a live reference to a Mood Board item.
  *
  * Schema:
- *   { type: "moodBoardEmbed", attrs: { moodBoardItemId: string } }
+ *   { type: "moodBoardEmbed", attrs: { moodBoardItemId, width, textAlign } }
  *
  * Crop, border, comment, and asset binding live on the Mood Board item —
- * the document never snapshots those edits.
+ * the document never snapshots those edits. Width/align are document-local.
  */
 export const MoodBoardEmbed = Node.create<MoodBoardEmbedOptions>({
   name: "moodBoardEmbed",
@@ -49,6 +53,8 @@ export const MoodBoardEmbed = Node.create<MoodBoardEmbedOptions>({
           "data-mood-board-item-id": attrs.moodBoardItemId,
         }),
       },
+      width: mediaEmbedWidthAttribute,
+      textAlign: mediaEmbedTextAlignAttribute,
     };
   },
 

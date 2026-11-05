@@ -212,8 +212,9 @@ export function EditorCanvas({
         FontFamily,
         FontSize,
         TextAlign.configure({
-          // rgdSheetEmbed keeps its own textAlign attr + toolbar branch below;
-          // including it here doubles the attribute and breaks JSON round-trip.
+          // Atom embeds (RGD / media / mood board) keep their own textAlign
+          // attr + toolbar branch below; including them here doubles the
+          // attribute and breaks JSON round-trip.
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
@@ -507,18 +508,28 @@ export function EditorCanvas({
     setStatus(`Embedded RGD “${named}”`);
   };
 
-  const rgdEmbedAlign = editor?.isActive("rgdSheetEmbed")
-    ? String(editor.getAttributes("rgdSheetEmbed").textAlign ?? "left")
+  const atomEmbedAlignType = editor?.isActive("rgdSheetEmbed")
+    ? "rgdSheetEmbed"
+    : editor?.isActive("mediaEmbed")
+      ? "mediaEmbed"
+      : editor?.isActive("moodBoardEmbed")
+        ? "moodBoardEmbed"
+        : null;
+
+  const atomEmbedAlign = atomEmbedAlignType
+    ? String(
+        editor?.getAttributes(atomEmbedAlignType).textAlign ?? "left",
+      )
     : null;
 
   const applyTextAlign = (
     alignment: "left" | "center" | "right" | "justify",
   ) => {
     if (!editor) return;
-    if (editor.isActive("rgdSheetEmbed")) {
+    if (atomEmbedAlignType) {
       editor
         .chain()
-        .updateAttributes("rgdSheetEmbed", { textAlign: alignment })
+        .updateAttributes(atomEmbedAlignType, { textAlign: alignment })
         .run();
       return;
     }
@@ -738,8 +749,8 @@ export function EditorCanvas({
             label="Align left"
             icon={AlignLeft}
             pressed={
-              rgdEmbedAlign
-                ? rgdEmbedAlign === "left"
+              atomEmbedAlign
+                ? atomEmbedAlign === "left"
                 : editor.isActive({ textAlign: "left" })
             }
             onClick={() => applyTextAlign("left")}
@@ -748,8 +759,8 @@ export function EditorCanvas({
             label="Align center"
             icon={AlignCenter}
             pressed={
-              rgdEmbedAlign
-                ? rgdEmbedAlign === "center"
+              atomEmbedAlign
+                ? atomEmbedAlign === "center"
                 : editor.isActive({ textAlign: "center" })
             }
             onClick={() => applyTextAlign("center")}
@@ -758,8 +769,8 @@ export function EditorCanvas({
             label="Align right"
             icon={AlignRight}
             pressed={
-              rgdEmbedAlign
-                ? rgdEmbedAlign === "right"
+              atomEmbedAlign
+                ? atomEmbedAlign === "right"
                 : editor.isActive({ textAlign: "right" })
             }
             onClick={() => applyTextAlign("right")}
@@ -768,8 +779,8 @@ export function EditorCanvas({
             label="Justify"
             icon={AlignJustify}
             pressed={
-              rgdEmbedAlign
-                ? rgdEmbedAlign === "justify"
+              atomEmbedAlign
+                ? atomEmbedAlign === "justify"
                 : editor.isActive({ textAlign: "justify" })
             }
             onClick={() => applyTextAlign("justify")}

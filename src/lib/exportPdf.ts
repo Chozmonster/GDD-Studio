@@ -113,6 +113,7 @@ function scrubExportRoot(root: HTMLElement): void {
     el.removeAttribute("contenteditable");
   });
   root.querySelectorAll(".media-embed-chrome").forEach((el) => el.remove());
+  root.querySelectorAll(".rgd-embed-resize-handle").forEach((el) => el.remove());
 
   // Harden export HTML: drop executable / navigable attack surfaces from cloned TipTap DOM
   root
