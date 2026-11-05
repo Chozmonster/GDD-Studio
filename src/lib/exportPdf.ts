@@ -54,6 +54,7 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
         if (!(node instanceof HTMLElement)) return true;
         if (node.tagName === "BUTTON") return false;
         if (node.classList.contains("media-embed-chrome")) return false;
+        if (node.classList.contains("rgd-embed-resize-handle")) return false;
         // Skip attribution / selection chrome from React Flow if present
         if (node.classList.contains("react-flow__panel")) return false;
         if (node.classList.contains("react-flow__attribution")) return false;

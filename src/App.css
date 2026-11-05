@@ -2037,13 +2037,82 @@ code {
   padding-right: 0;
 }
 
-/* Doc embed — live table */
+/* Doc embed — live table (resizable; honors TipTap textAlign) */
+.ProseMirror .react-renderer.node-rgdSheetEmbed {
+  width: 100%;
+}
+
 .rgd-sheet-card {
+  position: relative;
+  box-sizing: border-box;
   margin: 0.55rem 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: linear-gradient(180deg, #2c322e 0%, #242824 100%);
   overflow: hidden;
+}
+
+.rgd-sheet-card.is-align-left,
+.rgd-sheet-card.is-align-justify {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.rgd-sheet-card.is-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.rgd-sheet-card.is-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.rgd-embed-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+}
+
+.rgd-embed-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 28px;
+  margin-top: -14px;
+  border-radius: 2px;
+  background: #6a746c;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.rgd-sheet-card:hover .rgd-embed-resize-handle::after,
+.rgd-sheet-card.ProseMirror-selectednode .rgd-embed-resize-handle::after,
+.ProseMirror-selectednode .rgd-sheet-card .rgd-embed-resize-handle::after {
+  opacity: 0.85;
+}
+
+.rgd-embed-resize-e {
+  right: 0;
+  cursor: ew-resize;
+}
+
+.rgd-embed-resize-e::after {
+  right: 2px;
+}
+
+.rgd-embed-resize-w {
+  left: 0;
+  cursor: ew-resize;
+}
+
+.rgd-embed-resize-w::after {
+  left: 2px;
 }
 
 .rgd-sheet-card.broken {

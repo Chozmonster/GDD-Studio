@@ -16,6 +16,7 @@ export function ToolbarIconButton({
   pressed,
   children,
   className,
+  onMouseDown,
   ...rest
 }: ToolbarIconButtonProps) {
   const classes = ["toolbar-icon-btn", className].filter(Boolean).join(" ");
@@ -27,6 +28,11 @@ export function ToolbarIconButton({
       aria-label={label}
       aria-pressed={pressed}
       {...rest}
+      // Keep TipTap NodeSelection (e.g. RGD embeds) when clicking the toolbar.
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onMouseDown?.(e);
+      }}
     >
       <Icon className="toolbar-icon" aria-hidden strokeWidth={2} />
       {children ? <span className="toolbar-icon-label">{children}</span> : null}

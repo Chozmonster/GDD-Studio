@@ -212,6 +212,8 @@ export function EditorCanvas({
         FontFamily,
         FontSize,
         TextAlign.configure({
+          // rgdSheetEmbed keeps its own textAlign attr + toolbar branch below;
+          // including it here doubles the attribute and breaks JSON round-trip.
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
@@ -505,6 +507,24 @@ export function EditorCanvas({
     setStatus(`Embedded RGD “${named}”`);
   };
 
+  const rgdEmbedAlign = editor?.isActive("rgdSheetEmbed")
+    ? String(editor.getAttributes("rgdSheetEmbed").textAlign ?? "left")
+    : null;
+
+  const applyTextAlign = (
+    alignment: "left" | "center" | "right" | "justify",
+  ) => {
+    if (!editor) return;
+    if (editor.isActive("rgdSheetEmbed")) {
+      editor
+        .chain()
+        .updateAttributes("rgdSheetEmbed", { textAlign: alignment })
+        .run();
+      return;
+    }
+    editor.chain().focus().setTextAlign(alignment).run();
+  };
+
   const createAndInsertRgdSheet = async () => {
     const name = window.prompt("New RGD sheet name", "Untitled gameplay");
     if (name === null) return;
@@ -717,26 +737,42 @@ export function EditorCanvas({
           <ToolbarIconButton
             label="Align left"
             icon={AlignLeft}
-            pressed={editor.isActive({ textAlign: "left" })}
-            onClick={() => editor.chain().focus().setTextAlign("left").run()}
+            pressed={
+              rgdEmbedAlign
+                ? rgdEmbedAlign === "left"
+                : editor.isActive({ textAlign: "left" })
+            }
+            onClick={() => applyTextAlign("left")}
           />
           <ToolbarIconButton
             label="Align center"
             icon={AlignCenter}
-            pressed={editor.isActive({ textAlign: "center" })}
-            onClick={() => editor.chain().focus().setTextAlign("center").run()}
+            pressed={
+              rgdEmbedAlign
+                ? rgdEmbedAlign === "center"
+                : editor.isActive({ textAlign: "center" })
+            }
+            onClick={() => applyTextAlign("center")}
           />
           <ToolbarIconButton
             label="Align right"
             icon={AlignRight}
-            pressed={editor.isActive({ textAlign: "right" })}
-            onClick={() => editor.chain().focus().setTextAlign("right").run()}
+            pressed={
+              rgdEmbedAlign
+                ? rgdEmbedAlign === "right"
+                : editor.isActive({ textAlign: "right" })
+            }
+            onClick={() => applyTextAlign("right")}
           />
           <ToolbarIconButton
             label="Justify"
             icon={AlignJustify}
-            pressed={editor.isActive({ textAlign: "justify" })}
-            onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+            pressed={
+              rgdEmbedAlign
+                ? rgdEmbedAlign === "justify"
+                : editor.isActive({ textAlign: "justify" })
+            }
+            onClick={() => applyTextAlign("justify")}
           />
         </div>
 
