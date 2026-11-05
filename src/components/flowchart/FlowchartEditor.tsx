@@ -14,6 +14,7 @@ import {
   MiniMap,
   ConnectionMode,
   addEdge,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
   applyNodeChanges,
@@ -343,6 +344,23 @@ export function FlowchartEditor({
     [setEdges, queueSave],
   );
 
+  const onReconnect = useCallback(
+    (oldEdge: FlowEdge, connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      // Same anchor rule as new connections — keep edges locked to N/E/S/W.
+      if (!connection.sourceHandle || !connection.targetHandle) return;
+      setEdges((eds) => {
+        // reconnectEdge keeps type / markers / data / label from oldEdge.
+        const next = reconnectEdge(oldEdge, connection, eds, {
+          shouldReplaceId: false,
+        });
+        queueSave(nodesRef.current, next);
+        return next;
+      });
+    },
+    [setEdges, queueSave],
+  );
+
   const selectedNode =
     nodes.find((n) => n.id === selectedNodeId) ??
     nodes.find((n) => n.selected) ??
@@ -444,6 +462,25 @@ export function FlowchartEditor({
     });
   };
 
+  /** One type-chip set: mutate selection when a node is selected, else create. */
+  const applyOrCreateKind = (kind: FlowNodeKind) => {
+    const target = selectedNode;
+    if (target) {
+      const defaults = kindDefaults(kind);
+      const shape = defaults.defaultShape;
+      const size = defaultSizeFor(kind, shape);
+      patchSelectedNode({
+        kind,
+        shape,
+        fill: target.data.fill ?? defaults.defaultFill,
+        width: size.width,
+        height: size.height,
+      });
+      return;
+    }
+    addNode(kind);
+  };
+
   const deleteSelected = () => {
     setNodes((nds) => {
       const next = nds.filter((n) => !n.selected && n.id !== selectedNodeId);
@@ -508,18 +545,32 @@ export function FlowchartEditor({
         </div>
         <div className="flowchart-toolbar-actions">
           <div
-            className="style-group flowchart-create-types"
+            className="style-group flowchart-type-chips"
             role="group"
-            aria-label="Create node by type"
+            aria-label={
+              selectedNode
+                ? "Change selected node type"
+                : "Create node by type"
+            }
           >
-            <span className="muted tiny">Create</span>
+            <span className="muted tiny">Type</span>
             {NODE_KIND_OPTIONS.map((k) => (
               <button
                 key={k.kind}
                 type="button"
-                className="chip create-chip"
-                title={`Create ${k.label} node`}
-                onClick={() => addNode(k.kind)}
+                className={
+                  selectedNode?.data.kind === k.kind
+                    ? "chip active"
+                    : selectedNode
+                      ? "chip"
+                      : "chip type-chip"
+                }
+                title={
+                  selectedNode
+                    ? `Change selected node to ${k.label}`
+                    : `Create ${k.label} node`
+                }
+                onClick={() => applyOrCreateKind(k.kind)}
               >
                 {k.label}
               </button>
@@ -549,33 +600,6 @@ export function FlowchartEditor({
       </header>
 
       <div className="flowchart-style-bar" aria-label="Style selected">
-        <div className="style-group">
-          <span className="muted tiny">Change type</span>
-          {NODE_KIND_OPTIONS.map((k) => (
-            <button
-              key={k.kind}
-              type="button"
-              className={
-                selectedNode?.data.kind === k.kind ? "chip active" : "chip"
-              }
-              disabled={!selectedNode}
-              title="Change type of the selected node"
-              onClick={() => {
-                const shape = k.defaultShape;
-                const size = defaultSizeFor(k.kind, shape);
-                patchSelectedNode({
-                  kind: k.kind,
-                  shape,
-                  fill: selectedNode?.data.fill ?? k.defaultFill,
-                  width: size.width,
-                  height: size.height,
-                });
-              }}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
         <div className="style-group">
           <span className="muted tiny">Shape</span>
           {SHAPE_OPTIONS.map((shape) => (
@@ -670,11 +694,11 @@ export function FlowchartEditor({
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Header Create chips always add a node · Change type / shape / color
-        apply to the selected node · drag N/E/S/W anchors to connect (angled +
-        end arrow by default) · select a connector for path and start/end
-        arrows · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
-        project.
+        Type chips create a node when nothing is selected, or change the
+        selected node’s type · shape / color style the selection · drag N/E/S/W
+        anchors to connect (angled + end arrow by default) · drag a connector
+        end to reattach it · select a connector for path and start/end arrows ·
+        nodes snap to a {GRID_SIZE}px grid. Autosaves into this project.
       </p>
 
       {!ready ? (
@@ -687,6 +711,9 @@ export function FlowchartEditor({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onReconnect={onReconnect}
+            edgesReconnectable
+            reconnectRadius={24}
             nodeTypes={nodeTypes}
             connectionMode={ConnectionMode.Loose}
             connectionRadius={28}

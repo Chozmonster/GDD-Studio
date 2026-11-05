@@ -1153,14 +1153,14 @@ code {
   color: #e8fff2;
 }
 
-/* Header create chips: never look like “selected type” — always create. */
-.flowchart-create-types .create-chip {
+/* Type chips in create mode (no selection): slightly distinct from style chips. */
+.flowchart-type-chips .type-chip {
   background: #2c3530;
   border-color: #4a6a58;
   color: #e4f0e8;
 }
 
-.flowchart-create-types .create-chip:hover {
+.flowchart-type-chips .type-chip:hover {
   background: #354840;
   border-color: var(--accent);
 }

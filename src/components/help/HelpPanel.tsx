@@ -134,7 +134,9 @@ function HowAppWorks() {
         </li>
         <li>
           <strong>Flowcharts</strong> — named diagrams with typed nodes and
-          connectors; embed live references in the active document.
+          connectors. Type chips create a node when nothing is selected, or
+          change the highlighted node’s type; drag a connector end to reattach
+          it. Embed live references in the active document.
         </li>
         <li>
           <strong>RGD</strong> — Rational Game Design sheets (one per gameplay)
