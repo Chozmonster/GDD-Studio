@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-05
+
+Mood Board crop fix for live document embeds.
+
 ### Fixed
 
 - Mood Board crop now shows the selected region in live document embeds (and board tiles). Offsets use frame-relative `left`/`top` instead of self-relative `transform` percentages, which previously scrolled non-top-left crops out of view.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.1] - 2026-11-05
 
@@ -46,6 +54,7 @@ First signed public cut of GDD Studio (v1 merge / release on `main`).
 
 Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
-[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.0
