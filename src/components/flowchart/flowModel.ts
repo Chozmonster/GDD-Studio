@@ -126,12 +126,13 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
 /** Closed arrow marker used for start and/or end of a connector. */
 export function markerForArrow(enabled: boolean): Edge["markerEnd"] {
   if (!enabled) return undefined;
-  // Keep marker smaller than the perpendicular stub (~22px) so the
-  // stub shaft stays visible (see desired-anchor-stubs.jpg).
+  // 150% of prior 12px so arrowheads read clearly under node anchors.
+  // Still smaller than the perpendicular stub (~22px) so the stub shaft
+  // stays visible (see desired-anchor-stubs.jpg).
   return {
     type: MarkerType.ArrowClosed,
-    width: 12,
-    height: 12,
+    width: 18,
+    height: 18,
     color: "#c8c8c8",
   };
 }
