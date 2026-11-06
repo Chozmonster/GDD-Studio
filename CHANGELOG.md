@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-06
+
+Unified flowchart Nodes and Connector toolbar.
+
 ### Changed
 
 - Flowchart toolbar: one cohesive **Nodes** control set (semantic types + base shapes) with the same select→change / none→create behavior; one cohesive **Connector** set (Curved/Angled, Start/End arrow) that changes selected edges or sets defaults for new connections. Semantic types apply their default shape in one click (Decision→diamond, Start/End→ellipse, Action/State→rounded).
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.5] - 2026-11-06
 
@@ -105,7 +113,10 @@ First signed public cut of GDD Studio (v1 merge / release on `main`).
 
 Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
-[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Chozmonster/GDD-Studio/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.6
+[0.1.5]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.5
+[0.1.4]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Chozmonster/GDD-Studio/releases/tag/v0.1.1
