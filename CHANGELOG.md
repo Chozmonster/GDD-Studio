@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Flowchart connectors: node anchor/handle circles are 25% smaller and arrowheads are 50% larger so end arrows stay visible under the handles (editor, preview, and embeds share the same styles).
+
 ## [0.1.7] - 2026-11-06
 
 Document flowchart embeds stay centered in their frame.

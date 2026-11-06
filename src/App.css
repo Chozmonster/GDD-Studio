@@ -1297,8 +1297,9 @@ code {
 }
 
 .flow-node-wrap .react-flow__handle.flow-anchor {
-  width: 12px;
-  height: 12px;
+  /* 75% of prior 12px so connector arrowheads stay visible under anchors */
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #e8fff2;
   border: 2px solid #2f5d50;
