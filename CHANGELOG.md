@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Flowchart toolbar: one cohesive **Nodes** control set (semantic types + base shapes) with the same select→change / none→create behavior; one cohesive **Connector** set (Curved/Angled, Start/End arrow) that changes selected edges or sets defaults for new connections. Semantic types apply their default shape in one click (Decision→diamond, Start/End→ellipse, Action/State→rounded).
+
 ## [0.1.5] - 2026-11-06
 
 Flowchart Miro multi-select, nested document map, Open project folder, and Options update/resize fixes.
