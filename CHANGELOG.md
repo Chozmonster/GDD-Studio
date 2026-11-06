@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-06
+
+Document flowchart embeds stay centered in their frame.
+
 ### Fixed
 
 - Document flowchart embeds stay centered and fully visible in their frame: the preview re-fits on mount, live chart updates, and embed resize, and free pan (including Space+drag) is disabled in embeds only. The Flowcharts editor keeps Miro-like panning.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.6] - 2026-11-06
 
