@@ -70,6 +70,23 @@ export function FlowchartSidebar({
     }
   };
 
+  const handleDescription = async (item: FlowchartSummary) => {
+    const current = item.description ?? "";
+    const nextRaw = window.prompt("Description", current);
+    if (nextRaw === null) return;
+    const trimmed = nextRaw.trim();
+    setBusy(true);
+    try {
+      const doc = await loadFlowchart(project.id, item.id);
+      const next = { ...doc, description: trimmed };
+      await saveFlowchart(project.id, item.id, next);
+      emitFlowchartSaved(project.id, item.id, next);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDelete = async (item: FlowchartSummary) => {
     if (
       !window.confirm(
@@ -111,46 +128,68 @@ export function FlowchartSidebar({
         </p>
       ) : (
         <ul className="flowchart-sidebar-list">
-          {list.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={
-                  item.id === activeId
-                    ? "flowchart-side-row active"
-                    : "flowchart-side-row"
-                }
-                onClick={() => onSelect(item.id, item.name)}
-              >
-                <span className="flowchart-side-name">{item.name}</span>
-                <span className="muted tiny">{item.id}</span>
-              </button>
-              <div className="flowchart-side-actions">
+          {list.map((item) => {
+            const description = item.description?.trim() ?? "";
+            const hasDescription = Boolean(description);
+            return (
+              <li key={item.id}>
                 <button
                   type="button"
-                  className="ghost tiny-btn"
-                  disabled={busy}
-                  onClick={() => void handleRename(item)}
-                  title="Rename"
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  className="ghost tiny-btn danger-outline"
-                  disabled={busy || item.id === "main"}
-                  onClick={() => void handleDelete(item)}
-                  title={
-                    item.id === "main"
-                      ? "Main flowchart cannot be deleted"
-                      : "Delete"
+                  className={
+                    item.id === activeId
+                      ? "flowchart-side-row active"
+                      : "flowchart-side-row"
                   }
+                  onClick={() => onSelect(item.id, item.name)}
                 >
-                  Delete
+                  <span className="flowchart-side-name">{item.name}</span>
+                  <span className="muted tiny">{item.id}</span>
+                  <span
+                    className={
+                      hasDescription
+                        ? "flowchart-side-description"
+                        : "flowchart-side-description is-empty"
+                    }
+                  >
+                    {hasDescription ? description : "No description"}
+                  </span>
                 </button>
-              </div>
-            </li>
-          ))}
+                <div className="flowchart-side-actions">
+                  <button
+                    type="button"
+                    className="ghost tiny-btn"
+                    disabled={busy}
+                    onClick={() => void handleRename(item)}
+                    title="Rename"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost tiny-btn"
+                    disabled={busy}
+                    onClick={() => void handleDescription(item)}
+                    title="Edit description"
+                  >
+                    Description
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost tiny-btn danger-outline"
+                    disabled={busy || item.id === "main"}
+                    onClick={() => void handleDelete(item)}
+                    title={
+                      item.id === "main"
+                        ? "Main flowchart cannot be deleted"
+                        : "Delete"
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </aside>

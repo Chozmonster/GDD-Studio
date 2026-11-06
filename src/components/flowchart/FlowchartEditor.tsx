@@ -63,6 +63,7 @@ import {
 } from "./flowModel";
 import {
   emitFlowchartSaved,
+  onFlowchartSaved,
 } from "../../lib/flowchartEvents";
 
 type FlowchartEditorProps = {
@@ -77,6 +78,7 @@ const edgeTypes = { stubCurve: StubCurveEdge, stubStep: StubStepEdge };
 function toDoc(
   id: string,
   name: string,
+  description: string,
   nodes: Node[],
   edges: Edge[],
   viewport: Viewport,
@@ -86,6 +88,7 @@ function toDoc(
     version: 2,
     id,
     name,
+    description,
     nodes: nodes.map(serializeNode),
     edges: edges.map(serializeEdge),
     viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
@@ -140,6 +143,8 @@ export function FlowchartEditor({
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const nameRef = useRef(name);
+  /** Kept out of React state — sidebar Description edits sync via events. */
+  const descriptionRef = useRef("");
   const defaultEdgePathRef = useRef(defaultEdgePath);
   const defaultStartArrowRef = useRef(defaultStartArrow);
   const defaultEndArrowRef = useRef(defaultEndArrow);
@@ -152,7 +157,14 @@ export function FlowchartEditor({
 
   const persist = useCallback(
     async (nextNodes: Node[], nextEdges: Edge[], vp: Viewport) => {
-      const doc = toDoc(flowchartId, nameRef.current, nextNodes, nextEdges, vp);
+      const doc = toDoc(
+        flowchartId,
+        nameRef.current,
+        descriptionRef.current,
+        nextNodes,
+        nextEdges,
+        vp,
+      );
       try {
         await saveFlowchart(project.id, flowchartId, doc);
         emitFlowchartSaved(project.id, flowchartId, doc);
@@ -172,6 +184,7 @@ export function FlowchartEditor({
       const snapshot = toDoc(
         flowchartId,
         nameRef.current,
+        descriptionRef.current,
         nextNodes,
         nextEdges,
         viewportRef.current,
@@ -197,6 +210,7 @@ export function FlowchartEditor({
         const doc = await loadFlowchart(project.id, flowchartId);
         if (cancelled) return;
         setName(doc.name || flowchartId);
+        descriptionRef.current = doc.description ?? "";
         viewportRef.current = doc.viewport ?? { x: 0, y: 0, zoom: 1 };
         const loaded = (doc.nodes ?? []).map((n) =>
           withLabelHandler(
@@ -238,6 +252,24 @@ export function FlowchartEditor({
     setFlowchartId(id);
     setName(nextName);
   };
+
+  // Sidebar Description (and Rename) edit the same JSON the canvas autosaves.
+  // Keep descriptionRef / name in sync so the next canvas persist does not wipe them.
+  useEffect(() => {
+    return onFlowchartSaved((detail) => {
+      if (detail.projectId !== project.id || detail.flowchartId !== flowchartId) {
+        return;
+      }
+      const nextDescription = detail.document.description ?? "";
+      if (descriptionRef.current !== nextDescription) {
+        descriptionRef.current = nextDescription;
+      }
+      const nextName = detail.document.name || flowchartId;
+      if (nameRef.current !== nextName) {
+        setName(nextName);
+      }
+    });
+  }, [project.id, flowchartId]);
 
   useEffect(() => {
     if (!focusFlowchartId || focusFlowchartId === flowchartId) return;

@@ -89,6 +89,7 @@ export const HELP_APP: HelpArticleContent = {
         "Nodes toolbar (Start / End / Action / Decision / State plus Rectangle / Rounded / Diamond / Ellipse): with nodes selected they change all of them; with none selected they create. Types also apply their default shape (e.g. Decision → diamond).",
         "Connector toolbar (Curved / Angled, Start / End arrow): changes selected edges, or sets defaults for new connections (angled + end arrow by default). Drag a connector end onto another node to reconnect.",
         "Insert a live embed into the active document from the flowchart tools. Embeds stay centered and fitted in their frame (no drag-pan); the Flowcharts tab keeps Miro-like panning.",
+        "Description (sidebar) — optional note under each flowchart; shows beneath live document embeds and updates by reference.",
       ],
     },
     {
@@ -96,6 +97,7 @@ export const HELP_APP: HelpArticleContent = {
       lead: "Flowcharts, RGD tables, and Mood Board inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
       tips: [
         "Flowchart embeds re-fit when the chart or embed size changes so the graph stays centered — they do not free-pan.",
+        "Flowchart descriptions edit from the Flowcharts list and appear under every embed of that chart.",
         "RGD and Mood Board details: see Using RGD here and Mood Board.",
       ],
     },

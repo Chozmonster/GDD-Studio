@@ -87,6 +87,8 @@ export type MoodBoardDocument = {
 export type FlowchartSummary = {
   id: string;
   name: string;
+  /** Designer note — shown under the list row and on live doc embeds. */
+  description?: string;
 };
 
 export type RgdSheetSummary = {
@@ -222,6 +224,8 @@ export type FlowchartDocument = {
   version: number;
   id: string;
   name: string;
+  /** Designer note — shown under live document embeds (Mood Board comment analogue). */
+  description: string;
   nodes: Array<{
     id: string;
     type?: string;

@@ -453,9 +453,18 @@ function emptyFlowchart(id: string): FlowchartDocument {
     version: 2,
     id,
     name: id === "main" ? "Main" : id,
+    description: "",
     nodes: [],
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
+  };
+}
+
+/** Normalize older on-disk JSON that may omit `description`. */
+function normalizeFlowchart(doc: FlowchartDocument): FlowchartDocument {
+  return {
+    ...doc,
+    description: typeof doc.description === "string" ? doc.description : "",
   };
 }
 
@@ -468,9 +477,11 @@ export async function listFlowcharts(
     const items = Object.values(map).map((doc) => ({
       id: doc.id,
       name: doc.name,
+      description:
+        typeof doc.description === "string" ? doc.description : "",
     }));
     if (items.length === 0) {
-      return [{ id: "main", name: "Main" }];
+      return [{ id: "main", name: "Main", description: "" }];
     }
     return items.sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -483,14 +494,16 @@ export async function loadFlowchart(
 ): Promise<FlowchartDocument> {
   if (!isTauriRuntime()) {
     const store = loadBrowser();
-    return (
-      store.flowcharts?.[projectId]?.[flowchartId] ?? emptyFlowchart(flowchartId)
+    return normalizeFlowchart(
+      store.flowcharts?.[projectId]?.[flowchartId] ??
+        emptyFlowchart(flowchartId),
     );
   }
-  return invoke<FlowchartDocument>("load_flowchart", {
+  const loaded = await invoke<FlowchartDocument>("load_flowchart", {
     projectId,
     flowchartId,
   });
+  return normalizeFlowchart(loaded);
 }
 
 export async function saveFlowchart(
