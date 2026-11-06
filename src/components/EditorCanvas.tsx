@@ -94,7 +94,7 @@ type EditorCanvasProps = {
   project: ProjectRecord;
   onOpenFlowchart?: (flowchartId: string) => void;
   onOpenRgdSheet?: (sheetId: string) => void;
-  onOpenMoodBoard?: () => void;
+  onOpenMoodBoard?: (boardId?: string) => void;
 };
 
 type SpellMenuState = {
@@ -349,6 +349,7 @@ export function EditorCanvas({
         .insertContentAt(pos, {
           type: "moodBoardEmbed",
           attrs: {
+            moodBoardId: detail.moodBoardId || "main",
             moodBoardItemId: detail.moodBoardItemId,
           },
         })

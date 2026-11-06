@@ -11,8 +11,14 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { getAssetSrc, listAssets, loadMoodBoard } from "../../api";
 import {
+  findMoodBoardForItem,
+  getAssetSrc,
+  listAssets,
+  loadMoodBoard,
+} from "../../api";
+import {
+  onMoodBoardDeleted,
   onMoodBoardItemDeleted,
   onMoodBoardSaved,
 } from "../../lib/moodBoardEvents";
@@ -32,11 +38,12 @@ import {
 
 type ExtraProps = {
   projectId: string;
-  onOpenMoodBoard?: () => void;
+  onOpenMoodBoard?: (boardId?: string) => void;
 };
 
 export function MoodBoardEmbedView(props: NodeViewProps) {
   const itemId = String(props.node.attrs.moodBoardItemId ?? "");
+  const attrBoardId = String(props.node.attrs.moodBoardId ?? "").trim();
   const attrWidth = Number(props.node.attrs.width);
   const storedWidth =
     Number.isFinite(attrWidth) && attrWidth > 0
@@ -45,6 +52,7 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
   const textAlign = normalizeEmbedAlign(props.node.attrs.textAlign);
   const extra = props.extension.options as ExtraProps;
   const projectId = extra.projectId;
+  const [boardId, setBoardId] = useState(attrBoardId || "main");
   const [item, setItem] = useState<MoodBoardItem | null>(null);
   const [asset, setAsset] = useState<AssetRecord | null>(null);
   const [src, setSrc] = useState<string | null>(null);
@@ -86,23 +94,42 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
           }
           return;
         }
-        const [board, assets] = await Promise.all([
-          loadMoodBoard(projectId),
-          listAssets(projectId),
-        ]);
-        if (cancelled) return;
-        const found = board.items.find((i) => i.id === itemId) ?? null;
+        let resolvedBoardId = attrBoardId;
+        let found: MoodBoardItem | null = null;
+        if (resolvedBoardId) {
+          const board = await loadMoodBoard(projectId, resolvedBoardId);
+          found = board.items.find((i) => i.id === itemId) ?? null;
+        }
         if (!found) {
+          const hit = await findMoodBoardForItem(
+            projectId,
+            itemId,
+            attrBoardId || null,
+          );
+          if (hit) {
+            resolvedBoardId = hit.boardId;
+            found = hit.document.items.find((i) => i.id === itemId) ?? null;
+            // Backfill board id on legacy embeds so later saves target correctly.
+            if (!attrBoardId && resolvedBoardId) {
+              props.updateAttributes({ moodBoardId: resolvedBoardId });
+            }
+          }
+        }
+        if (cancelled) return;
+        if (!found || !resolvedBoardId) {
           setMissing(true);
           setItem(null);
           setAsset(null);
           loadedAssetIdRef.current = null;
           return;
         }
+        setBoardId(resolvedBoardId);
         setMissing(false);
         setItem(found);
         loadedAssetIdRef.current = found.assetId;
-        setAsset(assets.find((a) => a.id === found.assetId) ?? null);
+        const assets = await listAssets(projectId);
+        if (cancelled) return;
+        setAsset(assets.find((a) => a.id === found!.assetId) ?? null);
       } catch (e) {
         if (!cancelled) {
           setMissing(true);
@@ -118,11 +145,12 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, itemId]);
+  }, [projectId, itemId, attrBoardId]);
 
   useEffect(() => {
     const offSaved = onMoodBoardSaved((detail) => {
       if (detail.projectId !== projectId) return;
+      if (detail.boardId !== boardId) return;
       const found = detail.document.items.find((i) => i.id === itemId) ?? null;
       if (!found) {
         setMissing(true);
@@ -134,15 +162,27 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
       setLoading(false);
     });
     const offDeleted = onMoodBoardItemDeleted((detail) => {
-      if (detail.projectId !== projectId || detail.itemId !== itemId) return;
+      if (
+        detail.projectId !== projectId ||
+        detail.boardId !== boardId ||
+        detail.itemId !== itemId
+      ) {
+        return;
+      }
+      setMissing(true);
+      setItem(null);
+    });
+    const offBoardDeleted = onMoodBoardDeleted((detail) => {
+      if (detail.projectId !== projectId || detail.boardId !== boardId) return;
       setMissing(true);
       setItem(null);
     });
     return () => {
       offSaved();
       offDeleted();
+      offBoardDeleted();
     };
-  }, [projectId, itemId]);
+  }, [projectId, boardId, itemId]);
 
   // Refresh asset metadata only when the linked assetId changes (rare).
   useEffect(() => {
@@ -226,6 +266,7 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
           : `mood-board-embed media-embed ${alignClass}`
       }
       data-type="mood-board-embed"
+      data-mood-board-id={boardId}
       data-mood-board-item-id={itemId}
       data-width={width}
       data-text-align={textAlign}
@@ -242,7 +283,7 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
           type="button"
           className="ghost tiny-btn"
           disabled={missing}
-          onClick={() => extra.onOpenMoodBoard?.()}
+          onClick={() => extra.onOpenMoodBoard?.(boardId)}
         >
           Open board
         </button>

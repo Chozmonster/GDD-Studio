@@ -2,36 +2,57 @@ import type { MoodBoardDocument } from "../types";
 
 /**
  * Live tool → doc bridge for Mood Board (same pattern as flowchartEvents / rgdEvents).
- * Document embeds subscribe by moodBoardItemId and never snapshot crop/border/comment.
+ * Document embeds subscribe by moodBoardId + moodBoardItemId and never snapshot
+ * crop/border/comment.
  */
 
 export type MoodBoardSavedDetail = {
   projectId: string;
+  boardId: string;
   document: MoodBoardDocument;
 };
 
 export type MoodBoardItemDeletedDetail = {
   projectId: string;
+  boardId: string;
   itemId: string;
+};
+
+export type MoodBoardDeletedDetail = {
+  projectId: string;
+  boardId: string;
 };
 
 const bus = new EventTarget();
 
 export function emitMoodBoardSaved(
   projectId: string,
+  boardId: string,
   document: MoodBoardDocument,
 ) {
   bus.dispatchEvent(
     new CustomEvent<MoodBoardSavedDetail>("moodboard:saved", {
-      detail: { projectId, document },
+      detail: { projectId, boardId, document },
     }),
   );
 }
 
-export function emitMoodBoardItemDeleted(projectId: string, itemId: string) {
+export function emitMoodBoardItemDeleted(
+  projectId: string,
+  boardId: string,
+  itemId: string,
+) {
   bus.dispatchEvent(
     new CustomEvent<MoodBoardItemDeletedDetail>("moodboard:item-deleted", {
-      detail: { projectId, itemId },
+      detail: { projectId, boardId, itemId },
+    }),
+  );
+}
+
+export function emitMoodBoardDeleted(projectId: string, boardId: string) {
+  bus.dispatchEvent(
+    new CustomEvent<MoodBoardDeletedDetail>("moodboard:deleted", {
+      detail: { projectId, boardId },
     }),
   );
 }
@@ -54,4 +75,14 @@ export function onMoodBoardItemDeleted(
   };
   bus.addEventListener("moodboard:item-deleted", listener);
   return () => bus.removeEventListener("moodboard:item-deleted", listener);
+}
+
+export function onMoodBoardDeleted(
+  handler: (detail: MoodBoardDeletedDetail) => void,
+): () => void {
+  const listener = (event: Event) => {
+    handler((event as CustomEvent<MoodBoardDeletedDetail>).detail);
+  };
+  bus.addEventListener("moodboard:deleted", listener);
+  return () => bus.removeEventListener("moodboard:deleted", listener);
 }

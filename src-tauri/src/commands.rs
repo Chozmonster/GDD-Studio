@@ -413,20 +413,48 @@ pub fn delete_asset(app: AppHandle, project_id: String, asset_id: String) -> Res
 }
 
 #[tauri::command]
+pub fn list_mood_boards(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<store::MoodBoardSummary>, String> {
+    store::list_mood_boards(&app, project_id)
+}
+
+#[tauri::command]
 pub fn load_mood_board(
     app: AppHandle,
     project_id: String,
+    board_id: String,
 ) -> Result<store::MoodBoardDocument, String> {
-    store::load_mood_board(&app, project_id)
+    store::load_mood_board(&app, project_id, board_id)
 }
 
 #[tauri::command]
 pub fn save_mood_board(
     app: AppHandle,
     project_id: String,
+    board_id: String,
     document: store::MoodBoardDocument,
 ) -> Result<store::MoodBoardDocument, String> {
-    store::save_mood_board(&app, project_id, document)
+    store::save_mood_board(&app, project_id, board_id, document)
+}
+
+#[tauri::command]
+pub fn mood_board_exists(
+    app: AppHandle,
+    project_id: String,
+    board_id: String,
+) -> Result<bool, String> {
+    store::mood_board_exists(&app, project_id, board_id)
+}
+
+#[tauri::command]
+pub fn delete_mood_board(
+    app: AppHandle,
+    project_id: String,
+    board_id: String,
+) -> Result<(), String> {
+    store::delete_mood_board(&app, project_id, board_id)
 }
 
 #[tauri::command]

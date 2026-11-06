@@ -19,6 +19,7 @@ import type {
   FlowchartSummary,
   HealthStatus,
   MoodBoardDocument,
+  MoodBoardSummary,
   ProjectDocument,
   ProjectRecord,
   RgdSheetDocument,
@@ -49,20 +50,58 @@ type BrowserStore = {
   assets?: Record<string, AssetRecord[]>;
   /** projectId → assetId → base64 payload */
   assetData?: Record<string, Record<string, string>>;
-  /** projectId → mood board document */
-  moodBoards?: Record<string, MoodBoardDocument>;
+  /**
+   * Browser fallback mood-board library.
+   * New shape: projectId → boardId → document.
+   * Legacy shape (projectId → single document) is migrated on first read.
+   */
+  moodBoards?: Record<
+    string,
+    MoodBoardDocument | Record<string, MoodBoardDocument>
+  >;
   /** app-level templates */
   appTemplates?: TemplateRecord[];
   /** projectId → templates */
   projectTemplates?: Record<string, TemplateRecord[]>;
 };
 
-function emptyMoodBoard(): MoodBoardDocument {
+function emptyMoodBoard(id = "main"): MoodBoardDocument {
   return {
     format: "gdd-studio-mood-board",
-    version: 1,
+    version: 2,
+    id,
+    name: id === "main" ? "Main" : id,
     items: [],
   };
+}
+
+/** Normalize browser-store mood boards to projectId → boardId → doc. */
+function browserMoodBoardLibrary(
+  store: BrowserStore,
+  projectId: string,
+): Record<string, MoodBoardDocument> {
+  const raw = store.moodBoards?.[projectId];
+  if (!raw) return {};
+  // Legacy: a single MoodBoardDocument stored at the project key.
+  if (
+    typeof raw === "object" &&
+    "format" in raw &&
+    (raw as MoodBoardDocument).format === "gdd-studio-mood-board"
+  ) {
+    const legacy = raw as MoodBoardDocument;
+    const main: MoodBoardDocument = {
+      format: "gdd-studio-mood-board",
+      version: 2,
+      id: "main",
+      name: legacy.name?.trim() || "Main",
+      items: legacy.items ?? [],
+    };
+    if (!store.moodBoards) store.moodBoards = {};
+    store.moodBoards[projectId] = { main };
+    saveBrowser(store);
+    return { main };
+  }
+  return raw as Record<string, MoodBoardDocument>;
 }
 
 function isTauriRuntime(): boolean {
@@ -1000,36 +1039,147 @@ export async function getAssetSrc(
   }
 }
 
+export async function listMoodBoards(
+  projectId: string,
+): Promise<MoodBoardSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = browserMoodBoardLibrary(store, projectId);
+    const items = Object.values(map).map((doc) => ({
+      id: doc.id || "main",
+      name: doc.name?.trim() || (doc.id === "main" ? "Main" : doc.id || "Untitled"),
+    }));
+    if (items.length === 0) {
+      return [{ id: "main", name: "Main" }];
+    }
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return invoke<MoodBoardSummary[]>("list_mood_boards", { projectId });
+}
+
 export async function loadMoodBoard(
   projectId: string,
+  boardId = "main",
 ): Promise<MoodBoardDocument> {
   if (!isTauriRuntime()) {
     const store = loadBrowser();
-    return store.moodBoards?.[projectId] ?? emptyMoodBoard();
+    const map = browserMoodBoardLibrary(store, projectId);
+    return map[boardId] ?? emptyMoodBoard(boardId);
   }
-  return invoke<MoodBoardDocument>("load_mood_board", { projectId });
+  return invoke<MoodBoardDocument>("load_mood_board", { projectId, boardId });
 }
 
 export async function saveMoodBoard(
   projectId: string,
+  boardId: string,
   document: MoodBoardDocument,
 ): Promise<MoodBoardDocument> {
   const next: MoodBoardDocument = {
     format: "gdd-studio-mood-board",
-    version: 1,
+    version: 2,
+    id: boardId,
+    name: document.name?.trim() || (boardId === "main" ? "Main" : boardId),
     items: document.items ?? [],
   };
   if (!isTauriRuntime()) {
     const store = loadBrowser();
+    const map = browserMoodBoardLibrary(store, projectId);
+    map[boardId] = next;
     if (!store.moodBoards) store.moodBoards = {};
-    store.moodBoards[projectId] = next;
+    store.moodBoards[projectId] = map;
     saveBrowser(store);
     return next;
   }
   return invoke<MoodBoardDocument>("save_mood_board", {
     projectId,
+    boardId,
     document: next,
   });
+}
+
+export async function moodBoardExists(
+  projectId: string,
+  boardId: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = browserMoodBoardLibrary(store, projectId);
+    return Boolean(map[boardId]);
+  }
+  return invoke<boolean>("mood_board_exists", { projectId, boardId });
+}
+
+export async function deleteMoodBoard(
+  projectId: string,
+  boardId: string,
+): Promise<void> {
+  if (boardId.trim() === "main") {
+    throw new Error("Main mood board cannot be deleted");
+  }
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = browserMoodBoardLibrary(store, projectId);
+    delete map[boardId];
+    if (!store.moodBoards) store.moodBoards = {};
+    store.moodBoards[projectId] = map;
+    saveBrowser(store);
+    return;
+  }
+  await invoke("delete_mood_board", { projectId, boardId });
+}
+
+/** Create an empty named mood board and persist it. */
+export async function createMoodBoard(
+  projectId: string,
+  name: string,
+): Promise<MoodBoardSummary> {
+  const trimmed = name.trim() || "Untitled";
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "mood-board";
+  let id = base;
+  let n = 2;
+  while (await moodBoardExists(projectId, id)) {
+    id = `${base}-${n++}`;
+  }
+  const doc = emptyMoodBoard(id);
+  doc.name = trimmed;
+  await saveMoodBoard(projectId, id, doc);
+  return { id, name: trimmed };
+}
+
+/**
+ * Resolve which board owns an item id (for legacy embeds that only store
+ * moodBoardItemId). Prefers `preferredBoardId`, then main, then any board.
+ */
+export async function findMoodBoardForItem(
+  projectId: string,
+  itemId: string,
+  preferredBoardId?: string | null,
+): Promise<{ boardId: string; document: MoodBoardDocument } | null> {
+  if (!itemId) return null;
+  const tryBoard = async (boardId: string) => {
+    const document = await loadMoodBoard(projectId, boardId);
+    if (document.items.some((i) => i.id === itemId)) {
+      return { boardId: document.id || boardId, document };
+    }
+    return null;
+  };
+  if (preferredBoardId) {
+    const hit = await tryBoard(preferredBoardId);
+    if (hit) return hit;
+  }
+  const mainHit = await tryBoard("main");
+  if (mainHit) return mainHit;
+  const list = await listMoodBoards(projectId);
+  for (const summary of list) {
+    if (summary.id === "main" || summary.id === preferredBoardId) continue;
+    const hit = await tryBoard(summary.id);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export async function listTemplates(

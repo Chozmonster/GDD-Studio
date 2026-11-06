@@ -2971,6 +2971,20 @@ code {
   display: none;
 }
 
+.mood-library-shell {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.mood-library-shell .mood-shell {
+  height: 100%;
+}
+
+.split-pane.is-stacked .mood-board-sidebar {
+  max-height: none;
+}
+
 .mood-shell {
   display: flex;
   flex-direction: column;

@@ -1,7 +1,7 @@
 //! GDD Studio — Tauri entry.
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
-//! RGD sheets + mood board + documentation variables + multi-doc projects /
+//! RGD sheets + mood boards + documentation variables + multi-doc projects /
 //! wiki links + media assets + templates + export HTML.
 //! Spellcheck runs in the webview (nspell).
 
@@ -15,10 +15,11 @@ use commands::{
     delete_asset, delete_flowchart, delete_project, delete_project_document, delete_rgd_sheet,
     delete_template, flowchart_exists, get_active_project, get_asset_data_url, get_asset_path,
     get_patch_notes, get_settings, install_update, list_assets, list_backlinks, list_documents,
-    list_flowcharts, list_projects, list_rgd_sheets, list_templates, load_document, load_flowchart,
-    load_mood_board, load_project_document, load_rgd_sheet, load_template, load_variables,
-    open_options_window, open_project, resolve_wiki_slug, reveal_project_folder, rgd_sheet_exists,
-    save_asset, save_document, save_flowchart, save_mood_board, save_project_document,
+    list_flowcharts, list_mood_boards, list_projects, list_rgd_sheets, list_templates,
+    load_document, load_flowchart, load_mood_board, load_project_document, load_rgd_sheet,
+    load_template, load_variables, mood_board_exists, open_options_window, open_project,
+    resolve_wiki_slug, reveal_project_folder, rgd_sheet_exists, save_asset, save_document,
+    save_flowchart, save_mood_board, save_project_document, delete_mood_board,
     save_rgd_sheet, save_template, save_variables, set_automatic_updates,
     set_display_variable_names, write_export_html, ActiveSession,
 };
@@ -87,8 +88,11 @@ pub fn run() {
             get_asset_path,
             get_asset_data_url,
             delete_asset,
+            list_mood_boards,
             load_mood_board,
             save_mood_board,
+            mood_board_exists,
+            delete_mood_board,
             list_templates,
             save_template,
             load_template,
