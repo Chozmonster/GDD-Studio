@@ -63,7 +63,8 @@ export function Launcher({ onOpenProject }: LauncherProps) {
 
   const refreshUpdates = useCallback(async (force: boolean) => {
     try {
-      const status = await checkForUpdates(force);
+      // Background / daily path: allow auto-install when the Options toggle is on.
+      const status = await checkForUpdates(force, true);
       setUpdate(status);
     } catch {
       /* soft-fail — no endpoint / unsigned releases */

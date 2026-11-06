@@ -1,7 +1,10 @@
-//! Persist launcher vs editor window size/position/maximized/fullscreen.
+//! Persist launcher vs editor window size/position/maximized/fullscreen,
+//! plus the separate Options webview geometry.
 //!
 //! Launcher and editor share the `main` webview; the frontend switches a
-//! "window role" so each mode restores its own last geometry.
+//! "window role" so each mode restores its own last geometry. Options uses
+//! its own window label (`options`) and a dedicated slot in
+//! `window-geometry.json`.
 
 use crate::commands::ActiveSession;
 use crate::store::{self, WindowGeometry, WindowGeometryFile};
@@ -10,6 +13,12 @@ use std::time::Duration;
 use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow, WindowEvent,
 };
+
+const OPTIONS_LABEL: &str = "options";
+const OPTIONS_DEFAULT_WIDTH: f64 = 520.0;
+const OPTIONS_DEFAULT_HEIGHT: f64 = 420.0;
+const OPTIONS_MIN_WIDTH: f64 = 400.0;
+const OPTIONS_MIN_HEIGHT: f64 = 300.0;
 
 pub const ROLE_LAUNCHER: &str = "launcher";
 pub const ROLE_EDITOR: &str = "editor";
@@ -265,20 +274,70 @@ pub fn persist_active(app: &AppHandle, state: &WindowGeomState) {
     let _ = save_role_geometry(app, &role);
 }
 
-pub fn handle_main_window_event(app: &AppHandle, label: &str, event: &WindowEvent) {
-    if label != "main" {
-        return;
+fn save_options_geometry(app: &AppHandle) -> Result<(), String> {
+    let Some(win) = app.get_webview_window(OPTIONS_LABEL) else {
+        return Ok(());
+    };
+    let captured = capture_geometry(&win)?;
+    let mut file = store::load_window_geometry(app)?;
+    let previous = file.options.clone();
+    file.options = Some(merge_normal_bounds(previous.as_ref(), captured));
+    store::save_window_geometry(app, &file)
+}
+
+/// Create the Options webview, restoring last size/position when present.
+pub fn open_options_window_with_geometry(app: &AppHandle) -> Result<(), String> {
+    let url = tauri::WebviewUrl::App("index.html?window=options".into());
+    let stored = store::load_window_geometry(app)
+        .ok()
+        .and_then(|f| f.options);
+
+    let mut builder = tauri::WebviewWindowBuilder::new(app, OPTIONS_LABEL, url)
+        .title("Options — GDD Studio")
+        .inner_size(OPTIONS_DEFAULT_WIDTH, OPTIONS_DEFAULT_HEIGHT)
+        .min_inner_size(OPTIONS_MIN_WIDTH, OPTIONS_MIN_HEIGHT)
+        .resizable(true);
+
+    if stored.is_none() {
+        builder = builder.center();
     }
-    match event {
-        WindowEvent::Resized(_)
-        | WindowEvent::Moved(_)
-        | WindowEvent::ScaleFactorChanged { .. }
-        | WindowEvent::CloseRequested { .. }
-        | WindowEvent::Destroyed => {
-            if let Some(state) = app.try_state::<WindowGeomState>() {
-                persist_active(app, &*state);
+
+    let win = builder
+        .build()
+        .map_err(|e| format!("open options window: {e}"))?;
+
+    if let Some(mut geo) = stored {
+        geo.width = geo.width.max(OPTIONS_MIN_WIDTH);
+        geo.height = geo.height.max(OPTIONS_MIN_HEIGHT);
+        apply_geometry(&win, &geo)?;
+    }
+    Ok(())
+}
+
+pub fn handle_main_window_event(app: &AppHandle, label: &str, event: &WindowEvent) {
+    match label {
+        "main" => match event {
+            WindowEvent::Resized(_)
+            | WindowEvent::Moved(_)
+            | WindowEvent::ScaleFactorChanged { .. }
+            | WindowEvent::CloseRequested { .. }
+            | WindowEvent::Destroyed => {
+                if let Some(state) = app.try_state::<WindowGeomState>() {
+                    persist_active(app, &*state);
+                }
             }
-        }
+            _ => {}
+        },
+        OPTIONS_LABEL => match event {
+            WindowEvent::Resized(_)
+            | WindowEvent::Moved(_)
+            | WindowEvent::ScaleFactorChanged { .. }
+            | WindowEvent::CloseRequested { .. }
+            | WindowEvent::Destroyed => {
+                let _ = save_options_geometry(app);
+            }
+            _ => {}
+        },
         _ => {}
     }
 }

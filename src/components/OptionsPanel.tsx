@@ -4,6 +4,7 @@ import {
   fetchActiveProject,
   fetchPatchNotes,
   fetchSettings,
+  installUpdate,
   revealProjectFolder,
   setAutomaticUpdates,
   setDisplayVariableNames,
@@ -18,9 +19,18 @@ type OptionsPanelProps = {
   project?: ProjectRecord | null;
 };
 
+function updateIsInstallable(status: UpdateStatus | null): boolean {
+  if (!status) return false;
+  return (
+    (status.state === "available" || status.state === "simulated") &&
+    Boolean(status.availableVersion)
+  );
+}
+
 export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [status, setStatus] = useState<string>("");
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<ProjectRecord | null>(
@@ -94,7 +104,9 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
     setBusy(true);
     setNotes(null);
     try {
-      const result: UpdateStatus = await checkForUpdates(true);
+      // Manual check: query only — never download/install here.
+      const result: UpdateStatus = await checkForUpdates(true, false);
+      setUpdate(result);
       setStatus(result.message);
       if (result.notes) {
         setNotes(result.notes);
@@ -106,6 +118,20 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
           /* status message already set */
         }
       }
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runInstall = async () => {
+    setBusy(true);
+    try {
+      const result = await installUpdate();
+      setUpdate(result);
+      setStatus(result.message);
+      if (result.notes) setNotes(result.notes);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -139,6 +165,8 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
       setBusy(false);
     }
   };
+
+  const canInstall = updateIsInstallable(update);
 
   return (
     <div className={asWindow ? "options-window" : "options-modal-inner"}>
@@ -212,7 +240,7 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
             <span className="muted block">
               When on, check about once per day and install quietly when a signed
               GitHub Release is available. When off, the launcher notifies you
-              with an Install button.
+              with an Install button. Manual Check never downloads on its own.
             </span>
           </span>
         </label>
@@ -220,6 +248,21 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
         <div className="options-actions">
           <button type="button" onClick={() => void runCheck()} disabled={busy}>
             Check for updates
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void runInstall()}
+            disabled={busy || !canInstall}
+            title={
+              canInstall
+                ? update?.availableVersion
+                  ? `Download and install ${update.availableVersion}`
+                  : "Download and install the available update"
+                : "Check for updates first — enabled when an update is available"
+            }
+          >
+            Download / Install update
           </button>
           <button
             type="button"
@@ -232,6 +275,11 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
         </div>
 
         {status && <p className="options-status muted">{status}</p>}
+        {update?.availableVersion && canInstall && (
+          <p className="muted tiny">
+            Available: {update.currentVersion} → {update.availableVersion}
+          </p>
+        )}
         {notes && (
           <pre className="patch-notes" tabIndex={0} aria-label="Release patch notes">
             {notes}

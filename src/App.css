@@ -347,9 +347,16 @@ input[type="search"] {
   color: var(--ink);
 }
 
+.options-route {
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
 .options-window,
 .options-modal-inner {
   padding: 1rem 1.15rem 1.25rem;
+  box-sizing: border-box;
 }
 
 .options-header {

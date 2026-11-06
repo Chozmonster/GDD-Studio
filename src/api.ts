@@ -256,7 +256,16 @@ export async function setDisplayVariableNames(
   );
 }
 
-export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
+/**
+ * Check for updates.
+ * @param force Bypass the once-per-day throttle (Options “Check for updates”).
+ * @param autoInstall When true and Automatic updates is on, the daily/background
+ *   path may download/install. Manual Check must pass `false`.
+ */
+export async function checkForUpdates(
+  force: boolean,
+  autoInstall = false,
+): Promise<UpdateStatus> {
   if (!isTauriRuntime()) {
     const store = loadBrowser();
     const now = nowSecs();
@@ -268,11 +277,15 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
       !simulateUpdateEnv()
     ) {
       return {
-        state: "skipped",
+        state: store.update?.state === "simulated" || store.update?.availableVersion
+          ? (store.update?.state ?? "available")
+          : "skipped",
         currentVersion: "0.1.1",
-        availableVersion: null,
+        availableVersion: store.update?.availableVersion ?? null,
         notes: store.update?.notes ?? null,
-        message: "Already checked for updates today.",
+        message: store.update?.availableVersion
+          ? "Using today's update check result."
+          : "Already checked for updates today.",
         checkedAt: store.settings.lastUpdateCheckAt,
         automaticUpdates: store.settings.automaticUpdates,
       };
@@ -280,14 +293,15 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
     store.settings.lastUpdateCheckAt = now;
     if (simulateUpdateEnv()) {
       const version = "0.1.2-sim";
+      const mayAutoInstall = autoInstall && store.settings.automaticUpdates;
       const status: UpdateStatus = {
         state: "simulated",
         currentVersion: "0.1.1",
         availableVersion: version,
         notes: simulatedNotes(version),
-        message: store.settings.automaticUpdates
+        message: mayAutoInstall
           ? "Simulated update available (auto-updates on — would install)."
-          : "Simulated update available. Use Install to demo the notify flow.",
+          : "Simulated update available. Use Download / Install update to apply it.",
         checkedAt: now,
         automaticUpdates: store.settings.automaticUpdates,
       };
@@ -309,7 +323,7 @@ export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {
     saveBrowser(store);
     return status;
   }
-  return invoke<UpdateStatus>("check_for_updates", { force });
+  return invoke<UpdateStatus>("check_for_updates", { force, autoInstall });
 }
 
 export async function installUpdate(): Promise<UpdateStatus> {

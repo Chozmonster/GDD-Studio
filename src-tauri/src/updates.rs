@@ -117,9 +117,21 @@ async fn fetch_latest_release_notes() -> Option<(Option<String>, String)> {
     Some((latest.version, notes))
 }
 
-pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStatus, String> {
+/// Check for updates.
+///
+/// - `force`: bypass the once-per-day throttle (manual Check).
+/// - `auto_install`: when true **and** Settings → Automatic updates is on,
+///   download/install if an update exists. The daily/background launcher path
+///   passes `true`; the Options **Check for updates** button must pass
+///   `false` so a manual check never auto-downloads.
+pub async fn check_for_updates(
+    app: AppHandle,
+    force: bool,
+    auto_install: bool,
+) -> Result<UpdateStatus, String> {
     let mut settings = store::load_settings(&app)?;
     let now = now_secs();
+    let may_auto_install = auto_install && settings.automatic_updates;
 
     if !force && checked_today(settings.last_update_check_at, now) {
         let cache = load_disk_cache(&app);
@@ -182,8 +194,12 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStat
             checked_at: now,
             automatic_updates: settings.automatic_updates,
         };
-        if settings.automatic_updates {
+        if may_auto_install {
             status.message.push_str(" Auto-updates on — would install if a real release existed.");
+        } else {
+            status
+                .message
+                .push_str(" Use Download / Install update to apply it.");
         }
         return Ok(status);
     }
@@ -200,7 +216,7 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStat
                 };
                 save_disk_cache(&app, &cache);
 
-                if settings.automatic_updates {
+                if may_auto_install {
                     update
                         .download_and_install(|_, _| {}, || {})
                         .await
@@ -223,7 +239,7 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStat
                     notes,
                     message: "An update is available.".into(),
                     checked_at: now,
-                    automatic_updates: false,
+                    automatic_updates: settings.automatic_updates,
                 })
             }
             Ok(None) => {

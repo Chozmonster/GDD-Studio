@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Document map nests headings by level (H1 → H2 → H3) with visual indent instead of a flat list; click-to-scroll and live updates are unchanged.
+- Options **Check for updates** only queries status / available version / patch notes; it no longer downloads or installs. A separate **Download / Install update** button is enabled only when an update is available. The Automatic updates toggle still drives the daily/background install path.
+- Options window is user-resizable, and its size/position restore from `window-geometry` prefs across close/reopen (same pattern as launcher/editor).
 
 ### Notes
 

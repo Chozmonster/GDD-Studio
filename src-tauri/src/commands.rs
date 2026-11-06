@@ -146,11 +146,16 @@ pub fn set_display_variable_names(app: AppHandle, enabled: bool) -> Result<AppSe
 }
 
 /// Check for updates. Persists last-check timestamp.
-/// When `force` is false and a check already ran today, returns cached "skipped" status
-/// unless there is a simulated pending update flag.
+/// When `force` is false and a check already ran today, returns cached status.
+/// Pass `auto_install: true` only for the daily/background path; Options Check
+/// must pass `false` so a manual query never downloads.
 #[tauri::command]
-pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateStatus, String> {
-    updates::check_for_updates(app, force).await
+pub async fn check_for_updates(
+    app: AppHandle,
+    force: bool,
+    auto_install: bool,
+) -> Result<UpdateStatus, String> {
+    updates::check_for_updates(app, force, auto_install).await
 }
 
 /// Download + install when an update is available (or simulated).
@@ -172,15 +177,7 @@ pub async fn open_options_window(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let url = tauri::WebviewUrl::App("index.html?window=options".into());
-    tauri::WebviewWindowBuilder::new(&app, "options", url)
-        .title("Options — GDD Studio")
-        .inner_size(480.0, 460.0)
-        .resizable(false)
-        .center()
-        .build()
-        .map_err(|e| format!("open options window: {e}"))?;
-    Ok(())
+    crate::window_geom::open_options_window_with_geometry(&app)
 }
 
 /// Default parent folder suggestion for New Project (documents dir).

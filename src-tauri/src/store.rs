@@ -30,10 +30,12 @@ pub struct WindowGeometry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct WindowGeometryFile {
     pub launcher: Option<WindowGeometry>,
     pub editor: Option<WindowGeometry>,
+    /// Separate Options webview (`label = "options"`).
+    pub options: Option<WindowGeometry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
