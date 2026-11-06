@@ -7,6 +7,11 @@ import {
   saveAssetFromFile,
   saveMoodBoard,
 } from "../../api";
+import {
+  buildPaletteFromImageSrcs,
+  isImageLikeKind,
+  parsePaletteHexes,
+} from "../../lib/colourPalette";
 import { requestInsertMediaFromMoodBoard } from "../../lib/documentMediaInsert";
 import { isAllowedMediaFile } from "../../lib/mediaFile";
 import { normalizeCrop } from "../../lib/moodBoardEdit";
@@ -72,24 +77,40 @@ export function MoodBoard({
   const [status, setStatus] = useState("Loading…");
   const [dragOver, setDragOver] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
   const clipboardRef = useRef<BoardClipboard | null>(null);
   const boardRef = useRef(board);
   const boardIdRef = useRef(boardId);
+  const selectedIdsRef = useRef(selectedIds);
   const saveTimer = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   boardRef.current = board;
   boardIdRef.current = boardId;
+  selectedIdsRef.current = selectedIds;
 
   const selectBoard = useCallback((id: string, name: string) => {
     setBoardId(id);
     setBoardName(name);
-    setSelectedId(null);
+    setSelectedIds(new Set());
     setMenu(null);
     setEditDialog(null);
+  }, []);
+
+  const setSelection = useCallback((ids: Iterable<string>) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
+  const toggleSelected = useCallback((itemId: string, additive: boolean) => {
+    setSelectedIds((prev) => {
+      if (!additive) return new Set([itemId]);
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
   }, []);
 
   const persist = useCallback(
@@ -237,10 +258,10 @@ export function MoodBoard({
         items: [...boardRef.current.items, ...added],
       };
       schedulePersist(next);
-      setSelectedId(added[added.length - 1]?.id ?? null);
+      if (added.length) setSelection(added.map((i) => i.id));
       setStatus(`Added ${added.length} item${added.length === 1 ? "" : "s"}`);
     },
-    [project.id, refreshAssets, schedulePersist],
+    [project.id, refreshAssets, schedulePersist, setSelection],
   );
 
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -271,9 +292,13 @@ export function MoodBoard({
         items: boardRef.current.items.filter((i) => !idSet.has(i.id)),
       };
       schedulePersist(next, ids);
-      if (selectedId && idSet.has(selectedId)) setSelectedId(null);
+      setSelectedIds((prev) => {
+        const nextSel = new Set(prev);
+        for (const id of idSet) nextSel.delete(id);
+        return nextSel;
+      });
     },
-    [schedulePersist, selectedId],
+    [schedulePersist],
   );
 
   const copyItems = useCallback(
@@ -316,7 +341,7 @@ export function MoodBoard({
       };
       schedulePersist(next);
       if (clip.mode === "cut") clipboardRef.current = null;
-      setSelectedId(clones[clones.length - 1]?.id ?? null);
+      setSelection(clones.map((c) => c.id));
       setStatus(`Pasted ${clones.length}`);
       closeMenu();
       return;
@@ -354,7 +379,90 @@ export function MoodBoard({
     }
     setStatus("Clipboard is empty");
     closeMenu();
-  }, [addFiles, closeMenu, schedulePersist]);
+  }, [addFiles, closeMenu, schedulePersist, setSelection]);
+
+  const createColourPalette = useCallback(async () => {
+    const ids =
+      selectedIdsRef.current.size > 0
+        ? [...selectedIdsRef.current]
+        : menu
+          ? [menu.itemId]
+          : [];
+    closeMenu();
+    if (ids.length === 0) {
+      setStatus("Select one or more image tiles first");
+      return;
+    }
+    const selectedItems = boardRef.current.items.filter((i) =>
+      ids.includes(i.id),
+    );
+    const imageItems = selectedItems.filter((item) => {
+      const kind = String(assets[item.assetId]?.kind ?? "image");
+      return isImageLikeKind(kind);
+    });
+    const skipped = selectedItems.length - imageItems.length;
+    if (imageItems.length === 0) {
+      setStatus(
+        "Colour palette needs image or gif tiles — video/audio were skipped",
+      );
+      return;
+    }
+    const raw = window.prompt("Number of colours (k)", "5");
+    if (raw === null) return;
+    const k = Number.parseInt(raw.trim(), 10);
+    if (!Number.isFinite(k) || k < 1 || k > 16) {
+      setStatus("k must be an integer from 1 to 16 (default 5)");
+      return;
+    }
+    setStatus(
+      skipped > 0
+        ? `Building palette from ${imageItems.length} image(s); skipped ${skipped} non-image…`
+        : `Building palette from ${imageItems.length} image(s)…`,
+    );
+    try {
+      const srcs: string[] = [];
+      for (const item of imageItems) {
+        srcs.push(await getAssetSrc(project.id, item.assetId));
+      }
+      // Off-board analysis — never mutates source tiles.
+      const { blob, comment } = await buildPaletteFromImageSrcs(srcs, k);
+      const file = new File([blob], `colour-palette-${Date.now()}.png`, {
+        type: "image/png",
+      });
+      const asset = await saveAssetFromFile(project.id, file);
+      await refreshAssets();
+      const tile: MoodBoardItem = {
+        id: crypto.randomUUID(),
+        assetId: asset.id,
+        comment,
+        createdAt: Math.floor(Date.now() / 1000),
+      };
+      const next: MoodBoardDocument = {
+        ...boardRef.current,
+        id: boardIdRef.current,
+        name: boardRef.current.name || boardName,
+        items: [...boardRef.current.items, tile],
+      };
+      schedulePersist(next);
+      setSelection([tile.id]);
+      setStatus(
+        skipped > 0
+          ? `Palette tile added (skipped ${skipped} video/audio)`
+          : "Palette tile added — click a hex chip to copy",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    }
+  }, [
+    assets,
+    boardName,
+    closeMenu,
+    menu,
+    project.id,
+    refreshAssets,
+    schedulePersist,
+    setSelection,
+  ]);
 
   const editComment = useCallback(
     (itemId: string) => {
@@ -455,17 +563,20 @@ export function MoodBoard({
         }
         return;
       }
-      if (meta && e.key.toLowerCase() === "c" && selectedId) {
+      if (meta && e.key.toLowerCase() === "c" && selectedIdsRef.current.size) {
         e.preventDefault();
-        copyItems([selectedId], "copy");
+        copyItems([...selectedIdsRef.current], "copy");
         return;
       }
-      if (meta && e.key.toLowerCase() === "x" && selectedId) {
+      if (meta && e.key.toLowerCase() === "x" && selectedIdsRef.current.size) {
         e.preventDefault();
-        copyItems([selectedId], "cut");
+        copyItems([...selectedIdsRef.current], "cut");
         return;
       }
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedIdsRef.current.size
+      ) {
         if (
           e.target instanceof HTMLInputElement ||
           e.target instanceof HTMLTextAreaElement
@@ -473,7 +584,7 @@ export function MoodBoard({
           return;
         }
         e.preventDefault();
-        removeItems([selectedId]);
+        removeItems([...selectedIdsRef.current]);
         setStatus("Deleted");
       }
     };
@@ -484,7 +595,7 @@ export function MoodBoard({
       el.removeEventListener("paste", onPaste);
       window.removeEventListener("keydown", onKey);
     };
-  }, [addFiles, copyItems, pasteClipboard, removeItems, selectedId]);
+  }, [addFiles, copyItems, pasteClipboard, removeItems]);
 
   const activeMenuItem = menu
     ? board.items.find((i) => i.id === menu.itemId)
@@ -494,6 +605,17 @@ export function MoodBoard({
     : undefined;
   const menuKind = String(activeMenuAsset?.kind ?? "image");
   const canCrop = menuKind === "image" || menuKind === "gif";
+  const menuSelectionIds =
+    menu && selectedIds.has(menu.itemId) && selectedIds.size > 0
+      ? [...selectedIds]
+      : menu
+        ? [menu.itemId]
+        : [];
+  const menuHasImageForPalette = menuSelectionIds.some((id) => {
+    const item = board.items.find((i) => i.id === id);
+    if (!item) return false;
+    return isImageLikeKind(String(assets[item.assetId]?.kind ?? "image"));
+  });
 
   const editItem = editDialog
     ? board.items.find((i) => i.id === editDialog.itemId)
@@ -523,9 +645,10 @@ export function MoodBoard({
         <div className="mood-toolbar-left">
           <h2>{boardName}</h2>
           <p className="muted tiny mood-blurb">
-            Drop or paste reference media. Crop and border edits stay on the
-            tile and update every live Document embed. Right-click for comment,
-            clipboard, crop/border, or Insert into document.
+            Drop or paste reference media. Shift+click multi-selects. Crop and
+            border edits stay on the tile and update every live Document embed.
+            Right-click for comment, clipboard, colour palette, or Insert into
+            document.
           </p>
         </div>
         <div className="mood-toolbar-actions">
@@ -582,7 +705,7 @@ export function MoodBoard({
             }
           }}
           onClick={() => {
-            setSelectedId(null);
+            setSelection([]);
             closeMenu();
           }}
         >
@@ -601,12 +724,15 @@ export function MoodBoard({
                     item={item}
                     asset={assets[item.assetId]}
                     projectId={project.id}
-                    selected={selectedId === item.id}
-                    onSelect={() => setSelectedId(item.id)}
+                    selected={selectedIds.has(item.id)}
+                    onSelect={(additive) => toggleSelected(item.id, additive)}
                     onContextMenu={(x, y) => {
-                      setSelectedId(item.id);
+                      if (!selectedIds.has(item.id)) {
+                        setSelection([item.id]);
+                      }
                       setMenu({ x, y, itemId: item.id });
                     }}
+                    onStatus={setStatus}
                   />
                 </li>
               ))}
@@ -647,14 +773,14 @@ export function MoodBoard({
           <button
             type="button"
             role="menuitem"
-            onClick={() => copyItems([activeMenuItem.id], "copy")}
+            onClick={() => copyItems(menuSelectionIds, "copy")}
           >
             Copy
           </button>
           <button
             type="button"
             role="menuitem"
-            onClick={() => copyItems([activeMenuItem.id], "cut")}
+            onClick={() => copyItems(menuSelectionIds, "cut")}
           >
             Cut
           </button>
@@ -666,12 +792,26 @@ export function MoodBoard({
             role="menuitem"
             className="danger-outline"
             onClick={() => {
-              removeItems([activeMenuItem.id]);
+              removeItems(menuSelectionIds);
               setStatus("Deleted");
               closeMenu();
             }}
           >
             Delete
+          </button>
+          <hr className="mood-ctx-sep" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!menuHasImageForPalette}
+            title={
+              menuHasImageForPalette
+                ? undefined
+                : "Select at least one image or gif"
+            }
+            onClick={() => void createColourPalette()}
+          >
+            Create colour palette…
           </button>
           <hr className="mood-ctx-sep" />
           <button
@@ -719,8 +859,9 @@ type MoodTileProps = {
   asset?: AssetRecord;
   projectId: string;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (additive: boolean) => void;
   onContextMenu: (x: number, y: number) => void;
+  onStatus?: (message: string) => void;
 };
 
 function MoodTile({
@@ -730,12 +871,14 @@ function MoodTile({
   selected,
   onSelect,
   onContextMenu,
+  onStatus,
 }: MoodTileProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const kind = String(asset?.kind ?? "image");
   const label = asset?.filename || item.assetId;
   const hasComment = Boolean(item.comment?.trim());
+  const paletteHexes = parsePaletteHexes(item.comment ?? "");
   const activeCrop = normalizeCrop(item.crop);
   const hasEdits = Boolean(activeCrop || (item.border && item.border.width > 0));
 
@@ -761,6 +904,15 @@ function MoodTile({
     };
   }, [projectId, item.assetId]);
 
+  const copyHex = async (hex: string) => {
+    try {
+      await navigator.clipboard.writeText(hex);
+      onStatus?.(`Copied ${hex}`);
+    } catch {
+      onStatus?.(`Could not copy ${hex}`);
+    }
+  };
+
   return (
     <article
       className={
@@ -769,12 +921,11 @@ function MoodTile({
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect();
+        onSelect(e.shiftKey);
       }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onSelect();
         onContextMenu(e.clientX, e.clientY);
       }}
     >
@@ -811,13 +962,34 @@ function MoodTile({
         <p className="mood-tile-name" title={label}>
           {label}
         </p>
-        <p
-          className={
-            hasComment ? "mood-tile-comment" : "mood-tile-comment is-empty"
-          }
-        >
-          {hasComment ? item.comment : "No comment"}
-        </p>
+        {paletteHexes ? (
+          <div className="mood-palette-hexes" aria-label="Palette colours">
+            {paletteHexes.map((hex) => (
+              <button
+                key={hex}
+                type="button"
+                className="mood-palette-hex"
+                title={`Copy ${hex}`}
+                style={{ ["--swatch" as string]: hex }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void copyHex(hex);
+                }}
+              >
+                <span className="mood-palette-swatch" aria-hidden="true" />
+                {hex}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p
+            className={
+              hasComment ? "mood-tile-comment" : "mood-tile-comment is-empty"
+            }
+          >
+            {hasComment ? item.comment : "No comment"}
+          </p>
+        )}
       </div>
     </article>
   );

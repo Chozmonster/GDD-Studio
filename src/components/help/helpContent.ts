@@ -134,6 +134,16 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
       tips: [
         "Comment — right-click → Comment. Notes show under the tile and on live doc embeds.",
         "Crop… — images/gifs. Border… — width, color, optional radius. Changes update open document embeds immediately.",
+        "Shift+click to multi-select tiles.",
+      ],
+    },
+    {
+      title: "Create colour palette",
+      steps: [
+        "Select one or more image/gif tiles (video/audio are skipped with a status message).",
+        "Right-click → Create colour palette… and enter k (number of colours; default 5).",
+        "GDD Studio downscales selections off-board (~200×200), runs k-means, drops pure white/black extremes, ranks by dominance, and adds a new labeled palette image tile to the current board.",
+        "Click a hex chip under the palette tile to copy that colour.",
       ],
     },
     {
