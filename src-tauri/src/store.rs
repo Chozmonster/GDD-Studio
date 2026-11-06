@@ -334,7 +334,7 @@ pub struct FlowchartSummary {
     pub name: String,
 }
 
-fn project_by_id(app: &AppHandle, project_id: &str) -> Result<ProjectRecord, String> {
+pub fn project_by_id(app: &AppHandle, project_id: &str) -> Result<ProjectRecord, String> {
     load_projects(app)?
         .into_iter()
         .find(|p| p.id == project_id)

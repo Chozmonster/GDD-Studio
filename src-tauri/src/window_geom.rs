@@ -3,6 +3,7 @@
 //! Launcher and editor share the `main` webview; the frontend switches a
 //! "window role" so each mode restores its own last geometry.
 
+use crate::commands::ActiveSession;
 use crate::store::{self, WindowGeometry, WindowGeometryFile};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -198,6 +199,7 @@ fn apply_geometry(win: &WebviewWindow, geo: &WindowGeometry) -> Result<(), Strin
 pub fn set_window_role(
     app: AppHandle,
     state: State<'_, WindowGeomState>,
+    session: State<'_, ActiveSession>,
     role: String,
 ) -> Result<(), String> {
     let next = normalize_role(&role)?.to_string();
@@ -210,6 +212,14 @@ pub fn set_window_role(
         *guard = next.clone();
         prev
     };
+
+    // Leaving the editor clears the active project so Options cannot reveal a
+    // folder the user is no longer working in.
+    if next == ROLE_LAUNCHER {
+        if let Ok(mut guard) = session.active_project_id.lock() {
+            *guard = None;
+        }
+    }
 
     if previous != next {
         // If the previous role is still settling from an apply, disk already

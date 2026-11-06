@@ -32,6 +32,8 @@ const BROWSER_KEY = "gdd-studio.browser-store";
 type BrowserStore = {
   projects: ProjectRecord[];
   settings: AppSettings;
+  /** Mirrors Rust ActiveSession for browser preview. */
+  activeProjectId?: string | null;
   update?: UpdateStatus | null;
   /** projectId → flowchartId → document */
   flowcharts?: Record<string, Record<string, FlowchartDocument>>;
@@ -175,10 +177,42 @@ export async function openProject(projectId: string): Promise<ProjectRecord> {
     const project = store.projects.find((p) => p.id === projectId);
     if (!project) throw new Error(`Unknown project id: ${projectId}`);
     project.lastOpenedAt = nowSecs();
+    store.activeProjectId = projectId;
     saveBrowser(store);
     return project;
   }
   return invoke<ProjectRecord>("open_project", { projectId });
+}
+
+/** Project open in the editor, if any (null on the launcher). */
+export async function fetchActiveProject(): Promise<ProjectRecord | null> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const id = store.activeProjectId;
+    if (!id) return null;
+    return store.projects.find((p) => p.id === id) ?? null;
+  }
+  return invoke<ProjectRecord | null>("get_active_project");
+}
+
+/**
+ * Reveal a project root folder in the OS file manager.
+ * Omitting `projectId` uses the editor's active project.
+ */
+export async function revealProjectFolder(projectId?: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const id = projectId ?? store.activeProjectId;
+    if (!id) throw new Error("Open a project first.");
+    const project = store.projects.find((p) => p.id === id);
+    if (!project) throw new Error(`Unknown project id: ${id}`);
+    throw new Error(
+      `Open project folder is only available in the desktop app.\n${project.path}`,
+    );
+  }
+  await invoke("reveal_project_folder", {
+    projectId: projectId ?? null,
+  });
 }
 
 export async function fetchSettings(): Promise<AppSettings> {
@@ -349,7 +383,14 @@ export type WindowRole = "launcher" | "editor";
 
 /** Tell the native shell which chrome mode owns the main window geometry. */
 export async function setWindowRole(role: WindowRole): Promise<void> {
-  if (!isTauriRuntime()) return;
+  if (!isTauriRuntime()) {
+    if (role === "launcher") {
+      const store = loadBrowser();
+      store.activeProjectId = null;
+      saveBrowser(store);
+    }
+    return;
+  }
   await invoke("set_window_role", { role });
 }
 

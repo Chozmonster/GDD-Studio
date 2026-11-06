@@ -59,7 +59,7 @@ export const HELP_APP: HelpArticleContent = {
       title: "Projects",
       tips: [
         "Launcher is projects only: create, open, or remove.",
-        "Options (launcher or editor): automatic updates, and “Display variable names in document” (updates chips live).",
+        "Options (launcher or editor): automatic updates, “Display variable names in document”, and Open project folder (DIY backup — no in-app cloud sync).",
         "Open Help from the launcher or the editor chrome.",
       ],
     },

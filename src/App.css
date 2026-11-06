@@ -372,6 +372,11 @@ input[type="search"] {
   color: var(--muted);
 }
 
+.options-section-lead {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+}
+
 .toggle-row {
   display: flex;
   gap: 0.75rem;

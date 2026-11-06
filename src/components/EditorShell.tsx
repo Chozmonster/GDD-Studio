@@ -161,7 +161,11 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             aria-label="Options"
             onClick={(e) => e.stopPropagation()}
           >
-            <OptionsPanel asWindow onClose={() => setOptionsOpen(false)} />
+            <OptionsPanel
+              asWindow
+              project={project}
+              onClose={() => setOptionsOpen(false)}
+            />
           </div>
         </div>
       )}
