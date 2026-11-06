@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-06
+
+Mood Board crop keeps the selection’s aspect ratio in tiles and live document embeds.
+
 ### Fixed
 
 - Mood Board crop no longer stretches the selection to fill the original 4:3 tile/embed frame. The display frame resizes to the crop’s aspect ratio so board tiles and live document embeds stay undistorted.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.3] - 2026-11-05
 
