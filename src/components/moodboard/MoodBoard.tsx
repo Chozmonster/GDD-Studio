@@ -8,6 +8,7 @@ import {
 } from "../../api";
 import { requestInsertMediaFromMoodBoard } from "../../lib/documentMediaInsert";
 import { isAllowedMediaFile } from "../../lib/mediaFile";
+import { normalizeCrop } from "../../lib/moodBoardEdit";
 import {
   emitMoodBoardItemDeleted,
   emitMoodBoardSaved,
@@ -653,7 +654,8 @@ function MoodTile({
   const kind = String(asset?.kind ?? "image");
   const label = asset?.filename || item.assetId;
   const hasComment = Boolean(item.comment?.trim());
-  const hasEdits = Boolean(item.crop || (item.border && item.border.width > 0));
+  const activeCrop = normalizeCrop(item.crop);
+  const hasEdits = Boolean(activeCrop || (item.border && item.border.width > 0));
 
   useEffect(() => {
     let cancelled = false;
@@ -694,7 +696,11 @@ function MoodTile({
         onContextMenu(e.clientX, e.clientY);
       }}
     >
-      <div className="mood-tile-media">
+      <div
+        className={
+          activeCrop ? "mood-tile-media has-crop" : "mood-tile-media"
+        }
+      >
         {hasComment && (
           <span className="mood-comment-badge" title="Has comment">
             Note

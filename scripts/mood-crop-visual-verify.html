@@ -11,11 +11,11 @@
         background: #121212;
         color: #e8e8e8;
       }
-      h1 { font-size: 16px; margin: 0 0 16px; }
+      h1 { font-size: 16px; margin: 0 0 8px; }
+      h2 { font-size: 13px; margin: 24px 0 8px; color: #c8c8c8; font-weight: 600; }
       .row { display: flex; gap: 24px; flex-wrap: wrap; }
       .panel { width: 320px; }
       .label { margin: 0 0 8px; color: #9a9a9a; font-size: 12px; }
-      /* Matches app: 4/3 frame + overflow crop */
       .frame {
         width: 320px;
         aspect-ratio: 4 / 3;
@@ -26,38 +26,62 @@
         box-sizing: border-box;
         border-radius: 8px;
       }
+      .frame.cropped-aspect {
+        aspect-ratio: auto;
+        height: auto;
+      }
       .crop {
         width: 100%;
         height: 100%;
         position: relative;
         overflow: hidden;
       }
+      .frame.cropped-aspect .crop {
+        position: absolute;
+        inset: 0;
+        height: auto;
+      }
       canvas { display: none; }
     </style>
   </head>
   <body>
-    <h1>Mood Board crop — fixed left/top vs buggy transform(%)</h1>
+    <h1>Mood Board crop — offset + aspect</h1>
     <p class="label">
-      Synthetic concept art; crop ≈ bottom-left (x=0.05 y=0.55 w=0.4 h=0.35).
-      Fixed panel must show blue corner + yellow border edge + red circle sliver.
-      Buggy panel should look empty/dark (image scrolled out).
+      Synthetic concept art. Top row: bottom-left crop offset (fixed left/top vs buggy transform).
+      Bottom row: wide “Concept Art” banner crop — fixed panel keeps selection aspect; legacy stretches into 4:3.
     </p>
     <canvas id="src" width="800" height="600"></canvas>
+
+    <h2>Offset (bottom-left crop)</h2>
     <div class="row">
       <div class="panel">
         <p class="label">Fixed (left/top, parent-relative)</p>
-        <div class="frame" id="fixed"></div>
+        <div class="frame" id="fixed-offset"></div>
       </div>
       <div class="panel">
         <p class="label">Buggy (transform % of self)</p>
-        <div class="frame" id="buggy"></div>
+        <div class="frame" id="buggy-offset"></div>
       </div>
     </div>
+
+    <h2>Aspect (wide banner crop ≈ x=0.05 y=0.08 w=0.55 h=0.18)</h2>
+    <div class="row">
+      <div class="panel">
+        <p class="label">Fixed — frame resized to crop aspect (no stretch)</p>
+        <div class="frame cropped-aspect" id="fixed-aspect"></div>
+      </div>
+      <div class="panel">
+        <p class="label">Legacy — crop forced into full 4:3 (stretched)</p>
+        <div class="frame" id="legacy-stretch"></div>
+      </div>
+    </div>
+
     <script>
-      const crop = { x: 0.05, y: 0.55, width: 0.4, height: 0.35 };
+      const offsetCrop = { x: 0.05, y: 0.55, width: 0.4, height: 0.35 };
+      const wideCrop = { x: 0.05, y: 0.08, width: 0.55, height: 0.18 };
+      const STAGE_ASPECT = 4 / 3;
       const canvas = document.getElementById("src");
       const ctx = canvas.getContext("2d");
-      // Synthetic concept art matching the repro media
       ctx.fillStyle = "#1e3a5f";
       ctx.fillRect(0, 0, 800, 600);
       ctx.strokeStyle = "#e8c84a";
@@ -74,8 +98,13 @@
       ctx.fillRect(360, 280, 200, 50);
       const url = canvas.toDataURL("image/png");
 
-      function mount(hostId, mode) {
+      function mount(hostId, crop, mode) {
         const host = document.getElementById(hostId);
+        if (mode === "aspect") {
+          const aspect = (crop.width / crop.height) * STAGE_ASPECT;
+          host.style.aspectRatio = `${aspect}`;
+          host.style.position = "relative";
+        }
         const wrap = document.createElement("div");
         wrap.className = "crop";
         const img = document.createElement("img");
@@ -88,19 +117,21 @@
         img.style.height = `${scaleY * 100}%`;
         img.style.maxWidth = "none";
         img.style.objectFit = "fill";
-        if (mode === "fixed") {
-          img.style.left = `${(-crop.x / crop.width) * 100}%`;
-          img.style.top = `${(-crop.y / crop.height) * 100}%`;
-        } else {
+        if (mode === "buggy") {
           img.style.left = "0";
           img.style.top = "0";
           img.style.transform = `translate(${(-crop.x / crop.width) * 100}%, ${(-crop.y / crop.height) * 100}%)`;
+        } else {
+          img.style.left = `${(-crop.x / crop.width) * 100}%`;
+          img.style.top = `${(-crop.y / crop.height) * 100}%`;
         }
         wrap.appendChild(img);
         host.appendChild(wrap);
       }
-      mount("fixed", "fixed");
-      mount("buggy", "buggy");
+      mount("fixed-offset", offsetCrop, "fixed");
+      mount("buggy-offset", offsetCrop, "buggy");
+      mount("fixed-aspect", wideCrop, "aspect");
+      mount("legacy-stretch", wideCrop, "legacy");
     </script>
   </body>
 </html>

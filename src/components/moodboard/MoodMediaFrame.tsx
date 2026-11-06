@@ -33,7 +33,18 @@ export function MoodMediaFrame({
   const borderStyle = borderCss(border);
   const isRaster = kind === "image" || kind === "gif";
   const c = normalizeCrop(crop);
-  const { frame, img } = cropImageStyle(c);
+  const { outer, frame, img } = cropImageStyle(c);
+  const cropped = Boolean(c);
+
+  const rootClass = [
+    "mood-media-frame",
+    isRaster ? "mood-media-raster" : null,
+    kind === "video" ? "mood-media-video" : null,
+    cropped ? "mood-media-cropped" : null,
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (kind === "audio") {
     return (
@@ -74,12 +85,8 @@ export function MoodMediaFrame({
 
   return (
     <div
-      className={
-        className
-          ? `mood-media-frame mood-media-raster ${className}`
-          : "mood-media-frame mood-media-raster"
-      }
-      style={{ ...borderStyle, ...style }}
+      className={rootClass}
+      style={{ ...borderStyle, ...outer, ...style }}
     >
       <div className="mood-media-crop" style={frame}>
         <img src={src} alt={alt} draggable={false} style={img} />

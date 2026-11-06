@@ -5,6 +5,12 @@ const MIN_CROP = 0.05;
 const MAX_BORDER_WIDTH = 64;
 const MAX_BORDER_RADIUS = 64;
 
+/**
+ * Presentation box used by Mood Board tiles, document embeds, and the crop
+ * dialog stage. Crop x/y/width/height are fractions of this box.
+ */
+export const MOOD_MEDIA_STAGE_ASPECT = 4 / 3;
+
 /** Full-frame crop (no crop applied). */
 export const FULL_CROP: MoodBoardCrop = {
   x: 0,
@@ -31,6 +37,17 @@ export function normalizeCrop(
     return null;
   }
   return { x, y, width, height };
+}
+
+/**
+ * Display aspect ratio of a normalized crop selection within the 4:3 stage.
+ * Used so the visible frame matches the selection instead of stretching into
+ * the original full-image tile.
+ */
+export function cropDisplayAspect(crop: MoodBoardCrop): number {
+  const w = Math.max(MIN_CROP, crop.width);
+  const h = Math.max(MIN_CROP, crop.height);
+  return (w / h) * MOOD_MEDIA_STAGE_ASPECT;
 }
 
 /** Accept #RGB / #RRGGBB / #RRGGBBAA; fallback to white. */
@@ -70,25 +87,31 @@ export function normalizeBorder(
 /**
  * CSS for a cropped <img> inside an overflow:hidden frame.
  *
- * Scale the image so the crop rect fills the frame, then offset with
- * `left`/`top` percentages (relative to the frame). Do not use
- * `transform: translate(%)` for that offset — transform percentages are
- * relative to the transformed element itself, which over-shifts any crop
- * that is not anchored at (0,0) and can leave the embed empty.
+ * The display frame is resized to the crop selection’s aspect (relative to
+ * the 4:3 stage) so width/height scale factors do not stretch pixels.
+ * Offset with frame-relative `left`/`top` — not `transform: translate(%)`,
+ * whose percentages are self-relative and over-shift non-(0,0) crops.
  */
 export function cropImageStyle(
   crop: MoodBoardCrop | null | undefined,
-): { frame: CSSProperties; img: CSSProperties } {
+): { outer: CSSProperties; frame: CSSProperties; img: CSSProperties } {
   const c = normalizeCrop(crop);
   if (!c) {
     return {
+      outer: {},
       frame: {},
       img: { width: "100%", height: "100%", objectFit: "cover" },
     };
   }
   const scaleX = 1 / c.width;
   const scaleY = 1 / c.height;
+  const aspect = cropDisplayAspect(c);
   return {
+    // Resize the chrome/border box to the selection aspect (no stretch).
+    outer: {
+      aspectRatio: `${aspect}`,
+      height: "auto",
+    },
     frame: {
       overflow: "hidden",
       width: "100%",
