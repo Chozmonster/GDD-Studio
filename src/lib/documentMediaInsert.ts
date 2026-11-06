@@ -6,12 +6,14 @@
  * `projectId:docId` so inserts land in the active document. Insert restores
  * that selection; if never focused, content is appended at end.
  *
- * Inserts are live references (`moodBoardEmbed` by item id) — crop/border/
- * comment edits on the board propagate via moodBoardEvents.
+ * Inserts are live references (`moodBoardEmbed` by board id + item id) —
+ * crop/border/comment edits on the board propagate via moodBoardEvents.
  */
 
 export type MoodBoardMediaInsert = {
   projectId: string;
+  /** Named mood board id — required for multi-board targeting. */
+  moodBoardId: string;
   /** Mood Board item id — document embeds by reference, not a media snapshot. */
   moodBoardItemId: string;
   /** Display hint for status toast only. */

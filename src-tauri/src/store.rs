@@ -1,5 +1,5 @@
 //! Local persistence for the project library, settings, and on-disk project
-//! payloads (docs, flowcharts, RGD sheets, mood board, assets, templates).
+//! payloads (docs, flowcharts, RGD sheets, mood boards, assets, templates).
 //!
 //! Security invariants:
 //! - Entity ids are filename-safe (`validate_entity_id`) — no path traversal.
@@ -1199,9 +1199,18 @@ pub fn delete_asset(app: &AppHandle, project_id: String, asset_id: String) -> Re
     Ok(())
 }
 
-// ── Mood Board ─────────────────────────────────────────────────────────────
+// ── Mood Board (named library, like flowcharts) ────────────────────────────
 
-const MOOD_BOARD_FILE: &str = "mood-board.json";
+const MOOD_BOARDS_DIR: &str = "mood-boards";
+/// Legacy single-board file; migrated into mood-boards/main.json on first access.
+const LEGACY_MOOD_BOARD_FILE: &str = "mood-board.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoodBoardSummary {
+    pub id: String,
+    pub name: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1242,20 +1251,89 @@ pub struct MoodBoardItem {
 pub struct MoodBoardDocument {
     pub format: String,
     pub version: u32,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
     pub items: Vec<MoodBoardItem>,
 }
 
-fn mood_board_path(project: &ProjectRecord) -> Result<PathBuf, String> {
+fn mood_boards_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(MOOD_BOARDS_DIR)
+}
+
+fn mood_board_path(project: &ProjectRecord, board_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(board_id, "mood board")?;
+    let id = board_id.trim();
+    let dir = mood_boards_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
+}
+
+fn legacy_mood_board_path(project: &ProjectRecord) -> Result<PathBuf, String> {
     let root = PathBuf::from(&project.path);
-    let path = root.join(MOOD_BOARD_FILE);
+    let path = root.join(LEGACY_MOOD_BOARD_FILE);
     ensure_path_within(&root, &path)
 }
 
-fn empty_mood_board() -> MoodBoardDocument {
+fn empty_mood_board(id: &str) -> MoodBoardDocument {
     MoodBoardDocument {
         format: "gdd-studio-mood-board".into(),
-        version: 1,
+        version: 2,
+        id: id.into(),
+        name: if id == "main" {
+            "Main".into()
+        } else {
+            id.into()
+        },
         items: Vec::new(),
+    }
+}
+
+/// Move legacy root mood-board.json into mood-boards/main.json once.
+fn migrate_legacy_mood_board(project: &ProjectRecord) -> Result<(), String> {
+    let legacy = legacy_mood_board_path(project)?;
+    if !legacy.is_file() {
+        return Ok(());
+    }
+    let main_path = mood_board_path(project, "main")?;
+    if main_path.is_file() {
+        // Library already present — leave legacy file for manual cleanup.
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&legacy).map_err(|e| format!("read legacy mood board: {e}"))?;
+    let mut doc: MoodBoardDocument =
+        serde_json::from_str(&raw).map_err(|e| format!("parse legacy mood board: {e}"))?;
+    doc.format = "gdd-studio-mood-board".into();
+    doc.version = 2;
+    doc.id = "main".into();
+    if doc.name.trim().is_empty() {
+        doc.name = "Main".into();
+    }
+    sanitize_mood_board_doc(&mut doc);
+    if let Some(parent) = main_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create mood-boards dir: {e}"))?;
+    }
+    write_json(&main_path, &doc)?;
+    // Keep legacy file renamed so re-open is idempotent and data isn't lost on write failure.
+    let backup = legacy.with_extension("json.bak");
+    let _ = fs::rename(&legacy, &backup);
+    Ok(())
+}
+
+fn sanitize_mood_board_doc(doc: &mut MoodBoardDocument) {
+    doc.items.retain(|item| {
+        validate_entity_id(&item.id, "mood board item").is_ok()
+            && validate_entity_id(&item.asset_id, "asset").is_ok()
+    });
+    if doc.items.len() > MAX_MOOD_BOARD_ITEMS {
+        doc.items.truncate(MAX_MOOD_BOARD_ITEMS);
+    }
+    for item in &mut doc.items {
+        item.comment = sanitize_mood_comment(&item.comment);
+        item.crop = item.crop.take().and_then(sanitize_mood_crop);
+        item.border = item.border.take().and_then(sanitize_mood_border);
     }
 }
 
@@ -1351,30 +1429,87 @@ fn normalize_mood_board_items(items: &mut Vec<MoodBoardItem>) -> Result<(), Stri
     Ok(())
 }
 
+pub fn list_mood_boards(
+    app: &AppHandle,
+    project_id: String,
+) -> Result<Vec<MoodBoardSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    migrate_legacy_mood_board(&project)?;
+    let dir = mood_boards_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read mood-boards: {e}"))? {
+            let entry = entry.map_err(|e| format!("read mood-boards entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("untitled")
+                .to_string();
+            if validate_entity_id(&id, "mood board").is_err() {
+                continue;
+            }
+            let name = fs::read_to_string(&path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<MoodBoardDocument>(&raw).ok())
+                .map(|doc| {
+                    if doc.name.trim().is_empty() {
+                        if id == "main" {
+                            "Main".into()
+                        } else {
+                            id.clone()
+                        }
+                    } else {
+                        doc.name
+                    }
+                })
+                .unwrap_or_else(|| {
+                    if id == "main" {
+                        "Main".into()
+                    } else {
+                        id.clone()
+                    }
+                });
+            items.push(MoodBoardSummary { id, name });
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    if items.is_empty() {
+        items.push(MoodBoardSummary {
+            id: "main".into(),
+            name: "Main".into(),
+        });
+    }
+    Ok(items)
+}
+
 pub fn load_mood_board(
     app: &AppHandle,
     project_id: String,
+    board_id: String,
 ) -> Result<MoodBoardDocument, String> {
     let project = project_by_id(app, &project_id)?;
-    let path = mood_board_path(&project)?;
+    migrate_legacy_mood_board(&project)?;
+    let path = mood_board_path(&project, &board_id)?;
     if !path.exists() {
-        return Ok(empty_mood_board());
+        return Ok(empty_mood_board(&board_id));
     }
     let raw = fs::read_to_string(&path).map_err(|e| format!("read mood board: {e}"))?;
     let mut doc: MoodBoardDocument =
         serde_json::from_str(&raw).map_err(|e| format!("parse mood board: {e}"))?;
-    // Drop malformed ids from tampered boards; keep the rest usable.
-    doc.items.retain(|item| {
-        validate_entity_id(&item.id, "mood board item").is_ok()
-            && validate_entity_id(&item.asset_id, "asset").is_ok()
-    });
-    if doc.items.len() > MAX_MOOD_BOARD_ITEMS {
-        doc.items.truncate(MAX_MOOD_BOARD_ITEMS);
+    sanitize_mood_board_doc(&mut doc);
+    if doc.id.trim().is_empty() {
+        doc.id = board_id.trim().to_string();
     }
-    for item in &mut doc.items {
-        item.comment = sanitize_mood_comment(&item.comment);
-        item.crop = item.crop.take().and_then(sanitize_mood_crop);
-        item.border = item.border.take().and_then(sanitize_mood_border);
+    if doc.name.trim().is_empty() {
+        doc.name = if board_id.trim() == "main" {
+            "Main".into()
+        } else {
+            board_id.trim().to_string()
+        };
     }
     Ok(doc)
 }
@@ -1382,15 +1517,58 @@ pub fn load_mood_board(
 pub fn save_mood_board(
     app: &AppHandle,
     project_id: String,
+    board_id: String,
     document: MoodBoardDocument,
 ) -> Result<MoodBoardDocument, String> {
     let project = project_by_id(app, &project_id)?;
+    migrate_legacy_mood_board(&project)?;
     let mut document = document;
     document.format = "gdd-studio-mood-board".into();
-    document.version = 1;
+    document.version = 2;
+    document.id = board_id.trim().to_string();
+    if document.name.trim().is_empty() {
+        document.name = if document.id == "main" {
+            "Main".into()
+        } else {
+            document.id.clone()
+        };
+    }
     normalize_mood_board_items(&mut document.items)?;
-    write_json(&mood_board_path(&project)?, &document)?;
+    let path = mood_board_path(&project, &board_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create mood-boards dir: {e}"))?;
+    }
+    write_json(&path, &document)?;
     Ok(document)
+}
+
+pub fn mood_board_exists(
+    app: &AppHandle,
+    project_id: String,
+    board_id: String,
+) -> Result<bool, String> {
+    let project = project_by_id(app, &project_id)?;
+    migrate_legacy_mood_board(&project)?;
+    let path = mood_board_path(&project, &board_id)?;
+    Ok(path.is_file())
+}
+
+pub fn delete_mood_board(
+    app: &AppHandle,
+    project_id: String,
+    board_id: String,
+) -> Result<(), String> {
+    let id = board_id.trim();
+    if id == "main" {
+        return Err("Main mood board cannot be deleted".into());
+    }
+    let project = project_by_id(app, &project_id)?;
+    migrate_legacy_mood_board(&project)?;
+    let path = mood_board_path(&project, id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete mood board: {e}"))?;
+    }
+    Ok(())
 }
 
 // ── Templates (app-level + project-level) ──────────────────────────────────

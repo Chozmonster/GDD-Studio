@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAssetSrc,
   listAssets,
+  listMoodBoards,
   loadMoodBoard,
   saveAssetFromFile,
   saveMoodBoard,
@@ -21,12 +22,16 @@ import type {
   MoodBoardItem,
   ProjectRecord,
 } from "../../types";
+import { SplitPane } from "../SplitPane";
+import { MoodBoardSidebar } from "./MoodBoardSidebar";
 import { MoodBorderDialog } from "./MoodBorderDialog";
 import { MoodCropDialog } from "./MoodCropDialog";
 import { MoodMediaFrame } from "./MoodMediaFrame";
 
 type MoodBoardProps = {
   project: ProjectRecord;
+  /** When set (e.g. from a document embed Open), select that board. */
+  focusBoardId?: string | null;
   onInsertedIntoDocument?: () => void;
 };
 
@@ -45,12 +50,24 @@ type EditDialog =
   | { kind: "crop"; itemId: string; src: string }
   | { kind: "border"; itemId: string };
 
-function emptyBoard(): MoodBoardDocument {
-  return { format: "gdd-studio-mood-board", version: 1, items: [] };
+function emptyBoard(id = "main", name = "Main"): MoodBoardDocument {
+  return {
+    format: "gdd-studio-mood-board",
+    version: 2,
+    id,
+    name,
+    items: [],
+  };
 }
 
-export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
-  const [board, setBoard] = useState<MoodBoardDocument>(emptyBoard);
+export function MoodBoard({
+  project,
+  focusBoardId,
+  onInsertedIntoDocument,
+}: MoodBoardProps) {
+  const [boardId, setBoardId] = useState("main");
+  const [boardName, setBoardName] = useState("Main");
+  const [board, setBoard] = useState<MoodBoardDocument>(() => emptyBoard());
   const [assets, setAssets] = useState<Record<string, AssetRecord>>({});
   const [status, setStatus] = useState("Loading…");
   const [dragOver, setDragOver] = useState(false);
@@ -59,20 +76,32 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
   const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
   const clipboardRef = useRef<BoardClipboard | null>(null);
   const boardRef = useRef(board);
+  const boardIdRef = useRef(boardId);
   const saveTimer = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   boardRef.current = board;
+  boardIdRef.current = boardId;
+
+  const selectBoard = useCallback((id: string, name: string) => {
+    setBoardId(id);
+    setBoardName(name);
+    setSelectedId(null);
+    setMenu(null);
+    setEditDialog(null);
+  }, []);
 
   const persist = useCallback(
     async (next: MoodBoardDocument, removedIds: string[] = []) => {
-      const saved = await saveMoodBoard(project.id, next);
+      const id = boardIdRef.current;
+      const saved = await saveMoodBoard(project.id, id, next);
       setBoard(saved);
       boardRef.current = saved;
-      emitMoodBoardSaved(project.id, saved);
-      for (const id of removedIds) {
-        emitMoodBoardItemDeleted(project.id, id);
+      setBoardName(saved.name);
+      emitMoodBoardSaved(project.id, id, saved);
+      for (const removed of removedIds) {
+        emitMoodBoardItemDeleted(project.id, id, removed);
       }
       setStatus(`Saved ${new Date().toLocaleTimeString()}`);
     },
@@ -81,12 +110,13 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
 
   const schedulePersist = useCallback(
     (next: MoodBoardDocument, removedIds: string[] = []) => {
+      const id = boardIdRef.current;
       setBoard(next);
       boardRef.current = next;
       // Optimistic live update so open Document embeds refresh immediately.
-      emitMoodBoardSaved(project.id, next);
-      for (const id of removedIds) {
-        emitMoodBoardItemDeleted(project.id, id);
+      emitMoodBoardSaved(project.id, id, next);
+      for (const removed of removedIds) {
+        emitMoodBoardItemDeleted(project.id, id, removed);
       }
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
@@ -105,18 +135,47 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     setAssets(map);
   }, [project.id]);
 
+  // Pick initial / focused board when project or focusBoardId changes.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const list = await listMoodBoards(project.id);
+      if (cancelled) return;
+      if (focusBoardId && list.some((b) => b.id === focusBoardId)) {
+        const found = list.find((b) => b.id === focusBoardId)!;
+        selectBoard(found.id, found.name);
+        return;
+      }
+      if (list[0]) selectBoard(list[0].id, list[0].name);
+      else selectBoard("main", "Main");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, selectBoard]);
+
+  useEffect(() => {
+    if (!focusBoardId) return;
+    void listMoodBoards(project.id).then((list) => {
+      const found = list.find((b) => b.id === focusBoardId);
+      if (found) selectBoard(found.id, found.name);
+    });
+  }, [focusBoardId, project.id, selectBoard]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setStatus("Loading…");
       try {
         const [doc] = await Promise.all([
-          loadMoodBoard(project.id),
+          loadMoodBoard(project.id, boardId),
           refreshAssets(),
         ]);
         if (cancelled) return;
         setBoard(doc);
         boardRef.current = doc;
-        emitMoodBoardSaved(project.id, doc);
+        setBoardName(doc.name || boardName);
+        emitMoodBoardSaved(project.id, boardId, doc);
         setStatus(doc.items.length ? "Ready" : "Drop or paste media to begin");
       } catch (e) {
         if (!cancelled) {
@@ -128,7 +187,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, refreshAssets]);
+  }, [project.id, boardId, refreshAssets]);
 
   const updateItem = useCallback(
     (
@@ -139,13 +198,15 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     ) => {
       const next: MoodBoardDocument = {
         ...boardRef.current,
+        id: boardIdRef.current,
+        name: boardRef.current.name || boardName,
         items: boardRef.current.items.map((i) =>
           i.id === itemId ? { ...i, ...patch } : i,
         ),
       };
       schedulePersist(next);
     },
-    [schedulePersist],
+    [boardName, schedulePersist],
   );
 
   const addFiles = useCallback(
@@ -352,6 +413,7 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
       }
       requestInsertMediaFromMoodBoard({
         projectId: project.id,
+        moodBoardId: boardIdRef.current,
         moodBoardItemId: item.id,
         filename: asset.filename,
         kind: String(asset.kind),
@@ -438,10 +500,28 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
     : null;
 
   return (
-    <section className="mood-shell" ref={surfaceRef} tabIndex={0} aria-label="Mood board">
+    <div className="flowchart-shell mood-library-shell">
+      <SplitPane
+        id="moodboard.sidebar"
+        defaultSize={210}
+        minSize={140}
+        maxSize={420}
+        minSecondary={320}
+      >
+        <MoodBoardSidebar
+          project={project}
+          activeId={boardId}
+          onSelect={selectBoard}
+        />
+        <section
+          className="mood-shell"
+          ref={surfaceRef}
+          tabIndex={0}
+          aria-label={`Mood board ${boardName}`}
+        >
       <header className="mood-toolbar">
         <div className="mood-toolbar-left">
-          <h2>Mood Board</h2>
+          <h2>{boardName}</h2>
           <p className="muted tiny mood-blurb">
             Drop or paste reference media. Crop and border edits stay on the
             tile and update every live Document embed. Right-click for comment,
@@ -628,7 +708,9 @@ export function MoodBoard({ project, onInsertedIntoDocument }: MoodBoardProps) {
           }}
         />
       )}
-    </section>
+        </section>
+      </SplitPane>
+    </div>
   );
 }
 

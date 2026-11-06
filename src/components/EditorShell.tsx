@@ -25,6 +25,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [focusFlowchartId, setFocusFlowchartId] = useState<string | null>(null);
   const [focusSheetId, setFocusSheetId] = useState<string | null>(null);
+  const [focusMoodBoardId, setFocusMoodBoardId] = useState<string | null>(null);
 
   const openFlowchart = useCallback((flowchartId: string) => {
     setFocusFlowchartId(flowchartId);
@@ -36,7 +37,8 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
     setTab("rgd");
   }, []);
 
-  const openMoodBoard = useCallback(() => {
+  const openMoodBoard = useCallback((boardId?: string) => {
+    setFocusMoodBoardId(boardId ?? null);
     setTab("moodboard");
   }, []);
 
@@ -144,6 +146,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
         {tab === "moodboard" && (
           <MoodBoard
             project={project}
+            focusBoardId={focusMoodBoardId}
             onInsertedIntoDocument={() => setTab("document")}
           />
         )}

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Mood Board is a named library (create / rename / delete / switch), matching the Flowcharts left-list pattern. Existing single-board projects migrate to a **Main** board with their tiles intact. Document embeds stay live by reference and target the correct board (legacy embeds without a board id resolve against Main / library search).
+
 ### Changed
 
 - Flowchart connectors: node anchor/handle circles are 25% smaller and arrowheads are 50% larger so end arrows stay visible under the handles (editor, preview, and embeds share the same styles).

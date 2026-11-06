@@ -113,12 +113,19 @@ export const HELP_APP: HelpArticleContent = {
 
 export const HELP_MOOD_BOARD: HelpArticleContent = {
   title: "Mood Board",
-  lead: "Project scratchpad for reference media. Tile edits (crop, border, comment) live on the board item and refresh every document embed of that tile.",
+  lead: "Named library of reference-media boards (like Flowcharts). Tile edits (crop, border, comment) live on the board item and refresh every document embed of that tile.",
   topics: [
+    {
+      title: "Multiple boards",
+      steps: [
+        "Use the left list to create, rename, delete, or switch boards (Main cannot be deleted).",
+        "Existing single-board projects migrate automatically to a Main board with their tiles intact.",
+      ],
+    },
     {
       title: "Add & arrange",
       steps: [
-        "Drop files on the board, paste from the OS clipboard, or use Add media…",
+        "Drop files on the active board, paste from the OS clipboard, or use Add media…",
         "Copy / Cut / Paste / Delete selected tiles (context menu or shortcuts when the board is focused). Paste also imports OS clipboard files when the board clipboard is empty.",
       ],
     },
@@ -132,10 +139,10 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
     {
       title: "Insert into Document",
       steps: [
-        "Right-click a tile → Insert into Document. Embeds a live link at the last Document cursor (or end of doc if Document was never focused).",
-        "Crop, border, and comment changes propagate automatically; deleting the tile breaks the embed.",
+        "Right-click a tile → Insert into Document. Embeds a live link to that board + tile at the last Document cursor (or end of doc if Document was never focused).",
+        "Crop, border, and comment changes propagate automatically; deleting the tile (or its board) breaks the embed. Open board jumps to the correct named board.",
       ],
-      note: "v1 is a grid with comments and basic image edits — not a free-position canvas. Direct Document paste/Insert media still creates standalone embeds (not Mood Board-linked). Those media embeds are also resizable and alignment-aware.",
+      note: "Each board is a grid with comments and basic image edits — not a free-position canvas. Direct Document paste/Insert media still creates standalone embeds (not Mood Board-linked). Those media embeds are also resizable and alignment-aware.",
     },
   ],
 };

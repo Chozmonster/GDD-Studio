@@ -69,10 +69,18 @@ export type MoodBoardItem = {
   border?: MoodBoardBorder | null;
 };
 
-/** Project-persisted Mood Board (scratchpad of reference media). */
+export type MoodBoardSummary = {
+  id: string;
+  name: string;
+};
+
+/** Project-persisted Mood Board (named library entry; scratchpad of reference media). */
 export type MoodBoardDocument = {
   format: "gdd-studio-mood-board";
-  version: 1;
+  /** v2 adds id/name for the multi-board library. Legacy v1 files migrate on load. */
+  version: 1 | 2;
+  id: string;
+  name: string;
   items: MoodBoardItem[];
 };
 
