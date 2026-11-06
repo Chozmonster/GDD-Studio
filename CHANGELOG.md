@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-06
+
+Flowchart Miro multi-select, nested document map, Open project folder, and Options update/resize fixes.
+
 ### Added
 
 - Flowchart canvas Miro-like multi-select: left-drag on empty pane marquees intersecting nodes and connectors; click selects; Shift+click adds/toggles; drag moves the selection; click empty clears; Space+drag or middle-mouse pans (scroll/pinch zoom). Type / shape / color / connector style tools apply to all selected items.
@@ -21,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 
 - In-app cloud sync / OAuth (Drive MVP) was not shipped; portable DIY folder backup is the intended path.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.4] - 2026-11-06
 
