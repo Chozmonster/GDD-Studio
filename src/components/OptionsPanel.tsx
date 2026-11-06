@@ -1,30 +1,55 @@
 import { useEffect, useState } from "react";
 import {
   checkForUpdates,
+  fetchActiveProject,
   fetchPatchNotes,
   fetchSettings,
+  revealProjectFolder,
   setAutomaticUpdates,
   setDisplayVariableNames,
 } from "../api";
 import { emitSettingsChanged } from "../lib/settingsEvents";
-import type { AppSettings, UpdateStatus } from "../types";
+import type { AppSettings, ProjectRecord, UpdateStatus } from "../types";
 
 type OptionsPanelProps = {
   asWindow?: boolean;
   onClose?: () => void;
+  /** When known (editor modal), prefer this project for Open project folder. */
+  project?: ProjectRecord | null;
 };
 
-export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
+export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState<string | null>(null);
+  const [activeProject, setActiveProject] = useState<ProjectRecord | null>(
+    project ?? null,
+  );
 
   useEffect(() => {
     void fetchSettings()
       .then(setSettings)
       .catch((e) => setStatus(e instanceof Error ? e.message : String(e)));
   }, []);
+
+  useEffect(() => {
+    if (project) {
+      setActiveProject(project);
+      return;
+    }
+    let cancelled = false;
+    void fetchActiveProject()
+      .then((active) => {
+        if (!cancelled) setActiveProject(active);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveProject(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project]);
 
   const applySettings = (next: AppSettings) => {
     setSettings(next);
@@ -99,6 +124,22 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
     }
   };
 
+  const openFolder = async () => {
+    setBusy(true);
+    try {
+      await revealProjectFolder(activeProject?.id);
+      setStatus(
+        activeProject
+          ? `Opened folder for “${activeProject.name}” in your file manager.`
+          : "Opened project folder.",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className={asWindow ? "options-window" : "options-modal-inner"}>
       <header className="options-header">
@@ -109,6 +150,34 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
           </button>
         )}
       </header>
+
+      <section className="options-section">
+        <h3>Project</h3>
+        <p className="muted tiny options-section-lead">
+          Projects live as ordinary folders on disk. Open the folder to back up
+          or copy it yourself (Dropbox, Drive, USB, etc.) — there is no in-app
+          cloud sync.
+        </p>
+        <div className="options-actions">
+          <button
+            type="button"
+            onClick={() => void openFolder()}
+            disabled={busy || !activeProject}
+            title={
+              activeProject ? activeProject.path : "Open a project first"
+            }
+          >
+            Open project folder
+          </button>
+        </div>
+        {activeProject ? (
+          <p className="muted tiny path-line" title={activeProject.path}>
+            {activeProject.path}
+          </p>
+        ) : (
+          <p className="muted tiny">Open a project first to enable this.</p>
+        )}
+      </section>
 
       <section className="options-section">
         <h3>Document</h3>

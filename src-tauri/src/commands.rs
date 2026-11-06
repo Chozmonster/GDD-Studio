@@ -9,8 +9,25 @@ use crate::store::{
 };
 use crate::updates::{self, UpdateStatus};
 use serde::Serialize;
+use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri::State;
+use tauri_plugin_opener::OpenerExt;
+
+/// Tracks which project the editor currently has open (Options is a separate window).
+pub struct ActiveSession {
+    pub active_project_id: Mutex<Option<String>>,
+}
+
+impl Default for ActiveSession {
+    fn default() -> Self {
+        Self {
+            active_project_id: Mutex::new(None),
+        }
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,8 +66,62 @@ pub fn delete_project(app: AppHandle, project_id: String) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub fn open_project(app: AppHandle, project_id: String) -> Result<ProjectRecord, String> {
-    store::open_project_record(&app, project_id)
+pub fn open_project(
+    app: AppHandle,
+    session: State<'_, ActiveSession>,
+    project_id: String,
+) -> Result<ProjectRecord, String> {
+    let record = store::open_project_record(&app, project_id)?;
+    let mut guard = session
+        .active_project_id
+        .lock()
+        .map_err(|_| "session lock poisoned".to_string())?;
+    *guard = Some(record.id.clone());
+    Ok(record)
+}
+
+/// Project currently open in the editor, if any (None on the launcher).
+#[tauri::command]
+pub fn get_active_project(
+    app: AppHandle,
+    session: State<'_, ActiveSession>,
+) -> Result<Option<ProjectRecord>, String> {
+    let id = session
+        .active_project_id
+        .lock()
+        .map_err(|_| "session lock poisoned".to_string())?
+        .clone();
+    match id {
+        Some(id) => Ok(Some(store::project_by_id(&app, &id)?)),
+        None => Ok(None),
+    }
+}
+
+/// Reveal a project's root folder in the OS file manager (Explorer / Finder / xdg).
+/// When `project_id` is omitted, uses the editor's active project.
+#[tauri::command]
+pub fn reveal_project_folder(
+    app: AppHandle,
+    session: State<'_, ActiveSession>,
+    project_id: Option<String>,
+) -> Result<(), String> {
+    let id = match project_id {
+        Some(id) => id,
+        None => session
+            .active_project_id
+            .lock()
+            .map_err(|_| "session lock poisoned".to_string())?
+            .clone()
+            .ok_or_else(|| "Open a project first.".to_string())?,
+    };
+    let project = store::project_by_id(&app, &id)?;
+    let path = PathBuf::from(&project.path);
+    if !path.is_dir() {
+        return Err(format!("Project folder not found:\n{}", project.path));
+    }
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| format!("Open project folder failed: {e}"))
 }
 
 #[tauri::command]
@@ -104,7 +175,7 @@ pub async fn open_options_window(app: AppHandle) -> Result<(), String> {
     let url = tauri::WebviewUrl::App("index.html?window=options".into());
     tauri::WebviewWindowBuilder::new(&app, "options", url)
         .title("Options — GDD Studio")
-        .inner_size(480.0, 360.0)
+        .inner_size(480.0, 460.0)
         .resizable(false)
         .center()
         .build()

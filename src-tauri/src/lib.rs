@@ -13,14 +13,14 @@ mod window_geom;
 use commands::{
     app_health, check_for_updates, create_project, create_project_document, default_projects_dir,
     delete_asset, delete_flowchart, delete_project, delete_project_document, delete_rgd_sheet,
-    delete_template, flowchart_exists, get_asset_data_url, get_asset_path, get_patch_notes,
-    get_settings, install_update, list_assets, list_backlinks, list_documents, list_flowcharts,
-    list_projects, list_rgd_sheets, list_templates, load_document, load_flowchart,
+    delete_template, flowchart_exists, get_active_project, get_asset_data_url, get_asset_path,
+    get_patch_notes, get_settings, install_update, list_assets, list_backlinks, list_documents,
+    list_flowcharts, list_projects, list_rgd_sheets, list_templates, load_document, load_flowchart,
     load_mood_board, load_project_document, load_rgd_sheet, load_template, load_variables,
-    open_options_window, open_project, resolve_wiki_slug, rgd_sheet_exists, save_asset,
-    save_document, save_flowchart, save_mood_board, save_project_document, save_rgd_sheet,
-    save_template, save_variables, set_automatic_updates, set_display_variable_names,
-    write_export_html,
+    open_options_window, open_project, resolve_wiki_slug, reveal_project_folder, rgd_sheet_exists,
+    save_asset, save_document, save_flowchart, save_mood_board, save_project_document,
+    save_rgd_sheet, save_template, save_variables, set_automatic_updates,
+    set_display_variable_names, write_export_html, ActiveSession,
 };
 use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
@@ -29,8 +29,10 @@ use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .manage(WindowGeomState::default())
+        .manage(ActiveSession::default())
         .setup(|app| {
             #[cfg(desktop)]
             {
@@ -49,6 +51,8 @@ pub fn run() {
             create_project,
             delete_project,
             open_project,
+            get_active_project,
+            reveal_project_folder,
             get_settings,
             set_automatic_updates,
             set_display_variable_names,

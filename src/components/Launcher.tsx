@@ -10,6 +10,7 @@ import {
   installUpdate,
   openOptionsWindow,
   openProject,
+  revealProjectFolder,
   saveDocument,
   saveRgdSheet,
 } from "../api";
@@ -133,6 +134,19 @@ export function Launcher({ onOpenProject }: LauncherProps) {
       await openOptionsWindow();
     } catch {
       setOptionsModal(true);
+    }
+  };
+
+  const handleOpenFolder = async () => {
+    if (!selected) return;
+    setBusyId(selected.id);
+    setError(null);
+    try {
+      await revealProjectFolder(selected.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -267,6 +281,19 @@ export function Launcher({ onOpenProject }: LauncherProps) {
             onClick={() => selected && void handleOpen(selected)}
           >
             Edit
+          </button>
+          <button
+            type="button"
+            className="wide"
+            disabled={!selected || busyId === selected?.id}
+            title={
+              selected
+                ? "Open this project’s folder in your file manager"
+                : undefined
+            }
+            onClick={() => void handleOpenFolder()}
+          >
+            Open project folder
           </button>
           <button
             type="button"

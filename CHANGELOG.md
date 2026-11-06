@@ -10,10 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Flowchart canvas Miro-like multi-select: left-drag on empty pane marquees intersecting nodes and connectors; click selects; Shift+click adds/toggles; drag moves the selection; click empty clears; Space+drag or middle-mouse pans (scroll/pinch zoom). Type / shape / color / connector style tools apply to all selected items.
+- Options → **Open project folder** reveals the current project’s root directory in the OS file manager (Explorer / Finder / xdg). Same action on the launcher for the selected project. Copy the folder yourself for backup (Dropbox, Drive, USB, etc.).
 
 ### Changed
 
 - Document map nests headings by level (H1 → H2 → H3) with visual indent instead of a flat list; click-to-scroll and live updates are unchanged.
+
+### Notes
+
+- In-app cloud sync / OAuth (Drive MVP) was not shipped; portable DIY folder backup is the intended path.
 
 ## [0.1.4] - 2026-11-06
 
