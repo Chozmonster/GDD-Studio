@@ -1,9 +1,11 @@
 import type { Editor } from "@tiptap/react";
 import { useEffect, useState } from "react";
 import {
+  buildOutlineTree,
   collectOutline,
   jumpToOutlineItem,
   type OutlineItem,
+  type OutlineTreeNode,
 } from "./documentOutline";
 
 type MapFilter = "all" | "rgd";
@@ -11,6 +13,39 @@ type MapFilter = "all" | "rgd";
 type DocumentMapProps = {
   editor: Editor | null;
 };
+
+function MapTree({
+  nodes,
+  onJump,
+}: {
+  nodes: OutlineTreeNode[];
+  onJump: (pos: number, kind?: OutlineItem["kind"]) => void;
+}) {
+  if (nodes.length === 0) return null;
+  return (
+    <ul className="doc-map-list">
+      {nodes.map((node) => (
+        <li
+          key={node.id}
+          className={`doc-map-item level-${node.level}${
+            node.kind === "rgd" || node.kind === "rgdSheet" ? " is-rgd" : ""
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => onJump(node.pos, node.kind)}
+            title={node.text}
+          >
+            {node.text}
+          </button>
+          {node.children.length > 0 ? (
+            <MapTree nodes={node.children} onJump={onJump} />
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function DocumentMap({ editor }: DocumentMapProps) {
   const [items, setItems] = useState<OutlineItem[]>([]);
@@ -40,6 +75,7 @@ export function DocumentMap({ editor }: DocumentMapProps) {
     filter === "rgd"
       ? items.filter((i) => i.kind === "rgd" || i.kind === "rgdSheet")
       : items;
+  const tree = buildOutlineTree(visible);
   const rgdCount = items.filter(
     (i) => i.kind === "rgd" || i.kind === "rgdSheet",
   ).length;
@@ -68,31 +104,14 @@ export function DocumentMap({ editor }: DocumentMapProps) {
           </button>
         </div>
       </header>
-      {visible.length === 0 ? (
+      {tree.length === 0 ? (
         <p className="muted tiny doc-side-empty">
           {filter === "rgd"
             ? "No RGD tables yet. Use Insert RGD… in the toolbar."
             : "Add H1–H3 headings or RGD tables to build an outline."}
         </p>
       ) : (
-        <ul className="doc-map-list">
-          {visible.map((h) => (
-            <li
-              key={h.id}
-              className={`doc-map-item level-${h.level}${
-                h.kind === "rgd" || h.kind === "rgdSheet" ? " is-rgd" : ""
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => jumpTo(h.pos, h.kind)}
-                title={h.text}
-              >
-                {h.text}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <MapTree nodes={tree} onJump={jumpTo} />
       )}
     </aside>
   );

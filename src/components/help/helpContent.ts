@@ -67,7 +67,7 @@ export const HELP_APP: HelpArticleContent = {
       title: "Documents",
       steps: [
         "Use the Documents pane (left rail, bottom) to create, switch, or delete docs. The main document cannot be deleted.",
-        "Document map (left rail, top) lists headings — click to jump within the active doc.",
+        "Document map (left rail, top) nests headings by level (H1 → H2 → H3) — click to jump within the active doc.",
         "Link across docs with [[Doc Title]] (or toolbar Link). There is no section-link picker; use the map for in-doc jumps.",
         "Drag pane handles to resize (map|docs, editor|variables, tool lists). Sizes persist; narrow windows stack instead of dragging.",
       ],
