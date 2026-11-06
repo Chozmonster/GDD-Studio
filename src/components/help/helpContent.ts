@@ -85,7 +85,8 @@ export const HELP_APP: HelpArticleContent = {
       title: "Flowcharts",
       steps: [
         "Open the Flowcharts tab — named list + canvas.",
-        "Type buttons (Start / End / Action / Decision / State): with a node selected they change its type; with none selected they create a node.",
+        "Drag on empty canvas to marquee-select nodes and connectors; Shift+click adds or toggles. Pan with Space+drag, middle mouse, or right-drag.",
+        "Type buttons (Start / End / Action / Decision / State): with nodes selected they change all of them; with none selected they create a node.",
         "Drag a connector end onto another node to reconnect. Per-edge Start/End arrow toggles; new edges default angled with an end arrow.",
         "Insert a live embed into the active document from the flowchart tools.",
       ],

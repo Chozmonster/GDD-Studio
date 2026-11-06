@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Flowchart canvas marquee multi-select: left-drag on empty pane selects intersecting nodes and connectors; Shift+click adds/toggles; Space / middle / right-drag pans. Type / shape / color / connector style tools apply to the whole selection.
+
 ## [0.1.4] - 2026-11-06
 
 Mood Board crop keeps the selection’s aspect ratio in tiles and live document embeds.
