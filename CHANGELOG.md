@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-06
+
+Flowchart descriptions, connector sizing, multi mood boards, and colour palettes.
+
 ### Added
 
 - Flowchart **description**: edit from the Flowcharts left list (like Mood Board comments); shown beneath live document embeds and included in PDF/screenshot captures of embed chrome. Older projects migrate to an empty string.
@@ -16,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Flowchart connectors: node anchor/handle circles are 25% smaller and arrowheads are 50% larger so end arrows stay visible under the handles (editor, preview, and embeds share the same styles).
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.7] - 2026-11-06
 
