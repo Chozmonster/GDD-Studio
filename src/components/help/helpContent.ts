@@ -88,13 +88,14 @@ export const HELP_APP: HelpArticleContent = {
         "Canvas inputs follow Miro: left-drag empty area marquees nodes and connectors; click selects; Shift+click adds/toggles; drag a selection to move it; click empty clears. Pan with Space+drag or middle mouse (scroll/pinch zoom).",
         "Nodes toolbar (Start / End / Action / Decision / State plus Rectangle / Rounded / Diamond / Ellipse): with nodes selected they change all of them; with none selected they create. Types also apply their default shape (e.g. Decision → diamond).",
         "Connector toolbar (Curved / Angled, Start / End arrow): changes selected edges, or sets defaults for new connections (angled + end arrow by default). Drag a connector end onto another node to reconnect.",
-        "Insert a live embed into the active document from the flowchart tools.",
+        "Insert a live embed into the active document from the flowchart tools. Embeds stay centered and fitted in their frame (no drag-pan); the Flowcharts tab keeps Miro-like panning.",
       ],
     },
     {
       title: "Live tool → document embeds",
       lead: "Flowcharts, RGD tables, and Mood Board inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
       tips: [
+        "Flowchart embeds re-fit when the chart or embed size changes so the graph stays centered — they do not free-pan.",
         "RGD and Mood Board details: see Using RGD here and Mood Board.",
       ],
     },

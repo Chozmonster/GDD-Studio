@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Document flowchart embeds stay centered and fully visible in their frame: the preview re-fits on mount, live chart updates, and embed resize, and free pan (including Space+drag) is disabled in embeds only. The Flowcharts editor keeps Miro-like panning.
+
 ## [0.1.6] - 2026-11-06
 
 Unified flowchart Nodes and Connector toolbar.
