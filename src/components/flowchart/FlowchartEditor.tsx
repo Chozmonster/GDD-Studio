@@ -13,6 +13,7 @@ import {
   Controls,
   MiniMap,
   ConnectionMode,
+  SelectionMode,
   addEdge,
   reconnectEdge,
   useNodesState,
@@ -247,8 +248,14 @@ export function FlowchartEditor({
           const moving = nds.find((n) => n.id === change.id);
           if (!moving) return change;
           const box = nodeBox(moving);
+          // While multi-dragging, ignore other selected peers so the group
+          // does not snap nodes apart against each other.
+          const movingSelected = Boolean(moving.selected);
           const others = nds
-            .filter((n) => n.id !== change.id)
+            .filter(
+              (n) =>
+                n.id !== change.id && !(movingSelected && n.selected),
+            )
             .map((n) => nodeBox(n));
           const snapped = snapDragPosition(
             change.position,
@@ -369,26 +376,67 @@ export function FlowchartEditor({
     [setEdges, queueSave],
   );
 
-  const selectedNode =
-    nodes.find((n) => n.id === selectedNodeId) ??
-    nodes.find((n) => n.selected) ??
-    null;
-  const selectedEdge =
-    edges.find((e) => e.id === selectedEdgeId) ??
-    edges.find((e) => e.selected) ??
-    null;
+  const selectedNodes = nodes.filter(
+    (n) => n.selected || n.id === selectedNodeId,
+  );
+  const selectedEdges = edges.filter(
+    (e) => e.selected || e.id === selectedEdgeId,
+  );
+  /** Primary selection for single-value toolbar affordances (rename, etc.). */
+  const selectedNode = selectedNodes[0] ?? null;
+  const selectedEdge = selectedEdges[0] ?? null;
+  const multiNodeSelection = selectedNodes.length > 1;
+  const sharedNodeKind =
+    selectedNodes.length > 0 &&
+    selectedNodes.every((n) => n.data.kind === selectedNodes[0].data.kind)
+      ? selectedNodes[0].data.kind
+      : null;
+  const sharedNodeShape =
+    selectedNodes.length > 0 &&
+    selectedNodes.every((n) => n.data.shape === selectedNodes[0].data.shape)
+      ? selectedNodes[0].data.shape
+      : null;
+  const sharedNodeFill =
+    selectedNodes.length > 0 &&
+    selectedNodes.every((n) => n.data.fill === selectedNodes[0].data.fill)
+      ? selectedNodes[0].data.fill
+      : null;
+  const sharedEdgePath =
+    selectedEdges.length > 0 &&
+    selectedEdges.every(
+      (e) => (e.data?.path ?? "step") === (selectedEdges[0].data?.path ?? "step"),
+    )
+      ? (selectedEdges[0].data?.path ?? "step")
+      : null;
+  const sharedStartArrow =
+    selectedEdges.length > 0 &&
+    selectedEdges.every(
+      (e) => Boolean(e.data?.startArrow) === Boolean(selectedEdges[0].data?.startArrow),
+    )
+      ? Boolean(selectedEdges[0].data?.startArrow)
+      : null;
+  const sharedEndArrow =
+    selectedEdges.length > 0 &&
+    selectedEdges.every(
+      (e) =>
+        (e.data?.endArrow !== false) ===
+        (selectedEdges[0].data?.endArrow !== false),
+    )
+      ? selectedEdges[0].data?.endArrow !== false
+      : null;
 
-  const patchSelectedNode = (
+  /** Patch every selected node (marquee / Shift+click multi-select). */
+  const patchSelectedNodes = (
     patch: Partial<FlowNodeT["data"]> & {
       width?: number;
       height?: number;
     },
   ) => {
-    const target = selectedNode;
-    if (!target) return;
+    if (selectedNodes.length === 0) return;
+    const targetIds = new Set(selectedNodes.map((n) => n.id));
     setNodes((prev) => {
       const next = prev.map((n) => {
-        if (n.id !== target.id) return n;
+        if (!targetIds.has(n.id)) return n;
         const data = { ...n.data, ...patch };
         const width =
           patch.width ??
@@ -407,16 +455,17 @@ export function FlowchartEditor({
     });
   };
 
-  const patchSelectedEdge = (patch: {
+  /** Patch every selected edge. */
+  const patchSelectedEdges = (patch: {
     path?: FlowEdgePath;
     startArrow?: boolean;
     endArrow?: boolean;
   }) => {
-    const target = selectedEdge;
-    if (!target) return;
+    if (selectedEdges.length === 0) return;
+    const targetIds = new Set(selectedEdges.map((e) => e.id));
     setEdges((eds) => {
       const next = eds.map((e) => {
-        if (e.id !== target.id) return e;
+        if (!targetIds.has(e.id)) return e;
         const nextPath = patch.path ?? e.data?.path ?? "step";
         const startArrow = patch.startArrow ?? e.data?.startArrow ?? false;
         const endArrow = patch.endArrow ?? e.data?.endArrow ?? true;
@@ -470,19 +519,31 @@ export function FlowchartEditor({
     });
   };
 
-  /** One type-chip set: mutate selection when a node is selected, else create. */
+  /** One type-chip set: mutate all selected nodes, else create. */
   const applyOrCreateKind = (kind: FlowNodeKind) => {
-    const target = selectedNode;
-    if (target) {
+    if (selectedNodes.length > 0) {
       const defaults = kindDefaults(kind);
       const shape = defaults.defaultShape;
       const size = defaultSizeFor(kind, shape);
-      patchSelectedNode({
-        kind,
-        shape,
-        fill: target.data.fill ?? defaults.defaultFill,
-        width: size.width,
-        height: size.height,
+      const targetIds = new Set(selectedNodes.map((n) => n.id));
+      setNodes((prev) => {
+        const next = prev.map((n) => {
+          if (!targetIds.has(n.id)) return n;
+          const data = {
+            ...n.data,
+            kind,
+            shape,
+            // Keep each node’s fill when already set; only fill blanks from kind defaults.
+            fill: n.data.fill ?? defaults.defaultFill,
+          };
+          return {
+            ...n,
+            style: { ...n.style, width: size.width, height: size.height },
+            data,
+          };
+        });
+        queueSave(next, edgesRef.current);
+        return next;
       });
       return;
     }
@@ -510,7 +571,15 @@ export function FlowchartEditor({
     if (!node) return;
     const nextLabel = window.prompt("Node label", node.data.label ?? "");
     if (nextLabel === null) return;
-    patchSelectedNode({ label: nextLabel.trim() || "Node" });
+    // Rename applies to the primary selection only (prompt is one label).
+    const label = nextLabel.trim() || "Node";
+    setNodes((prev) => {
+      const next = prev.map((n) =>
+        n.id === node.id ? { ...n, data: { ...n.data, label } } : n,
+      );
+      queueSave(next, edgesRef.current);
+      return next;
+    });
   };
 
   const editEdgeLabel = () => {
@@ -556,9 +625,11 @@ export function FlowchartEditor({
             className="style-group flowchart-type-chips"
             role="group"
             aria-label={
-              selectedNode
-                ? "Change selected node type"
-                : "Create node by type"
+              selectedNodes.length > 1
+                ? "Change selected nodes type"
+                : selectedNode
+                  ? "Change selected node type"
+                  : "Create node by type"
             }
           >
             <span className="muted tiny">Type</span>
@@ -567,16 +638,18 @@ export function FlowchartEditor({
                 key={k.kind}
                 type="button"
                 className={
-                  selectedNode?.data.kind === k.kind
+                  sharedNodeKind === k.kind
                     ? "chip active"
                     : selectedNode
                       ? "chip"
                       : "chip type-chip"
                 }
                 title={
-                  selectedNode
-                    ? `Change selected node to ${k.label}`
-                    : `Create ${k.label} node`
+                  multiNodeSelection
+                    ? `Change ${selectedNodes.length} selected nodes to ${k.label}`
+                    : selectedNode
+                      ? `Change selected node to ${k.label}`
+                      : `Create ${k.label} node`
                 }
                 onClick={() => applyOrCreateKind(k.kind)}
               >
@@ -614,11 +687,11 @@ export function FlowchartEditor({
             <button
               key={shape}
               type="button"
-              className={
-                selectedNode?.data.shape === shape ? "chip active" : "chip"
-              }
+              className={sharedNodeShape === shape ? "chip active" : "chip"}
               disabled={!selectedNode}
-              onClick={() => patchSelectedNode({ shape: shape as FlowNodeShape })}
+              onClick={() =>
+                patchSelectedNodes({ shape: shape as FlowNodeShape })
+              }
             >
               {shape}
             </button>
@@ -630,15 +703,11 @@ export function FlowchartEditor({
             <button
               key={fill}
               type="button"
-              className={
-                selectedNode?.data.fill === fill
-                  ? "swatch active"
-                  : "swatch"
-              }
+              className={sharedNodeFill === fill ? "swatch active" : "swatch"}
               style={{ background: fill }}
               disabled={!selectedNode}
               aria-label={`Fill ${fill}`}
-              onClick={() => patchSelectedNode({ fill })}
+              onClick={() => patchSelectedNodes({ fill })}
             />
           ))}
         </div>
@@ -646,34 +715,28 @@ export function FlowchartEditor({
           <span className="muted tiny">Connector</span>
           <button
             type="button"
-            className={
-              selectedEdge?.data?.path === "curve" ? "chip active" : "chip"
-            }
+            className={sharedEdgePath === "curve" ? "chip active" : "chip"}
             disabled={!selectedEdge}
-            onClick={() => patchSelectedEdge({ path: "curve" })}
+            onClick={() => patchSelectedEdges({ path: "curve" })}
           >
             Curved
           </button>
           <button
             type="button"
-            className={
-              selectedEdge?.data?.path === "step" ? "chip active" : "chip"
-            }
+            className={sharedEdgePath === "step" ? "chip active" : "chip"}
             disabled={!selectedEdge}
-            onClick={() => patchSelectedEdge({ path: "step" })}
+            onClick={() => patchSelectedEdges({ path: "step" })}
           >
             Angled
           </button>
           <button
             type="button"
-            className={
-              selectedEdge?.data?.startArrow ? "chip active" : "chip"
-            }
+            className={sharedStartArrow ? "chip active" : "chip"}
             disabled={!selectedEdge}
-            aria-pressed={Boolean(selectedEdge?.data?.startArrow)}
+            aria-pressed={Boolean(sharedStartArrow)}
             onClick={() =>
-              patchSelectedEdge({
-                startArrow: !selectedEdge?.data?.startArrow,
+              patchSelectedEdges({
+                startArrow: !(sharedStartArrow ?? false),
               })
             }
           >
@@ -681,18 +744,12 @@ export function FlowchartEditor({
           </button>
           <button
             type="button"
-            className={
-              selectedEdge && selectedEdge.data?.endArrow !== false
-                ? "chip active"
-                : "chip"
-            }
+            className={sharedEndArrow ? "chip active" : "chip"}
             disabled={!selectedEdge}
-            aria-pressed={Boolean(
-              selectedEdge && selectedEdge.data?.endArrow !== false,
-            )}
+            aria-pressed={Boolean(sharedEndArrow)}
             onClick={() =>
-              patchSelectedEdge({
-                endArrow: !(selectedEdge?.data?.endArrow !== false),
+              patchSelectedEdges({
+                endArrow: !(sharedEndArrow ?? true),
               })
             }
           >
@@ -702,11 +759,14 @@ export function FlowchartEditor({
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Type chips create a node when nothing is selected, or change the
-        selected node’s type · shape / color style the selection · drag N/E/S/W
-        anchors to connect (angled + end arrow by default) · drag a connector
-        end to reattach it · select a connector for path and start/end arrows ·
-        nodes snap to a {GRID_SIZE}px grid. Autosaves into this project.
+        Miro-like select: drag empty canvas to marquee-select nodes and
+        connectors · click selects · Shift+click adds/toggles · drag selection
+        to move · click empty clears · Space+drag or middle-mouse to pan · Type
+        chips create when nothing is selected, or change all selected nodes ·
+        shape / color style the selection · drag N/E/S/W anchors to connect
+        (angled + end arrow by default) · drag a connector end to reattach it ·
+        select a connector for path and start/end arrows · nodes snap to a{" "}
+        {GRID_SIZE}px grid. Autosaves into this project.
       </p>
 
       {!ready ? (
@@ -744,6 +804,13 @@ export function FlowchartEditor({
               setSelectedNodeId(selNodes[0]?.id ?? null);
               setSelectedEdgeId(selEdges[0]?.id ?? null);
             }}
+            /* Miro-like: left-drag selects; Space+drag / middle-mouse pans (not left-drag). */
+            selectionOnDrag
+            selectionMode={SelectionMode.Partial}
+            selectionKeyCode={null}
+            multiSelectionKeyCode="Shift"
+            panOnDrag={[1]}
+            panActivationKeyCode="Space"
             deleteKeyCode={["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}
           >

@@ -1086,6 +1086,13 @@ code {
   background: #1a1a1a;
 }
 
+/* Marquee + multi-select outline readable on the dark canvas. */
+.flowchart-canvas .react-flow__selection,
+.flowchart-canvas .react-flow__nodesselection-rect {
+  background: rgba(90, 180, 140, 0.12);
+  border: 1px solid rgba(90, 180, 140, 0.55);
+}
+
 .flowchart-style-bar {
   display: flex;
   flex-wrap: wrap;
