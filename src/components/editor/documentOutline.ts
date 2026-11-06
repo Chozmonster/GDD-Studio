@@ -12,12 +12,45 @@ export type OutlineItem = {
   rgdType?: RgdBlockType;
 };
 
+/** Nested outline node for Document map rendering (H1 → H2 → H3). */
+export type OutlineTreeNode = OutlineItem & {
+  children: OutlineTreeNode[];
+};
+
+/**
+ * Nest flat outline items by level: each item attaches under the nearest
+ * preceding item with a strictly smaller level (H2 under H1, H3 under H2
+ * or H1). Same-level siblings stay sequential under their shared parent.
+ */
+export function buildOutlineTree(items: OutlineItem[]): OutlineTreeNode[] {
+  const roots: OutlineTreeNode[] = [];
+  const stack: OutlineTreeNode[] = [];
+
+  for (const item of items) {
+    const node: OutlineTreeNode = { ...item, children: [] };
+    while (stack.length > 0 && stack[stack.length - 1]!.level >= node.level) {
+      stack.pop();
+    }
+    const parent = stack[stack.length - 1];
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+    stack.push(node);
+  }
+
+  return roots;
+}
+
 /** Heading + RGD outline for the Document map sidebar. */
 export function collectOutline(editor: Editor): OutlineItem[] {
   const items: OutlineItem[] = [];
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name === "heading") {
       const level = Number(node.attrs.level ?? 1);
+      // Editor only exposes H1–H3; skip deeper levels if present in legacy docs.
+      if (level < 1 || level > 3) return;
       const text = node.textContent.trim() || `Heading ${level}`;
       items.push({
         id: `h-${pos}-${level}`,
