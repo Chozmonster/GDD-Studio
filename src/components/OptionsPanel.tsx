@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   checkForUpdates,
+  fetchCloudStatus,
   fetchPatchNotes,
   fetchSettings,
+  linkGoogleDrive,
   setAutomaticUpdates,
+  setCloudAutoSyncOnClose,
   setDisplayVariableNames,
+  unlinkCloud,
 } from "../api";
 import { emitSettingsChanged } from "../lib/settingsEvents";
-import type { AppSettings, UpdateStatus } from "../types";
+import type { AppSettings, CloudStatus, UpdateStatus } from "../types";
 
 type OptionsPanelProps = {
   asWindow?: boolean;
@@ -16,15 +20,25 @@ type OptionsPanelProps = {
 
 export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [cloud, setCloud] = useState<CloudStatus | null>(null);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState<string | null>(null);
+
+  const refreshCloud = useCallback(async () => {
+    try {
+      setCloud(await fetchCloudStatus());
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   useEffect(() => {
     void fetchSettings()
       .then(setSettings)
       .catch((e) => setStatus(e instanceof Error ? e.message : String(e)));
-  }, []);
+    void refreshCloud();
+  }, [refreshCloud]);
 
   const applySettings = (next: AppSettings) => {
     setSettings(next);
@@ -58,6 +72,55 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
           ? "Variable chips show name and value in the document."
           : "Variable chips show the value; hover for the name.",
       );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleAutoSync = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const next = await setCloudAutoSyncOnClose(enabled);
+      setCloud(next);
+      setStatus(
+        enabled
+          ? "Auto-sync on close enabled — linked projects sync when the app closes (when online)."
+          : "Auto-sync on close off — use Manual Sync from the launcher.",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runLink = async () => {
+    setBusy(true);
+    setStatus("Opening Google sign-in in your browser…");
+    try {
+      const next = await linkGoogleDrive();
+      setCloud(next);
+      setStatus(next.message);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+      await refreshCloud();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runUnlink = async () => {
+    const ok = window.confirm(
+      "Unlink cloud storage on this device?\n\nTokens and link metadata are cleared locally. Your files in Google Drive (GDD Studio folder) are left intact.",
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const next = await unlinkCloud(false);
+      setCloud(next);
+      setStatus("Cloud storage unlinked on this device.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -124,6 +187,68 @@ export function OptionsPanel({ asWindow, onClose }: OptionsPanelProps) {
             <span className="muted block">
               When off, chips show the resolved value and the name appears on
               hover. When on, chips show both the name and the value.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className="options-section">
+        <h3>Cloud sync</h3>
+        <p className="muted tiny options-lead">
+          Optional backup to <strong>your</strong> Google Drive. No GDD Studio
+          account. Creates a visible <code>GDD Studio</code> folder. Single-user
+          multi-device — not realtime collaboration.
+        </p>
+
+        <p className="options-status">
+          {cloud ? cloud.message : "Loading cloud status…"}
+        </p>
+        {cloud?.lastError && (
+          <p className="error tiny">{cloud.lastError}</p>
+        )}
+
+        <div className="options-actions">
+          {!cloud?.linked ? (
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void runLink()}
+              disabled={busy || cloud?.credentialsConfigured === false}
+            >
+              Link Google Drive
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="danger-outline"
+              onClick={() => void runUnlink()}
+              disabled={busy}
+            >
+              Unlink
+            </button>
+          )}
+        </div>
+
+        {cloud && !cloud.credentialsConfigured && (
+          <p className="error tiny">
+            OAuth client id missing. Set{" "}
+            <code>GDD_STUDIO_GOOGLE_CLIENT_ID</code> (Desktop/public client +
+            PKCE). See the cloud sync OAuth setup doc.
+          </p>
+        )}
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={cloud?.autoSyncOnClose ?? false}
+            disabled={!cloud || busy || !cloud.linked}
+            onChange={(e) => void toggleAutoSync(e.target.checked)}
+          />
+          <span>
+            <strong>Auto-sync on close</strong>
+            <span className="muted block">
+              When on and online, sync linked projects as the app closes.
+              Default off. Manual Sync remains on the launcher.
             </span>
           </span>
         </label>

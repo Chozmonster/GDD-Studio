@@ -22,6 +22,56 @@ export type AppSettings = {
   displayVariableNames: boolean;
 };
 
+/** Non-secret cloud link status (tokens stay in the OS keyring). */
+export type CloudStatus = {
+  linked: boolean;
+  providerId: string | null;
+  providerLabel: string | null;
+  accountLabel: string | null;
+  rootFolderId: string | null;
+  autoSyncOnClose: boolean;
+  credentialsConfigured: boolean;
+  linkedProjectCount: number;
+  lastSyncAt: number | null;
+  lastError: string | null;
+  message: string;
+};
+
+export type CloudProjectLink = {
+  localPath: string;
+  remoteFolderId: string;
+  slug: string;
+  lastSyncAt: number | null;
+};
+
+export type RemoteEntry = {
+  id: string;
+  name: string;
+  kind: "file" | "folder";
+  modifiedTime: string | null;
+  size: number | null;
+  md5Checksum: string | null;
+};
+
+export type SyncConflict = {
+  path: string;
+  localMtime: number | null;
+  remoteMtime: string | null;
+};
+
+export type SyncResult = {
+  uploaded: number;
+  downloaded: number;
+  deletedLocal: number;
+  deletedRemote: number;
+  skipped: number;
+  conflicts: SyncConflict[];
+  pendingLocalDeletes: string[];
+  log: string[];
+  offline: boolean;
+  message: string;
+};
+
 export type UpdateStatus = {
   state: string;
   currentVersion: string;

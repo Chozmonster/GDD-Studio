@@ -2,16 +2,19 @@
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
 //! RGD sheets + mood board + documentation variables + multi-doc projects /
-//! wiki links + media assets + templates + export HTML.
+//! wiki links + media assets + templates + export HTML + optional cloud sync.
 //! Spellcheck runs in the webview (nspell).
 
+mod cloud;
 mod commands;
 mod store;
 mod updates;
 mod window_geom;
 
 use commands::{
-    app_health, check_for_updates, create_project, create_project_document, default_projects_dir,
+    app_health, check_for_updates, cloud_link_google_drive, cloud_list_remote_projects,
+    cloud_open_from_cloud, cloud_project_link, cloud_set_auto_sync_on_close, cloud_status,
+    cloud_sync_project, cloud_unlink, create_project, create_project_document, default_projects_dir,
     delete_asset, delete_flowchart, delete_project, delete_project_document, delete_rgd_sheet,
     delete_template, flowchart_exists, get_asset_data_url, get_asset_path, get_patch_notes,
     get_settings, install_update, list_assets, list_backlinks, list_documents, list_flowcharts,
@@ -22,7 +25,7 @@ use commands::{
     save_template, save_variables, set_automatic_updates, set_display_variable_names,
     write_export_html,
 };
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -41,6 +44,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                cloud::handle_close_requested(window.app_handle(), window.label(), api);
+            }
             window_geom::handle_main_window_event(window.app_handle(), window.label(), event);
         })
         .invoke_handler(tauri::generate_handler![
@@ -52,6 +58,14 @@ pub fn run() {
             get_settings,
             set_automatic_updates,
             set_display_variable_names,
+            cloud_status,
+            cloud_link_google_drive,
+            cloud_unlink,
+            cloud_set_auto_sync_on_close,
+            cloud_sync_project,
+            cloud_list_remote_projects,
+            cloud_open_from_cloud,
+            cloud_project_link,
             check_for_updates,
             install_update,
             get_patch_notes,

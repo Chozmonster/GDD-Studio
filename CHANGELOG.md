@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cloud sync (Google Drive MVP):** optional bring-your-own Drive via browser OAuth (PKCE + loopback). Creates a visible `GDD Studio/` root and per-project folders; Manual Sync + Options **auto-sync on close**; Open from cloud; LWW per file with Yours/Theirs on dual-change. Tokens in the OS keyring; link metadata in `cloud-sync.json`. Shared `CloudProvider` trait for OneDrive/Dropbox follow-up. Requires `GDD_STUDIO_GOOGLE_CLIENT_ID` (see OAuth setup doc).
+
 ## [0.1.4] - 2026-11-06
 
 Mood Board crop keeps the selection’s aspect ratio in tiles and live document embeds.

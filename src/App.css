@@ -350,6 +350,8 @@ input[type="search"] {
 .options-window,
 .options-modal-inner {
   padding: 1rem 1.15rem 1.25rem;
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
 }
 
 .options-header {
@@ -388,6 +390,47 @@ input[type="search"] {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.options-lead {
+  margin: 0 0 0.75rem;
+}
+
+.side-cloud {
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.side-cloud-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cloud-msg {
+  margin: 0.15rem 0 0;
+  word-break: break-word;
+}
+
+.cloud-remote-list,
+.conflict-list {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.conflict-list li {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .options-status {

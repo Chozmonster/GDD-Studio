@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, and RGD workspace. Cloud sync / share links remain v1.5+.
+Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, RGD workspace, and optional **Google Drive cloud sync** (BYO storage; OneDrive/Dropbox next). Share links / hosted BaaS remain later.
 
 ## Prerequisites
 
@@ -104,4 +104,4 @@ Until releases exist, update checks fail softly (UI stays usable). Use `GDD_STUD
 
 **In:** launcher (create / open / remove), local project metadata persistence, Options window, updater wiring, TipTap editor shell, back-to-launcher navigation.
 
-**Not yet:** cloud sync, share links, PDF export, variables, wiki links, asset pipeline, spellcheck, deleting project files on disk.
+**Not yet:** OneDrive/Dropbox sync, share links, deleting project files on disk from the launcher.

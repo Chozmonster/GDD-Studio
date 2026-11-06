@@ -13,6 +13,8 @@ import { fileToBase64 } from "./lib/bytes";
 import type {
   AppSettings,
   AssetRecord,
+  CloudProjectLink,
+  CloudStatus,
   DocSummary,
   DocVariable,
   FlowchartDocument,
@@ -21,8 +23,10 @@ import type {
   MoodBoardDocument,
   ProjectDocument,
   ProjectRecord,
+  RemoteEntry,
   RgdSheetDocument,
   RgdSheetSummary,
+  SyncResult,
   TemplateRecord,
   UpdateStatus,
 } from "./types";
@@ -220,6 +224,93 @@ export async function setDisplayVariableNames(
   return normalizeSettings(
     await invoke<AppSettings>("set_display_variable_names", { enabled }),
   );
+}
+
+function browserCloudStatus(): CloudStatus {
+  return {
+    linked: false,
+    providerId: null,
+    providerLabel: null,
+    accountLabel: null,
+    rootFolderId: null,
+    autoSyncOnClose: false,
+    credentialsConfigured: false,
+    linkedProjectCount: 0,
+    lastSyncAt: null,
+    lastError: null,
+    message:
+      "Cloud sync requires the desktop app. Browser preview stays local-only.",
+  };
+}
+
+export async function fetchCloudStatus(): Promise<CloudStatus> {
+  if (!isTauriRuntime()) return browserCloudStatus();
+  return invoke<CloudStatus>("cloud_status");
+}
+
+export async function linkGoogleDrive(): Promise<CloudStatus> {
+  if (!isTauriRuntime()) {
+    throw new Error("Cloud sync requires the desktop app.");
+  }
+  return invoke<CloudStatus>("cloud_link_google_drive");
+}
+
+export async function unlinkCloud(deleteRemote = false): Promise<CloudStatus> {
+  if (!isTauriRuntime()) return browserCloudStatus();
+  return invoke<CloudStatus>("cloud_unlink", { deleteRemote });
+}
+
+export async function setCloudAutoSyncOnClose(
+  enabled: boolean,
+): Promise<CloudStatus> {
+  if (!isTauriRuntime()) {
+    return { ...browserCloudStatus(), autoSyncOnClose: enabled };
+  }
+  return invoke<CloudStatus>("cloud_set_auto_sync_on_close", { enabled });
+}
+
+export async function syncCloudProject(
+  projectId: string,
+  options?: {
+    applyLocalDeletes?: boolean;
+    resolutions?: Record<string, string>;
+  },
+): Promise<SyncResult> {
+  if (!isTauriRuntime()) {
+    throw new Error("Cloud sync requires the desktop app.");
+  }
+  return invoke<SyncResult>("cloud_sync_project", {
+    projectId,
+    applyLocalDeletes: options?.applyLocalDeletes ?? false,
+    resolutions: options?.resolutions ?? null,
+  });
+}
+
+export async function listRemoteCloudProjects(): Promise<RemoteEntry[]> {
+  if (!isTauriRuntime()) return [];
+  return invoke<RemoteEntry[]>("cloud_list_remote_projects");
+}
+
+export async function openProjectFromCloud(
+  remoteFolderId: string,
+  remoteName: string,
+  parentDir: string,
+): Promise<ProjectRecord> {
+  if (!isTauriRuntime()) {
+    throw new Error("Open from cloud requires the desktop app.");
+  }
+  return invoke<ProjectRecord>("cloud_open_from_cloud", {
+    remoteFolderId,
+    remoteName,
+    parentDir,
+  });
+}
+
+export async function fetchCloudProjectLink(
+  projectId: string,
+): Promise<CloudProjectLink | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<CloudProjectLink | null>("cloud_project_link", { projectId });
 }
 
 export async function checkForUpdates(force: boolean): Promise<UpdateStatus> {

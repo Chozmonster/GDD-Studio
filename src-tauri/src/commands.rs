@@ -1,14 +1,16 @@
-//! Tauri IPC command surface (launcher, projects, docs, tools, updater).
+//! Tauri IPC command surface (launcher, projects, docs, tools, updater, cloud).
 //!
-//! Thin wrappers over `store` / `updates` — keep validation and path policy in
-//! those modules so the webview never invents filesystem paths itself.
+//! Thin wrappers over `store` / `updates` / `cloud` — keep validation and path
+//! policy in those modules so the webview never invents filesystem paths itself.
 
+use crate::cloud::{self, CloudProjectLink, CloudStatus, RemoteEntry, SyncResult};
 use crate::store::{
     self, AppSettings, AssetRecord, DocSummary, FlowchartSummary, ProjectDocument, ProjectRecord,
     RgdSheetSummary, TemplateRecord,
 };
 use crate::updates::{self, UpdateStatus};
 use serde::Serialize;
+use std::collections::HashMap;
 use tauri::AppHandle;
 use tauri::Manager;
 
@@ -104,12 +106,72 @@ pub async fn open_options_window(app: AppHandle) -> Result<(), String> {
     let url = tauri::WebviewUrl::App("index.html?window=options".into());
     tauri::WebviewWindowBuilder::new(&app, "options", url)
         .title("Options — GDD Studio")
-        .inner_size(480.0, 360.0)
-        .resizable(false)
+        .inner_size(520.0, 640.0)
+        .min_inner_size(480.0, 420.0)
+        .resizable(true)
         .center()
         .build()
         .map_err(|e| format!("open options window: {e}"))?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn cloud_status(app: AppHandle) -> Result<CloudStatus, String> {
+    cloud::status(&app)
+}
+
+#[tauri::command]
+pub async fn cloud_link_google_drive(app: AppHandle) -> Result<CloudStatus, String> {
+    cloud::link_google_drive(&app).await
+}
+
+#[tauri::command]
+pub fn cloud_unlink(app: AppHandle, delete_remote: bool) -> Result<CloudStatus, String> {
+    cloud::unlink(&app, delete_remote)
+}
+
+#[tauri::command]
+pub fn cloud_set_auto_sync_on_close(app: AppHandle, enabled: bool) -> Result<CloudStatus, String> {
+    cloud::set_auto_sync_on_close(&app, enabled)
+}
+
+#[tauri::command]
+pub async fn cloud_sync_project(
+    app: AppHandle,
+    project_id: String,
+    apply_local_deletes: Option<bool>,
+    resolutions: Option<HashMap<String, String>>,
+) -> Result<SyncResult, String> {
+    cloud::sync_project(
+        &app,
+        project_id,
+        apply_local_deletes.unwrap_or(false),
+        resolutions.unwrap_or_default(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn cloud_list_remote_projects(app: AppHandle) -> Result<Vec<RemoteEntry>, String> {
+    cloud::list_remote_projects(&app).await
+}
+
+#[tauri::command]
+pub async fn cloud_open_from_cloud(
+    app: AppHandle,
+    remote_folder_id: String,
+    remote_name: String,
+    parent_dir: String,
+) -> Result<ProjectRecord, String> {
+    cloud::open_from_cloud(&app, remote_folder_id, remote_name, parent_dir).await
+}
+
+#[tauri::command]
+pub fn cloud_project_link(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Option<CloudProjectLink>, String> {
+    cloud::project_link(&app, &project_id)
 }
 
 /// Default parent folder suggestion for New Project (documents dir).

@@ -81,7 +81,7 @@ pub fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
@@ -91,7 +91,7 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Entity ids used as filenames: alphanumeric, dash, underscore, dot — no traversal.
-fn validate_entity_id(id: &str, kind: &str) -> Result<(), String> {
+pub(crate) fn validate_entity_id(id: &str, kind: &str) -> Result<(), String> {
     let id = id.trim();
     if id.is_empty() || id.len() > 128 {
         return Err(format!("Invalid {kind} id"));
@@ -109,7 +109,7 @@ fn validate_entity_id(id: &str, kind: &str) -> Result<(), String> {
 }
 
 /// Ensure `candidate` resolves inside `root` (after canonicalize when possible).
-fn ensure_path_within(root: &Path, candidate: &Path) -> Result<PathBuf, String> {
+pub(crate) fn ensure_path_within(root: &Path, candidate: &Path) -> Result<PathBuf, String> {
     let root_canon = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let candidate_canon = if candidate.exists() {
         fs::canonicalize(candidate).map_err(|e| format!("resolve path: {e}"))?
@@ -311,6 +311,32 @@ pub fn delete_project(app: &AppHandle, project_id: String) -> Result<(), String>
         return Err(format!("Unknown project id: {project_id}"));
     }
     save_projects(app, projects)
+}
+
+/// Register an on-disk project folder that already has `gdd-studio.json`
+/// (used by Open from cloud). Does not create files.
+pub fn register_existing_project(
+    app: &AppHandle,
+    record: ProjectRecord,
+) -> Result<ProjectRecord, String> {
+    let path = PathBuf::from(&record.path);
+    if !path.is_absolute() {
+        return Err("Project path must be absolute".into());
+    }
+    if !path.is_dir() {
+        return Err(format!("Project folder does not exist: {}", record.path));
+    }
+    let marker = path.join(PROJECT_MARKER);
+    if !marker.is_file() {
+        return Err("Folder is not a GDD Studio project (missing gdd-studio.json)".into());
+    }
+    let mut projects = load_projects(app)?;
+    if projects.iter().any(|p| p.path == record.path) {
+        return Err("That folder is already in the project library".into());
+    }
+    projects.push(record.clone());
+    save_projects(app, projects)?;
+    Ok(record)
 }
 
 pub fn open_project_record(app: &AppHandle, project_id: String) -> Result<ProjectRecord, String> {
