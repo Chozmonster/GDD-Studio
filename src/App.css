@@ -1058,8 +1058,25 @@ code {
   font-size: 0.85rem;
 }
 
+.flowchart-side-description {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 3.2em;
+  overflow: hidden;
+}
+
+.flowchart-side-description.is-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .flowchart-side-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.2rem;
   padding: 0 0.35rem 0.35rem;
 }
@@ -1377,6 +1394,18 @@ code {
   border-bottom: 1px solid var(--line);
   background: #2a2a2a;
   color: var(--ink-strong);
+}
+
+.flowchart-embed-description {
+  margin: 0;
+  padding: 0.55rem 0.7rem 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-top: 1px solid var(--line);
+  background: #242424;
 }
 
 .flowchart-embed-title {

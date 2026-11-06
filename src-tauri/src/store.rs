@@ -334,6 +334,8 @@ const FLOWCHARTS_DIR: &str = "flowcharts";
 pub struct FlowchartSummary {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub description: String,
 }
 
 pub fn project_by_id(app: &AppHandle, project_id: &str) -> Result<ProjectRecord, String> {
@@ -372,16 +374,30 @@ pub fn list_flowcharts(app: &AppHandle, project_id: String) -> Result<Vec<Flowch
                 .and_then(|s| s.to_str())
                 .unwrap_or("untitled")
                 .to_string();
-            let name = fs::read_to_string(&path)
+            let parsed = fs::read_to_string(&path)
                 .ok()
-                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+            let name = parsed
+                .as_ref()
                 .and_then(|v| {
                     v.get("name")
                         .and_then(|n| n.as_str())
                         .map(|s| s.to_string())
                 })
                 .unwrap_or_else(|| id.clone());
-            items.push(FlowchartSummary { id, name });
+            let description = parsed
+                .as_ref()
+                .and_then(|v| {
+                    v.get("description")
+                        .and_then(|d| d.as_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_default();
+            items.push(FlowchartSummary {
+                id,
+                name,
+                description,
+            });
         }
     }
     items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -389,6 +405,7 @@ pub fn list_flowcharts(app: &AppHandle, project_id: String) -> Result<Vec<Flowch
         items.push(FlowchartSummary {
             id: "main".into(),
             name: "Main".into(),
+            description: String::new(),
         });
     }
     Ok(items)
@@ -405,7 +422,10 @@ pub fn load_flowchart(
         return Ok(empty_flowchart_doc(&flowchart_id));
     }
     let raw = fs::read_to_string(&path).map_err(|e| format!("read flowchart: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| format!("parse flowchart: {e}"))
+    let mut value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("parse flowchart: {e}"))?;
+    normalize_flowchart_doc(&mut value);
+    Ok(value)
 }
 
 pub fn save_flowchart(
@@ -419,7 +439,22 @@ pub fn save_flowchart(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("create flowcharts dir: {e}"))?;
     }
+    let mut document = document;
+    normalize_flowchart_doc(&mut document);
     write_json(&path, &document)
+}
+
+fn normalize_flowchart_doc(value: &mut serde_json::Value) {
+    if let Some(obj) = value.as_object_mut() {
+        if !obj.contains_key("description")
+            || !obj
+                .get("description")
+                .map(|v| v.is_string())
+                .unwrap_or(false)
+        {
+            obj.insert("description".into(), serde_json::json!(""));
+        }
+    }
 }
 
 fn empty_flowchart_doc(id: &str) -> serde_json::Value {
@@ -428,6 +463,7 @@ fn empty_flowchart_doc(id: &str) -> serde_json::Value {
         "version": 2,
         "id": id,
         "name": if id == "main" { "Main" } else { id },
+        "description": "",
         "nodes": [],
         "edges": [],
         "viewport": { "x": 0, "y": 0, "zoom": 1 }

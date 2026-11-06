@@ -110,7 +110,12 @@ export function FlowchartEmbedView(props: NodeViewProps) {
         </p>
       )}
       {!missing && doc && (
-        <FlowchartPreview document={doc} className="flowchart-preview embed" />
+        <>
+          <FlowchartPreview document={doc} className="flowchart-preview embed" />
+          {doc.description?.trim() ? (
+            <p className="flowchart-embed-description">{doc.description}</p>
+          ) : null}
+        </>
       )}
     </NodeViewWrapper>
   );
