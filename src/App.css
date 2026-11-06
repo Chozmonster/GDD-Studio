@@ -1165,16 +1165,28 @@ code {
   color: #e8fff2;
 }
 
-/* Type chips in create mode (no selection): slightly distinct from style chips. */
-.flowchart-type-chips .type-chip {
+/* Node / connector chips in create-or-default mode (no selection). */
+.flowchart-node-chips .type-chip,
+.flowchart-connector-chips .type-chip {
   background: #2c3530;
   border-color: #4a6a58;
   color: #e4f0e8;
 }
 
-.flowchart-type-chips .type-chip:hover {
+.flowchart-node-chips .type-chip:hover,
+.flowchart-connector-chips .type-chip:hover {
   background: #354840;
   border-color: var(--accent);
+}
+
+/* Subtle divider between semantic types and base shapes (or path vs arrows). */
+.chip-sep {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.1rem;
+  margin: 0 0.2rem;
+  background: #4a4a4a;
 }
 
 .swatch {

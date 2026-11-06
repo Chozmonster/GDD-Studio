@@ -129,6 +129,10 @@ export function FlowchartEditor({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+  /** Defaults for new connectors when none are selected (toolbar ↔ onConnect). */
+  const [defaultEdgePath, setDefaultEdgePath] = useState<FlowEdgePath>("step");
+  const [defaultStartArrow, setDefaultStartArrow] = useState(false);
+  const [defaultEndArrow, setDefaultEndArrow] = useState(true);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const rfRef = useRef<ReactFlowInstance<FlowNodeT, FlowEdge> | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -136,9 +140,15 @@ export function FlowchartEditor({
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const nameRef = useRef(name);
+  const defaultEdgePathRef = useRef(defaultEdgePath);
+  const defaultStartArrowRef = useRef(defaultStartArrow);
+  const defaultEndArrowRef = useRef(defaultEndArrow);
   nodesRef.current = nodes;
   edgesRef.current = edges;
   nameRef.current = name;
+  defaultEdgePathRef.current = defaultEdgePath;
+  defaultStartArrowRef.current = defaultStartArrow;
+  defaultEndArrowRef.current = defaultEndArrow;
 
   const persist = useCallback(
     async (nextNodes: Node[], nextEdges: Edge[], vp: Viewport) => {
@@ -335,6 +345,9 @@ export function FlowchartEditor({
       if (!connection.source || !connection.target) return;
       // Require explicit anchors so edges stay locked to N/E/S/W handles.
       if (!connection.sourceHandle || !connection.targetHandle) return;
+      const path = defaultEdgePathRef.current;
+      const startArrow = defaultStartArrowRef.current;
+      const endArrow = defaultEndArrowRef.current;
       setEdges((eds) => {
         const next = addEdge(
           {
@@ -344,11 +357,10 @@ export function FlowchartEditor({
             sourceHandle: connection.sourceHandle,
             targetHandle: connection.targetHandle,
             id: `e-${connection.source}-${connection.sourceHandle}-${connection.target}-${connection.targetHandle}-${Date.now()}`,
-            // Defaults: angled path, end arrow on, start arrow off.
-            type: edgeTypeForPath("step"),
-            markerStart: markerForArrow(false),
-            markerEnd: markerForArrow(true),
-            data: { path: "step", startArrow: false, endArrow: true },
+            type: edgeTypeForPath(path),
+            markerStart: markerForArrow(startArrow),
+            markerEnd: markerForArrow(endArrow),
+            data: { path, startArrow, endArrow },
           },
           eds,
         );
@@ -482,11 +494,12 @@ export function FlowchartEditor({
     });
   };
 
-  const addNode = (kind: FlowNodeKind) => {
+  const addNode = (kind: FlowNodeKind, shapeOverride?: FlowNodeShape) => {
     const defaults = kindDefaults(kind);
+    const shape = shapeOverride ?? defaults.defaultShape;
     const id = `n-${idCounter.current++}`;
     const index = idCounter.current - 1;
-    const size = defaultSizeFor(kind, defaults.defaultShape);
+    const size = defaultSizeFor(kind, shape);
     const origin =
       rfRef.current?.screenToFlowPosition({
         x: window.innerWidth / 2 - 80,
@@ -504,7 +517,7 @@ export function FlowchartEditor({
         data: {
           label: `${defaults.defaultLabel}${kind === "process" || kind === "state" ? ` ${index}` : ""}`,
           kind,
-          shape: defaults.defaultShape,
+          shape,
           fill: defaults.defaultFill,
           width: size.width,
           height: size.height,
@@ -519,7 +532,10 @@ export function FlowchartEditor({
     });
   };
 
-  /** One type-chip set: mutate all selected nodes, else create. */
+  /**
+   * Semantic type chip: selected → set kind + that kind’s default shape
+   * (Decision→diamond, Start/End→ellipse, …); none selected → create.
+   */
   const applyOrCreateKind = (kind: FlowNodeKind) => {
     if (selectedNodes.length > 0) {
       const defaults = kindDefaults(kind);
@@ -548,6 +564,47 @@ export function FlowchartEditor({
       return;
     }
     addNode(kind);
+  };
+
+  /**
+   * Base shape chip: selected → geometry only (kind unchanged, size kept);
+   * none selected → create an Action node with that shape.
+   */
+  const applyOrCreateShape = (shape: FlowNodeShape) => {
+    if (selectedNodes.length > 0) {
+      patchSelectedNodes({ shape });
+      return;
+    }
+    addNode("process", shape);
+  };
+
+  /** Connector chips: selected edges → patch; none → update new-connection defaults. */
+  const applyOrSetEdgePath = (path: FlowEdgePath) => {
+    if (selectedEdges.length > 0) {
+      patchSelectedEdges({ path });
+      return;
+    }
+    setDefaultEdgePath(path);
+  };
+
+  const applyOrToggleStartArrow = () => {
+    if (selectedEdges.length > 0) {
+      patchSelectedEdges({
+        startArrow: !(sharedStartArrow ?? false),
+      });
+      return;
+    }
+    setDefaultStartArrow((v) => !v);
+  };
+
+  const applyOrToggleEndArrow = () => {
+    if (selectedEdges.length > 0) {
+      patchSelectedEdges({
+        endArrow: !(sharedEndArrow ?? true),
+      });
+      return;
+    }
+    setDefaultEndArrow((v) => !v);
   };
 
   const deleteSelected = () => {
@@ -621,42 +678,6 @@ export function FlowchartEditor({
           <span className="muted tiny">{dirty ? "Unsaved…" : status}</span>
         </div>
         <div className="flowchart-toolbar-actions">
-          <div
-            className="style-group flowchart-type-chips"
-            role="group"
-            aria-label={
-              selectedNodes.length > 1
-                ? "Change selected nodes type"
-                : selectedNode
-                  ? "Change selected node type"
-                  : "Create node by type"
-            }
-          >
-            <span className="muted tiny">Type</span>
-            {NODE_KIND_OPTIONS.map((k) => (
-              <button
-                key={k.kind}
-                type="button"
-                className={
-                  sharedNodeKind === k.kind
-                    ? "chip active"
-                    : selectedNode
-                      ? "chip"
-                      : "chip type-chip"
-                }
-                title={
-                  multiNodeSelection
-                    ? `Change ${selectedNodes.length} selected nodes to ${k.label}`
-                    : selectedNode
-                      ? `Change selected node to ${k.label}`
-                      : `Create ${k.label} node`
-                }
-                onClick={() => applyOrCreateKind(k.kind)}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
           <button
             type="button"
             onClick={renameSelectedNode}
@@ -680,18 +701,62 @@ export function FlowchartEditor({
         </div>
       </header>
 
-      <div className="flowchart-style-bar" aria-label="Style selected">
-        <div className="style-group">
-          <span className="muted tiny">Shape</span>
+      <div className="flowchart-style-bar" aria-label="Flowchart controls">
+        <div
+          className="style-group flowchart-node-chips"
+          role="group"
+          aria-label={
+            selectedNodes.length > 1
+              ? "Change selected nodes"
+              : selectedNode
+                ? "Change selected node"
+                : "Create node"
+          }
+        >
+          <span className="muted tiny">Nodes</span>
+          {NODE_KIND_OPTIONS.map((k) => (
+            <button
+              key={k.kind}
+              type="button"
+              className={
+                sharedNodeKind === k.kind
+                  ? "chip active"
+                  : selectedNode
+                    ? "chip"
+                    : "chip type-chip"
+              }
+              title={
+                multiNodeSelection
+                  ? `Change ${selectedNodes.length} selected nodes to ${k.label}`
+                  : selectedNode
+                    ? `Change selected node to ${k.label}`
+                    : `Create ${k.label} node`
+              }
+              onClick={() => applyOrCreateKind(k.kind)}
+            >
+              {k.label}
+            </button>
+          ))}
+          <span className="chip-sep" aria-hidden="true" />
           {SHAPE_OPTIONS.map((shape) => (
             <button
               key={shape}
               type="button"
-              className={sharedNodeShape === shape ? "chip active" : "chip"}
-              disabled={!selectedNode}
-              onClick={() =>
-                patchSelectedNodes({ shape: shape as FlowNodeShape })
+              className={
+                sharedNodeShape === shape
+                  ? "chip active"
+                  : selectedNode
+                    ? "chip"
+                    : "chip type-chip"
               }
+              title={
+                multiNodeSelection
+                  ? `Set ${selectedNodes.length} selected nodes to ${shape}`
+                  : selectedNode
+                    ? `Set selected node shape to ${shape}`
+                    : `Create Action node as ${shape}`
+              }
+              onClick={() => applyOrCreateShape(shape)}
             >
               {shape}
             </button>
@@ -711,47 +776,104 @@ export function FlowchartEditor({
             />
           ))}
         </div>
-        <div className="style-group">
+        <div
+          className="style-group flowchart-connector-chips"
+          role="group"
+          aria-label={
+            selectedEdges.length > 0
+              ? "Change selected connectors"
+              : "Defaults for new connectors"
+          }
+        >
           <span className="muted tiny">Connector</span>
           <button
             type="button"
-            className={sharedEdgePath === "curve" ? "chip active" : "chip"}
-            disabled={!selectedEdge}
-            onClick={() => patchSelectedEdges({ path: "curve" })}
+            className={
+              (selectedEdges.length > 0
+                ? sharedEdgePath === "curve"
+                : defaultEdgePath === "curve")
+                ? "chip active"
+                : selectedEdges.length > 0
+                  ? "chip"
+                  : "chip type-chip"
+            }
+            title={
+              selectedEdges.length > 0
+                ? "Set selected connectors to curved"
+                : "New connectors will be curved"
+            }
+            onClick={() => applyOrSetEdgePath("curve")}
           >
             Curved
           </button>
           <button
             type="button"
-            className={sharedEdgePath === "step" ? "chip active" : "chip"}
-            disabled={!selectedEdge}
-            onClick={() => patchSelectedEdges({ path: "step" })}
+            className={
+              (selectedEdges.length > 0
+                ? sharedEdgePath === "step"
+                : defaultEdgePath === "step")
+                ? "chip active"
+                : selectedEdges.length > 0
+                  ? "chip"
+                  : "chip type-chip"
+            }
+            title={
+              selectedEdges.length > 0
+                ? "Set selected connectors to angled"
+                : "New connectors will be angled"
+            }
+            onClick={() => applyOrSetEdgePath("step")}
           >
             Angled
           </button>
+          <span className="chip-sep" aria-hidden="true" />
           <button
             type="button"
-            className={sharedStartArrow ? "chip active" : "chip"}
-            disabled={!selectedEdge}
-            aria-pressed={Boolean(sharedStartArrow)}
-            onClick={() =>
-              patchSelectedEdges({
-                startArrow: !(sharedStartArrow ?? false),
-              })
+            className={
+              (selectedEdges.length > 0
+                ? Boolean(sharedStartArrow)
+                : defaultStartArrow)
+                ? "chip active"
+                : selectedEdges.length > 0
+                  ? "chip"
+                  : "chip type-chip"
             }
+            aria-pressed={
+              selectedEdges.length > 0
+                ? Boolean(sharedStartArrow)
+                : defaultStartArrow
+            }
+            title={
+              selectedEdges.length > 0
+                ? "Toggle start arrow on selected connectors"
+                : "Toggle start arrow for new connectors"
+            }
+            onClick={applyOrToggleStartArrow}
           >
             Start arrow
           </button>
           <button
             type="button"
-            className={sharedEndArrow ? "chip active" : "chip"}
-            disabled={!selectedEdge}
-            aria-pressed={Boolean(sharedEndArrow)}
-            onClick={() =>
-              patchSelectedEdges({
-                endArrow: !(sharedEndArrow ?? true),
-              })
+            className={
+              (selectedEdges.length > 0
+                ? Boolean(sharedEndArrow)
+                : defaultEndArrow)
+                ? "chip active"
+                : selectedEdges.length > 0
+                  ? "chip"
+                  : "chip type-chip"
             }
+            aria-pressed={
+              selectedEdges.length > 0
+                ? Boolean(sharedEndArrow)
+                : defaultEndArrow
+            }
+            title={
+              selectedEdges.length > 0
+                ? "Toggle end arrow on selected connectors"
+                : "Toggle end arrow for new connectors"
+            }
+            onClick={applyOrToggleEndArrow}
           >
             End arrow
           </button>
@@ -761,12 +883,13 @@ export function FlowchartEditor({
       <p className="muted tiny flowchart-hint">
         Miro-like select: drag empty canvas to marquee-select nodes and
         connectors · click selects · Shift+click adds/toggles · drag selection
-        to move · click empty clears · Space+drag or middle-mouse to pan · Type
-        chips create when nothing is selected, or change all selected nodes ·
-        shape / color style the selection · drag N/E/S/W anchors to connect
-        (angled + end arrow by default) · drag a connector end to reattach it ·
-        select a connector for path and start/end arrows · nodes snap to a{" "}
-        {GRID_SIZE}px grid. Autosaves into this project.
+        to move · click empty clears · Space+drag or middle-mouse to pan · Node
+        chips (types + shapes) create when nothing is selected, or change all
+        selected nodes · Color styles the selection · Connector chips change
+        selected edges, or set defaults for new connections (angled + end arrow
+        by default) · drag N/E/S/W anchors to connect · drag a connector end to
+        reattach it · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
+        project.
       </p>
 
       {!ready ? (
@@ -787,10 +910,14 @@ export function FlowchartEditor({
             connectionRadius={28}
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{
-              type: "stubStep",
-              markerStart: markerForArrow(false),
-              markerEnd: markerForArrow(true),
-              data: { path: "step", startArrow: false, endArrow: true },
+              type: edgeTypeForPath(defaultEdgePath),
+              markerStart: markerForArrow(defaultStartArrow),
+              markerEnd: markerForArrow(defaultEndArrow),
+              data: {
+                path: defaultEdgePath,
+                startArrow: defaultStartArrow,
+                endArrow: defaultEndArrow,
+              },
             }}
             fitView={nodes.length > 0}
             defaultViewport={viewportRef.current}

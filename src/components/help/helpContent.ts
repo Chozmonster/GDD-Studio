@@ -86,8 +86,8 @@ export const HELP_APP: HelpArticleContent = {
       steps: [
         "Open the Flowcharts tab — named list + canvas.",
         "Canvas inputs follow Miro: left-drag empty area marquees nodes and connectors; click selects; Shift+click adds/toggles; drag a selection to move it; click empty clears. Pan with Space+drag or middle mouse (scroll/pinch zoom).",
-        "Type buttons (Start / End / Action / Decision / State): with nodes selected they change all of them; with none selected they create a node.",
-        "Drag a connector end onto another node to reconnect. Per-edge Start/End arrow toggles; new edges default angled with an end arrow.",
+        "Nodes toolbar (Start / End / Action / Decision / State plus Rectangle / Rounded / Diamond / Ellipse): with nodes selected they change all of them; with none selected they create. Types also apply their default shape (e.g. Decision → diamond).",
+        "Connector toolbar (Curved / Angled, Start / End arrow): changes selected edges, or sets defaults for new connections (angled + end arrow by default). Drag a connector end onto another node to reconnect.",
         "Insert a live embed into the active document from the flowchart tools.",
       ],
     },
