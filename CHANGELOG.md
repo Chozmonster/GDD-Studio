@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Flowchart canvas marquee multi-select: left-drag on empty pane selects intersecting nodes and connectors; Shift+click adds/toggles; Space / middle / right-drag pans. Type / shape / color / connector style tools apply to the whole selection.
+- Flowchart canvas Miro-like multi-select: left-drag on empty pane marquees intersecting nodes and connectors; click selects; Shift+click adds/toggles; drag moves the selection; click empty clears; Space+drag or middle-mouse pans (scroll/pinch zoom). Type / shape / color / connector style tools apply to all selected items.
 
 ## [0.1.4] - 2026-11-06
 

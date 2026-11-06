@@ -759,13 +759,14 @@ export function FlowchartEditor({
       </div>
 
       <p className="muted tiny flowchart-hint">
-        Drag empty canvas to marquee-select nodes and connectors · Shift+click
-        adds/toggles · Space / middle / right-drag to pan · Type chips create
-        when nothing is selected, or change all selected nodes · shape / color
-        style the selection · drag N/E/S/W anchors to connect (angled + end
-        arrow by default) · drag a connector end to reattach it · select a
-        connector for path and start/end arrows · nodes snap to a {GRID_SIZE}px
-        grid. Autosaves into this project.
+        Miro-like select: drag empty canvas to marquee-select nodes and
+        connectors · click selects · Shift+click adds/toggles · drag selection
+        to move · click empty clears · Space+drag or middle-mouse to pan · Type
+        chips create when nothing is selected, or change all selected nodes ·
+        shape / color style the selection · drag N/E/S/W anchors to connect
+        (angled + end arrow by default) · drag a connector end to reattach it ·
+        select a connector for path and start/end arrows · nodes snap to a{" "}
+        {GRID_SIZE}px grid. Autosaves into this project.
       </p>
 
       {!ready ? (
@@ -803,12 +804,12 @@ export function FlowchartEditor({
               setSelectedNodeId(selNodes[0]?.id ?? null);
               setSelectedEdgeId(selEdges[0]?.id ?? null);
             }}
-            /* Design-tool pan/select: left-drag marquees; Space / MMB / RMB pans. */
+            /* Miro-like: left-drag selects; Space+drag / middle-mouse pans (not left-drag). */
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
             selectionKeyCode={null}
             multiSelectionKeyCode="Shift"
-            panOnDrag={[1, 2]}
+            panOnDrag={[1]}
             panActivationKeyCode="Space"
             deleteKeyCode={["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}

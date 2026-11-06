@@ -85,7 +85,7 @@ export const HELP_APP: HelpArticleContent = {
       title: "Flowcharts",
       steps: [
         "Open the Flowcharts tab — named list + canvas.",
-        "Drag on empty canvas to marquee-select nodes and connectors; Shift+click adds or toggles. Pan with Space+drag, middle mouse, or right-drag.",
+        "Canvas inputs follow Miro: left-drag empty area marquees nodes and connectors; click selects; Shift+click adds/toggles; drag a selection to move it; click empty clears. Pan with Space+drag or middle mouse (scroll/pinch zoom).",
         "Type buttons (Start / End / Action / Decision / State): with nodes selected they change all of them; with none selected they create a node.",
         "Drag a connector end onto another node to reconnect. Per-edge Start/End arrow toggles; new edges default angled with an end arrow.",
         "Insert a live embed into the active document from the flowchart tools.",
