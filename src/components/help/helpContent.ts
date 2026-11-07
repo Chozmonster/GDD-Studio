@@ -147,8 +147,8 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
       steps: [
         "Select one or more image/gif tiles (video/audio are skipped with a status message).",
         "Right-click → Create colour palette… and enter k (number of colours; default 5).",
-        "GDD Studio downscales selections off-board (~200×200), runs k-means, drops pure white/black extremes, ranks by dominance, and adds a new labeled palette image tile to the current board.",
-        "Click a hex chip under the palette tile to copy that colour.",
+        "GDD Studio downscales selections off-board (~200×200), runs k-means, drops pure white/black extremes, ranks by dominance, and adds a new palette tile to the current board.",
+        "Palette tiles show the full set of colour blocks with hex labels on the board (not cropped like photo tiles). Click a colour block to copy its hex.",
       ],
     },
     {

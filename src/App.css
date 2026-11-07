@@ -3145,6 +3145,17 @@ code {
   min-height: 0;
 }
 
+/* Colour-palette tiles: full swatch strip, not the default 4:3 cover crop. */
+.mood-tile-media.is-palette {
+  aspect-ratio: auto;
+  height: auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  place-items: stretch;
+  overflow: hidden;
+}
+
 .mood-tile-media img,
 .mood-tile-media video {
   width: 100%;
@@ -3192,6 +3203,10 @@ code {
   color: #d6e4f5;
   border-color: #4a6a8a;
   background: rgba(40, 55, 72, 0.92);
+}
+
+.mood-edit-badge.is-top {
+  top: 0.4rem;
 }
 
 .mood-tile-media .mood-media-frame,
@@ -3452,6 +3467,88 @@ code {
   text-align: center;
 }
 
+.mood-palette-board {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 6.25rem;
+  box-sizing: border-box;
+  background: #1a1d24;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.mood-palette-board-swatch {
+  /* Grow/share a row; floor keeps #RRGGBB readable without ellipsis. */
+  flex: 1 1 4.75rem;
+  min-width: 4.75rem;
+  min-height: 5.25rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0.45rem 0.25rem;
+  margin: 0;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+}
+
+.mood-palette-board-swatch.is-static {
+  cursor: default;
+}
+
+.mood-palette-board-swatch:not(.is-static):hover .mood-palette-board-hex,
+.mood-palette-board-swatch:not(.is-static):focus-visible .mood-palette-board-hex {
+  background: rgba(0, 0, 0, 0.78);
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.mood-palette-board-hex {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.14rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #f4f6fa;
+  font-size: 0.7rem;
+  font-weight: 650;
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  pointer-events: none;
+}
+
+.mood-tile-palette {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 7rem;
+}
+
+.mood-board-embed-palette {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 5.5rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mood-palette-hint {
+  color: var(--muted);
+  font-style: normal;
+}
+
+/* Compact hex chips kept for any legacy callers / future reuse. */
 .mood-palette-hexes {
   display: flex;
   flex-wrap: wrap;

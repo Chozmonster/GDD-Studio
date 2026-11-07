@@ -35,6 +35,7 @@ import { MoodBoardSidebar } from "./MoodBoardSidebar";
 import { MoodBorderDialog } from "./MoodBorderDialog";
 import { MoodCropDialog } from "./MoodCropDialog";
 import { MoodMediaFrame } from "./MoodMediaFrame";
+import { MoodPaletteSwatches } from "./MoodPaletteSwatches";
 
 type MoodBoardProps = {
   project: ProjectRecord;
@@ -975,13 +976,19 @@ function MoodTile({
   const label = asset?.filename || item.assetId;
   const hasComment = Boolean(item.comment?.trim());
   const paletteHexes = parsePaletteHexes(item.comment ?? "");
+  const isPalette = Boolean(paletteHexes);
   const activeCrop = normalizeCrop(item.crop);
   const hasEdits = Boolean(activeCrop || (item.border && item.border.width > 0));
+  const kindLabel = isPalette ? "palette" : kind;
 
   useEffect(() => {
     let cancelled = false;
     setSrc(null);
     setError(null);
+    // Palette tiles use a dedicated swatch presentation — skip asset load.
+    if (isPalette) {
+      return;
+    }
     if (!item.assetId) {
       setError("Missing asset");
       return;
@@ -998,7 +1005,7 @@ function MoodTile({
     return () => {
       cancelled = true;
     };
-  }, [projectId, item.assetId]);
+  }, [projectId, item.assetId, isPalette]);
 
   const copyHex = async (hex: string) => {
     try {
@@ -1008,6 +1015,14 @@ function MoodTile({
       onStatus?.(`Could not copy ${hex}`);
     }
   };
+
+  const mediaClass = [
+    "mood-tile-media",
+    isPalette ? "is-palette" : null,
+    !isPalette && activeCrop ? "has-crop" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <article
@@ -1025,58 +1040,59 @@ function MoodTile({
         onContextMenu(e.clientX, e.clientY);
       }}
     >
-      <div
-        className={
-          activeCrop ? "mood-tile-media has-crop" : "mood-tile-media"
-        }
-      >
-        {hasComment && (
+      <div className={mediaClass}>
+        {hasComment && !isPalette && (
           <span className="mood-comment-badge" title="Has comment">
             Note
           </span>
         )}
         {hasEdits && (
-          <span className="mood-edit-badge" title="Has crop or border edits">
+          <span
+            className={
+              isPalette || !hasComment
+                ? "mood-edit-badge is-top"
+                : "mood-edit-badge"
+            }
+            title="Has crop or border edits"
+          >
             Edit
           </span>
         )}
-        <span className="mood-kind-badge">{kind}</span>
-        {error && <p className="muted tiny mood-tile-error">{error}</p>}
-        {!error && !src && <p className="muted tiny">Loading…</p>}
-        {src && (
-          <MoodMediaFrame
-            src={src}
-            alt={label}
-            kind={kind}
-            crop={item.crop}
+        <span className="mood-kind-badge">{kindLabel}</span>
+        {isPalette && paletteHexes ? (
+          <MoodPaletteSwatches
+            hexes={paletteHexes}
             border={item.border}
-            className="mood-tile-frame"
+            onCopy={(hex) => {
+              void copyHex(hex);
+            }}
+            className="mood-tile-palette"
           />
+        ) : (
+          <>
+            {error && <p className="muted tiny mood-tile-error">{error}</p>}
+            {!error && !src && <p className="muted tiny">Loading…</p>}
+            {src && (
+              <MoodMediaFrame
+                src={src}
+                alt={label}
+                kind={kind}
+                crop={item.crop}
+                border={item.border}
+                className="mood-tile-frame"
+              />
+            )}
+          </>
         )}
       </div>
       <div className="mood-tile-meta">
         <p className="mood-tile-name" title={label}>
           {label}
         </p>
-        {paletteHexes ? (
-          <div className="mood-palette-hexes" aria-label="Palette colours">
-            {paletteHexes.map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                className="mood-palette-hex"
-                title={`Copy ${hex}`}
-                style={{ ["--swatch" as string]: hex }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void copyHex(hex);
-                }}
-              >
-                <span className="mood-palette-swatch" aria-hidden="true" />
-                {hex}
-              </button>
-            ))}
-          </div>
+        {isPalette ? (
+          <p className="mood-tile-comment mood-palette-hint">
+            Click a colour to copy its hex
+          </p>
         ) : (
           <p
             className={

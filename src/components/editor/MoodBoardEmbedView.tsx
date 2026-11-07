@@ -22,8 +22,10 @@ import {
   onMoodBoardItemDeleted,
   onMoodBoardSaved,
 } from "../../lib/moodBoardEvents";
+import { parsePaletteHexes } from "../../lib/colourPalette";
 import type { AssetRecord, MoodBoardItem } from "../../types";
 import { MoodMediaFrame } from "../moodboard/MoodMediaFrame";
+import { MoodPaletteSwatches } from "../moodboard/MoodPaletteSwatches";
 import {
   MEDIA_EMBED_DEFAULT_WIDTH,
   MEDIA_EMBED_MAX_WIDTH,
@@ -214,6 +216,8 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
     let cancelled = false;
     setSrc(null);
     if (!item?.assetId) return;
+    // Palette embeds render labelled swatches from the comment — skip asset load.
+    if (parsePaletteHexes(item.comment ?? "")) return;
     void getAssetSrc(projectId, item.assetId)
       .then((url) => {
         if (!cancelled) setSrc(url);
@@ -226,7 +230,7 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, item?.assetId]);
+  }, [projectId, item?.assetId, item?.comment]);
 
   const selectEmbed = useCallback(
     (e: ReactMouseEvent<HTMLElement>) => {
@@ -257,6 +261,7 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
   const kind = String(asset?.kind ?? "image");
   const label = asset?.filename || itemId;
   const comment = item?.comment?.trim() ?? "";
+  const paletteHexes = parsePaletteHexes(comment);
 
   return (
     <NodeViewWrapper
@@ -298,17 +303,25 @@ export function MoodBoardEmbedView(props: NodeViewProps) {
       {error && !missing && (
         <p className="media-embed-error muted tiny">{error}</p>
       )}
-      {!missing && !loading && src && item && (
+      {!missing && !loading && item && (paletteHexes || src) && (
         <div className="mood-board-embed-body">
-          <MoodMediaFrame
-            src={src}
-            alt={label}
-            kind={kind}
-            crop={item.crop}
-            border={item.border}
-            className="mood-board-embed-frame"
-          />
-          {comment ? (
+          {paletteHexes ? (
+            <MoodPaletteSwatches
+              hexes={paletteHexes}
+              border={item.border}
+              className="mood-board-embed-palette"
+            />
+          ) : src ? (
+            <MoodMediaFrame
+              src={src}
+              alt={label}
+              kind={kind}
+              crop={item.crop}
+              border={item.border}
+              className="mood-board-embed-frame"
+            />
+          ) : null}
+          {comment && !paletteHexes ? (
             <p className="mood-board-embed-comment">{comment}</p>
           ) : null}
         </div>
