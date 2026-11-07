@@ -5,8 +5,11 @@ import {
   loadRgdSheet,
   saveRgdSheet,
 } from "../../api";
+import { useHistoryStack } from "../../hooks/useHistoryStack";
 import { emitRgdSheetSaved } from "../../lib/rgdEvents";
+import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
 import type { FlowchartSummary, ProjectRecord, RgdSheetDocument } from "../../types";
+import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 import { RgdLiveTable } from "../editor/rgd/RgdLiveTable";
 import { RgdSheetForm } from "../editor/rgd/RgdSheetForm";
 import { normalizeRgdSheet } from "../editor/rgd/rgdSheetModel";
@@ -21,12 +24,19 @@ import { RgdSidebar } from "./RgdSidebar";
 
 type RgdEditorProps = {
   project: ProjectRecord;
+  /** When false, this tab is hidden — skip window keyboard undo handling. */
+  active?: boolean;
   focusSheetId?: string | null;
   onOpenFlowchart?: (flowchartId: string) => void;
 };
 
+function cloneSheet(doc: RgdSheetDocument): RgdSheetDocument {
+  return structuredClone(doc);
+}
+
 export function RgdEditor({
   project,
+  active = true,
   focusSheetId,
   onOpenFlowchart,
 }: RgdEditorProps) {
@@ -37,6 +47,15 @@ export function RgdEditor({
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const saveTimer = useRef<number | null>(null);
   const docRef = useRef<RgdSheetDocument | null>(null);
+  const applyingHistory = useRef(false);
+  const {
+    push: pushHistory,
+    undo: undoHistory,
+    redo: redoHistory,
+    clear: clearHistory,
+    canUndo,
+    canRedo,
+  } = useHistoryStack<RgdSheetDocument>();
 
   const selectSheet = useCallback((id: string, sheetName: string) => {
     if (!id) {
@@ -97,6 +116,7 @@ export function RgdEditor({
         setDoc(loaded);
         docRef.current = loaded;
         setName(loaded.name);
+        clearHistory();
         setStatus("Ready");
       } catch (e) {
         if (!cancelled) {
@@ -108,7 +128,7 @@ export function RgdEditor({
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, sheetId]);
+  }, [project.id, sheetId, clearHistory]);
 
   const persist = useCallback(
     async (next: RgdSheetDocument) => {
@@ -136,24 +156,87 @@ export function RgdEditor({
     [persist, project.id, sheetId],
   );
 
+  const recordHistory = useCallback(
+    (opts?: { coalesce?: boolean }) => {
+      if (applyingHistory.current) return;
+      const current = docRef.current;
+      if (!current) return;
+      pushHistory(cloneSheet(current), opts);
+    },
+    [pushHistory],
+  );
+
+  const applySnapshot = useCallback(
+    (snap: RgdSheetDocument) => {
+      applyingHistory.current = true;
+      const next = normalizeRgdSheet(cloneSheet(snap));
+      setName(next.name);
+      queueSave(next);
+      applyingHistory.current = false;
+    },
+    [queueSave],
+  );
+
+  const handleUndo = useCallback(() => {
+    const current = docRef.current;
+    if (!current) return;
+    const prev = undoHistory(cloneSheet(current));
+    if (!prev) return;
+    applySnapshot(prev);
+    setStatus("Undid last RGD edit");
+  }, [undoHistory, applySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    const current = docRef.current;
+    if (!current) return;
+    const next = redoHistory(cloneSheet(current));
+    if (!next) return;
+    applySnapshot(next);
+    setStatus("Redid RGD edit");
+  }, [redoHistory, applySnapshot]);
+
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      const action = undoRedoFromKeyboard(event);
+      if (!action) return;
+      // Own form-level history — override native input undo while this tab is active.
+      if (action === "undo" && canUndo) {
+        event.preventDefault();
+        handleUndo();
+      } else if (action === "redo" && canRedo) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, canUndo, canRedo, handleUndo, handleRedo]);
+
   const updateName = (nextName: string) => {
     if (!doc) return;
+    recordHistory({ coalesce: true });
     queueSave({ ...doc, name: nextName });
     setName(nextName);
   };
 
   const updatePrimaryFlowchart = (flowchartId: string) => {
     if (!doc) return;
+    recordHistory();
     queueSave({ ...doc, primaryFlowchartId: flowchartId });
   };
 
   const updateMechanics = (mechanics: RgdMechanicNode[]) => {
     if (!doc) return;
+    // Typing coalesces; structural add/remove still coalesce within a short burst
+    // so rapid field edits undo as one step.
+    recordHistory({ coalesce: true });
     queueSave({ ...doc, mechanics });
   };
 
   const updateMeta = (meta: RgdSheetMeta) => {
     if (!doc) return;
+    recordHistory({ coalesce: true });
     queueSave({ ...doc, meta });
   };
 
@@ -201,6 +284,13 @@ export function RgdEditor({
                       onChange={(e) => updateName(e.target.value)}
                     />
                   </label>
+                  <UndoRedoButtons
+                    variant="text"
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                  />
                   <span className="muted tiny toolbar-status">{status}</span>
                 </div>
                 <label className="rgd-field rgd-primary-flow">

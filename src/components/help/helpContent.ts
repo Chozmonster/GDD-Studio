@@ -70,6 +70,7 @@ export const HELP_APP: HelpArticleContent = {
         "Document map (left rail, top) nests headings by level (H1 → H2 → H3) — click to jump within the active doc.",
         "Link across docs with [[Doc Title]] (or toolbar Link). There is no section-link picker; use the map for in-doc jumps.",
         "Drag pane handles to resize (map|docs, editor|variables, tool lists). Sizes persist; narrow windows stack instead of dragging.",
+        "Undo / Redo on the formatting toolbar reverse rich-text edits on this tab only (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y). Other tabs keep their own history stacks.",
       ],
     },
     {
@@ -88,6 +89,7 @@ export const HELP_APP: HelpArticleContent = {
         "Canvas inputs follow Miro: left-drag empty area marquees nodes and connectors; click selects; Shift+click adds/toggles; drag a selection to move it; click empty clears. Pan with Space+drag or middle mouse (scroll/pinch zoom).",
         "Nodes toolbar (Start / End / Action / Decision / State plus Rectangle / Rounded / Diamond / Ellipse): with nodes selected they change all of them; with none selected they create. Types also apply their default shape (e.g. Decision → diamond).",
         "Connector toolbar (Curved / Angled, Start / End arrow): changes selected edges, or sets defaults for new connections (angled + end arrow by default). Drag a connector end onto another node to reconnect.",
+        "Undo / Redo on the flowchart toolbar reverse the last canvas edit on this tab only (add/move/resize/delete nodes or edges, style changes, labels). Shortcuts: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y).",
         "Insert a live embed into the active document from the flowchart tools. Embeds stay centered and fitted in their frame (no drag-pan); the Flowcharts tab keeps Miro-like panning.",
         "Description (sidebar) — optional note under each flowchart; shows beneath live document embeds and updates by reference.",
       ],
@@ -129,6 +131,7 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
       steps: [
         "Drop files on the active board, paste from the OS clipboard, or use Add media…",
         "Copy / Cut / Paste / Delete selected tiles (context menu or shortcuts when the board is focused). Paste also imports OS clipboard files when the board clipboard is empty.",
+        "Undo / Redo on the board toolbar reverse tile mutations on this tab only (add, delete, cut/paste, comment, crop, border, colour palette). Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) when the board is focused.",
       ],
     },
     {
@@ -254,6 +257,7 @@ export const HELP_RGD_APP: HelpArticleContent = {
         "Open the RGD tab — one sheet per gameplay loop (Combat, Stealth, …), like the Flowcharts library.",
         "Edit as a form: mechanics, optional player input, skills (with category), atomic parameters, and cases.",
         "Optional pillars / pattern / signs live in a collapsed context section.",
+        "Undo / Redo on the sheet toolbar reverse form edits on this tab only (gameplay name, mechanics table, context fields, primary flowchart). Typing coalesces into one step; Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or Ctrl+Y).",
       ],
     },
     {
