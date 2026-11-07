@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-tab **Undo / Redo** buttons (and Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z or Ctrl+Y) on Document, Flowcharts, RGD, and Mood Board. Each tab keeps its own history stack — switching tabs does not mix them. Document drives TipTap rich-text history; the tool tabs snapshot meaningful mutations (nodes/edges, form fields, tiles, palette create, etc.). Redo clears after a new edit following undo.
+
 ## [0.1.8] - 2026-11-06
 
 Flowchart descriptions, connector sizing, multi mood boards, and colour palettes.

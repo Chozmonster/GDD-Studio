@@ -108,8 +108,9 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
       </header>
       <main className="main-pane editor-alone">
         {/*
-          Keep Document mounted (hidden) so TipTap selection/cursor survives
-          tab switches — Mood Board "Insert into document" restores that position.
+          Keep every main tab mounted (hidden) so per-tab undo stacks and
+          TipTap selection/cursor survive switches. Mood Board "Insert into
+          document" restores the last Document cursor.
         */}
         <div
           className={
@@ -124,32 +125,56 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           </div>
           <EditorCanvas
             project={project}
+            active={tab === "document"}
             onOpenFlowchart={openFlowchart}
             onOpenRgdSheet={openRgdSheet}
             onOpenMoodBoard={openMoodBoard}
           />
         </div>
 
-        {tab === "flowchart" && (
+        <div
+          className={
+            tab === "flowchart" ? "editor-tab-panel" : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "flowchart"}
+          aria-hidden={tab !== "flowchart"}
+        >
           <FlowchartEditor
             project={project}
+            active={tab === "flowchart"}
             focusFlowchartId={focusFlowchartId}
           />
-        )}
-        {tab === "rgd" && (
+        </div>
+
+        <div
+          className={
+            tab === "rgd" ? "editor-tab-panel" : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "rgd"}
+          aria-hidden={tab !== "rgd"}
+        >
           <RgdEditor
             project={project}
+            active={tab === "rgd"}
             focusSheetId={focusSheetId}
             onOpenFlowchart={openFlowchart}
           />
-        )}
-        {tab === "moodboard" && (
+        </div>
+
+        <div
+          className={
+            tab === "moodboard" ? "editor-tab-panel" : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "moodboard"}
+          aria-hidden={tab !== "moodboard"}
+        >
           <MoodBoard
             project={project}
+            active={tab === "moodboard"}
             focusBoardId={focusMoodBoardId}
             onInsertedIntoDocument={() => setTab("document")}
           />
-        )}
+        </div>
       </main>
 
       {optionsOpen && (

@@ -65,12 +65,55 @@ import {
   emitFlowchartSaved,
   onFlowchartSaved,
 } from "../../lib/flowchartEvents";
+import { useHistoryStack } from "../../hooks/useHistoryStack";
+import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
+import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 
 type FlowchartEditorProps = {
   project: ProjectRecord;
+  /** When false, this tab is hidden — skip window keyboard undo handling. */
+  active?: boolean;
   /** When set (e.g. from a document embed Open), select that flowchart. */
   focusFlowchartId?: string | null;
 };
+
+type FlowSnapshot = {
+  name: string;
+  description: string;
+  nodes: FlowNodeT[];
+  edges: FlowEdge[];
+};
+
+function cloneFlowNodes(nodes: FlowNodeT[]): FlowNodeT[] {
+  return nodes.map((n) => ({
+    ...n,
+    position: { ...n.position },
+    style: n.style ? { ...n.style } : n.style,
+    measured: n.measured ? { ...n.measured } : n.measured,
+    data: {
+      label: n.data.label,
+      kind: n.data.kind,
+      shape: n.data.shape,
+      fill: n.data.fill,
+    },
+    selected: false,
+    dragging: false,
+  }));
+}
+
+function cloneFlowEdges(edges: FlowEdge[]): FlowEdge[] {
+  return edges.map((e) => ({
+    ...e,
+    data: e.data
+      ? {
+          path: e.data.path,
+          startArrow: e.data.startArrow,
+          endArrow: e.data.endArrow,
+        }
+      : e.data,
+    selected: false,
+  }));
+}
 
 const nodeTypes = { flow: FlowNode, labeled: FlowNode };
 const edgeTypes = { stubCurve: StubCurveEdge, stubStep: StubStepEdge };
@@ -100,12 +143,14 @@ function withLabelHandler(
   setNodes: Dispatch<SetStateAction<FlowNodeT[]>>,
   queueSaveRef: MutableRefObject<(nodes: Node[], edges: Edge[]) => void>,
   edgesRef: MutableRefObject<FlowEdge[]>,
+  recordHistoryRef: MutableRefObject<(() => void) | null>,
 ): FlowNodeT {
   return {
     ...node,
     data: {
       ...node.data,
       onChangeLabel: (nodeId: string, label: string) => {
+        recordHistoryRef.current?.();
         setNodes((prev) => {
           const next = prev.map((n) =>
             n.id === nodeId ? { ...n, data: { ...n.data, label } } : n,
@@ -120,6 +165,7 @@ function withLabelHandler(
 
 export function FlowchartEditor({
   project,
+  active = true,
   focusFlowchartId,
 }: FlowchartEditorProps) {
   const [flowchartId, setFlowchartId] = useState("main");
@@ -148,12 +194,43 @@ export function FlowchartEditor({
   const defaultEdgePathRef = useRef(defaultEdgePath);
   const defaultStartArrowRef = useRef(defaultStartArrow);
   const defaultEndArrowRef = useRef(defaultEndArrow);
+  const recordHistoryRef = useRef<(() => void) | null>(null);
+  const dragHistoryCaptured = useRef(false);
+  const resizeHistoryCaptured = useRef(false);
+  const applyingHistory = useRef(false);
+  const {
+    push: pushHistory,
+    undo: undoHistory,
+    redo: redoHistory,
+    clear: clearHistory,
+    canUndo,
+    canRedo,
+  } = useHistoryStack<FlowSnapshot>();
   nodesRef.current = nodes;
   edgesRef.current = edges;
   nameRef.current = name;
   defaultEdgePathRef.current = defaultEdgePath;
   defaultStartArrowRef.current = defaultStartArrow;
   defaultEndArrowRef.current = defaultEndArrow;
+
+  const takeSnapshot = useCallback((): FlowSnapshot => {
+    return {
+      name: nameRef.current,
+      description: descriptionRef.current,
+      nodes: cloneFlowNodes(nodesRef.current),
+      edges: cloneFlowEdges(edgesRef.current),
+    };
+  }, []);
+
+  const recordHistory = useCallback(
+    (opts?: { coalesce?: boolean; coalesceMs?: number }) => {
+      if (applyingHistory.current) return;
+      pushHistory(takeSnapshot(), opts);
+    },
+    [pushHistory, takeSnapshot],
+  );
+
+  recordHistoryRef.current = () => recordHistory();
 
   const persist = useCallback(
     async (nextNodes: Node[], nextEdges: Edge[], vp: Viewport) => {
@@ -218,6 +295,7 @@ export function FlowchartEditor({
             setNodes,
             queueSaveRef,
             edgesRef,
+            recordHistoryRef,
           ),
         );
         idCounter.current =
@@ -229,6 +307,9 @@ export function FlowchartEditor({
         setEdges((doc.edges ?? []).map((e) => migrateEdge(e)));
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        clearHistory();
+        dragHistoryCaptured.current = false;
+        resizeHistoryCaptured.current = false;
         setStatus("Ready");
         setDirty(false);
         setReady(true);
@@ -242,7 +323,7 @@ export function FlowchartEditor({
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, flowchartId, setNodes, setEdges]);
+  }, [project.id, flowchartId, setNodes, setEdges, clearHistory]);
 
   const selectFlowchart = (id: string, nextName: string) => {
     if (id === flowchartId) {
@@ -276,12 +357,114 @@ export function FlowchartEditor({
     setFlowchartId(focusFlowchartId);
   }, [focusFlowchartId, flowchartId]);
 
+  const applySnapshot = useCallback(
+    (snap: FlowSnapshot) => {
+      applyingHistory.current = true;
+      setName(snap.name);
+      nameRef.current = snap.name;
+      descriptionRef.current = snap.description;
+      const restoredNodes = cloneFlowNodes(snap.nodes).map((n) =>
+        withLabelHandler(
+          n,
+          setNodes,
+          queueSaveRef,
+          edgesRef,
+          recordHistoryRef,
+        ),
+      );
+      const restoredEdges = cloneFlowEdges(snap.edges);
+      setNodes(restoredNodes);
+      setEdges(restoredEdges);
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      queueSave(restoredNodes, restoredEdges);
+      applyingHistory.current = false;
+    },
+    [queueSave, setNodes, setEdges],
+  );
+
+  const handleUndo = useCallback(() => {
+    const prev = undoHistory(takeSnapshot());
+    if (!prev) return;
+    applySnapshot(prev);
+    setStatus("Undid last flowchart edit");
+  }, [undoHistory, takeSnapshot, applySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    const next = redoHistory(takeSnapshot());
+    if (!next) return;
+    applySnapshot(next);
+    setStatus("Redid flowchart edit");
+  }, [redoHistory, takeSnapshot, applySnapshot]);
+
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      const action = undoRedoFromKeyboard(event);
+      if (!action) return;
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (action === "undo" && canUndo) {
+        event.preventDefault();
+        handleUndo();
+      } else if (action === "redo" && canRedo) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, canUndo, canRedo, handleUndo, handleRedo]);
+
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNodeT>[]) => {
       const nds = nodesRef.current;
       const guides: SnapGuide[] = [];
       let dragging = false;
       let dragEnded = false;
+      const startingDrag = changes.some(
+        (c) => c.type === "position" && c.dragging === true,
+      );
+      const endingDrag = changes.some(
+        (c) => c.type === "position" && c.dragging === false,
+      );
+      const resizing = changes.some((c) => c.type === "dimensions");
+
+      if (startingDrag && !dragHistoryCaptured.current) {
+        recordHistory();
+        dragHistoryCaptured.current = true;
+      }
+      if (endingDrag) dragHistoryCaptured.current = false;
+      if (resizing && !resizeHistoryCaptured.current) {
+        // dimensions fire repeatedly while resizing — capture once per gesture
+        const dimChange = changes.find((c) => c.type === "dimensions");
+        if (
+          dimChange &&
+          dimChange.type === "dimensions" &&
+          dimChange.resizing !== false
+        ) {
+          recordHistory();
+          resizeHistoryCaptured.current = true;
+        }
+      }
+      if (
+        changes.some(
+          (c) =>
+            c.type === "dimensions" &&
+            "resizing" in c &&
+            c.resizing === false,
+        )
+      ) {
+        resizeHistoryCaptured.current = false;
+      }
+      if (changes.some((c) => c.type === "remove" || c.type === "add")) {
+        // Coalesce with paired edge removes from the same Delete gesture.
+        recordHistory({ coalesce: true, coalesceMs: 50 });
+      }
 
       const snappedChanges = changes.map((change) => {
         if (change.type === "position" && change.position) {
@@ -355,11 +538,14 @@ export function FlowchartEditor({
         return withSyncedSize;
       });
     },
-    [setNodes, queueSave],
+    [setNodes, queueSave, recordHistory],
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange<FlowEdge>[]) => {
+      if (changes.some((c) => c.type === "remove" || c.type === "add")) {
+        recordHistory({ coalesce: true, coalesceMs: 50 });
+      }
       setEdges((eds) => {
         const next = applyEdgeChanges(changes, eds);
         const meaningful = changes.some(
@@ -369,7 +555,7 @@ export function FlowchartEditor({
         return next;
       });
     },
-    [setEdges, queueSave],
+    [setEdges, queueSave, recordHistory],
   );
 
   const onConnect = useCallback(
@@ -380,6 +566,7 @@ export function FlowchartEditor({
       const path = defaultEdgePathRef.current;
       const startArrow = defaultStartArrowRef.current;
       const endArrow = defaultEndArrowRef.current;
+      recordHistory();
       setEdges((eds) => {
         const next = addEdge(
           {
@@ -400,7 +587,7 @@ export function FlowchartEditor({
         return next;
       });
     },
-    [setEdges, queueSave],
+    [setEdges, queueSave, recordHistory],
   );
 
   const onReconnect = useCallback(
@@ -408,6 +595,7 @@ export function FlowchartEditor({
       if (!connection.source || !connection.target) return;
       // Same anchor rule as new connections — keep edges locked to N/E/S/W.
       if (!connection.sourceHandle || !connection.targetHandle) return;
+      recordHistory();
       setEdges((eds) => {
         // reconnectEdge keeps type / markers / data / label from oldEdge.
         const next = reconnectEdge(oldEdge, connection, eds, {
@@ -417,7 +605,7 @@ export function FlowchartEditor({
         return next;
       });
     },
-    [setEdges, queueSave],
+    [setEdges, queueSave, recordHistory],
   );
 
   const selectedNodes = nodes.filter(
@@ -477,6 +665,7 @@ export function FlowchartEditor({
     },
   ) => {
     if (selectedNodes.length === 0) return;
+    recordHistory();
     const targetIds = new Set(selectedNodes.map((n) => n.id));
     setNodes((prev) => {
       const next = prev.map((n) => {
@@ -506,6 +695,7 @@ export function FlowchartEditor({
     endArrow?: boolean;
   }) => {
     if (selectedEdges.length === 0) return;
+    recordHistory();
     const targetIds = new Set(selectedEdges.map((e) => e.id));
     setEdges((eds) => {
       const next = eds.map((e) => {
@@ -542,6 +732,7 @@ export function FlowchartEditor({
       y: origin.y + Math.floor((index - 1) / 3) * 150,
     };
 
+    recordHistory();
     setNodes((nds) => {
       const base = migrateNode({
         id,
@@ -557,7 +748,13 @@ export function FlowchartEditor({
       });
       const next = [
         ...nds,
-        withLabelHandler(base, setNodes, queueSaveRef, edgesRef),
+        withLabelHandler(
+          base,
+          setNodes,
+          queueSaveRef,
+          edgesRef,
+          recordHistoryRef,
+        ),
       ];
       queueSave(next, edgesRef.current);
       return next;
@@ -574,6 +771,7 @@ export function FlowchartEditor({
       const shape = defaults.defaultShape;
       const size = defaultSizeFor(kind, shape);
       const targetIds = new Set(selectedNodes.map((n) => n.id));
+      recordHistory();
       setNodes((prev) => {
         const next = prev.map((n) => {
           if (!targetIds.has(n.id)) return n;
@@ -640,6 +838,7 @@ export function FlowchartEditor({
   };
 
   const deleteSelected = () => {
+    recordHistory();
     setNodes((nds) => {
       const next = nds.filter((n) => !n.selected && n.id !== selectedNodeId);
       setEdges((eds) => {
@@ -662,6 +861,7 @@ export function FlowchartEditor({
     if (nextLabel === null) return;
     // Rename applies to the primary selection only (prompt is one label).
     const label = nextLabel.trim() || "Node";
+    recordHistory();
     setNodes((prev) => {
       const next = prev.map((n) =>
         n.id === node.id ? { ...n, data: { ...n.data, label } } : n,
@@ -676,6 +876,7 @@ export function FlowchartEditor({
     if (!edge) return;
     const nextLabel = window.prompt("Edge label", String(edge.label ?? ""));
     if (nextLabel === null) return;
+    recordHistory();
     setEdges((eds) => {
       const next = eds.map((e) =>
         e.id === edge.id
@@ -710,6 +911,13 @@ export function FlowchartEditor({
           <span className="muted tiny">{dirty ? "Unsaved…" : status}</span>
         </div>
         <div className="flowchart-toolbar-actions">
+          <UndoRedoButtons
+            variant="text"
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
           <button
             type="button"
             onClick={renameSelectedNode}

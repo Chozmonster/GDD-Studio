@@ -85,13 +85,20 @@ import {
 import { Spellcheck } from "./editor/spellcheckExtension";
 import { TemplatesPicker } from "./editor/TemplatesPicker";
 import { ToolbarIconButton } from "./editor/ToolbarIconButton";
+import { UndoRedoButtons } from "./editor/UndoRedoButtons";
 import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
 import { WikiLink } from "./editor/wikiLinkExtension";
 import { WordLookupPanel } from "./editor/WordLookupPanel";
+import {
+  isEditableKeyboardTarget,
+  undoRedoFromKeyboard,
+} from "../lib/undoKeyboard";
 
 type EditorCanvasProps = {
   project: ProjectRecord;
+  /** When false, this tab is hidden — skip window keyboard undo handling. */
+  active?: boolean;
   onOpenFlowchart?: (flowchartId: string) => void;
   onOpenRgdSheet?: (sheetId: string) => void;
   onOpenMoodBoard?: (boardId?: string) => void;
@@ -112,11 +119,14 @@ function ToolbarDivider() {
 
 export function EditorCanvas({
   project,
+  active = true,
   onOpenFlowchart,
   onOpenRgdSheet,
   onOpenMoodBoard,
 }: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
+  /** TipTap History canUndo/canRedo — refreshed on every transaction. */
+  const [, setHistoryTick] = useState(0);
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const [rgdSheets, setRgdSheets] = useState<RgdSheetSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -311,6 +321,46 @@ export function EditorCanvas({
   );
 
   editorRef.current = editor;
+
+  // Drive Undo/Redo button disabled state from TipTap History plugin.
+  useEffect(() => {
+    if (!editor) return;
+    const onTransaction = () => setHistoryTick((n) => n + 1);
+    editor.on("transaction", onTransaction);
+    return () => {
+      editor.off("transaction", onTransaction);
+    };
+  }, [editor]);
+
+  // Blur when leaving the Document tab so TipTap History does not steal
+  // Mod+Z from Flowcharts / RGD / Mood Board while this panel is hidden.
+  useEffect(() => {
+    if (!editor) return;
+    if (!active && editor.view.hasFocus()) {
+      editor.commands.blur();
+    }
+  }, [active, editor]);
+
+  // When the Document tab is focused but the prose mirror view is not,
+  // still offer Mod+Z / Mod+Shift+Z (TipTap handles keys while focused).
+  useEffect(() => {
+    if (!active || !editor) return;
+    const onKey = (event: KeyboardEvent) => {
+      const action = undoRedoFromKeyboard(event);
+      if (!action) return;
+      if (editor.view.hasFocus()) return;
+      if (isEditableKeyboardTarget(event.target)) return;
+      if (action === "undo" && editor.can().undo()) {
+        event.preventDefault();
+        editor.chain().focus().undo().run();
+      } else if (action === "redo" && editor.can().redo()) {
+        event.preventDefault();
+        editor.chain().focus().redo().run();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, editor]);
 
   // Snapshot TipTap selection so Mood Board can insert at the last cursor
   // in the *active* document (keyed by projectId:docId).
@@ -660,10 +710,23 @@ export function EditorCanvas({
     (editor.getAttributes("textStyle").fontSize as string | undefined) ?? "";
   const currentFamily =
     (editor.getAttributes("textStyle").fontFamily as string | undefined) ?? "";
+  const canUndo = editor.can().undo();
+  const canRedo = editor.can().redo();
 
   return (
     <section className="editor-shell" aria-label={`Editing ${project.name}`}>
       <header className="editor-toolbar" role="toolbar" aria-label="Formatting">
+        <div className="toolbar-group">
+          <UndoRedoButtons
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={() => editor.chain().focus().undo().run()}
+            onRedo={() => editor.chain().focus().redo().run()}
+          />
+        </div>
+
+        <ToolbarDivider />
+
         <div className="toolbar-group">
           <ToolbarIconButton
             label="Bold"

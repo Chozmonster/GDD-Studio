@@ -541,6 +541,12 @@ code {
   color: #e8fff2;
 }
 
+.undo-redo-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .toolbar-icon-btn {
   display: inline-flex;
   align-items: center;

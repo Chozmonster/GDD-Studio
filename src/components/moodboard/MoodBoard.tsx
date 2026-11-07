@@ -13,12 +13,14 @@ import {
   parsePaletteHexes,
 } from "../../lib/colourPalette";
 import { requestInsertMediaFromMoodBoard } from "../../lib/documentMediaInsert";
+import { useHistoryStack } from "../../hooks/useHistoryStack";
 import { isAllowedMediaFile } from "../../lib/mediaFile";
 import { normalizeCrop } from "../../lib/moodBoardEdit";
 import {
   emitMoodBoardItemDeleted,
   emitMoodBoardSaved,
 } from "../../lib/moodBoardEvents";
+import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
 import type {
   AssetRecord,
   MoodBoardBorder,
@@ -27,6 +29,7 @@ import type {
   MoodBoardItem,
   ProjectRecord,
 } from "../../types";
+import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 import { SplitPane } from "../SplitPane";
 import { MoodBoardSidebar } from "./MoodBoardSidebar";
 import { MoodBorderDialog } from "./MoodBorderDialog";
@@ -35,10 +38,16 @@ import { MoodMediaFrame } from "./MoodMediaFrame";
 
 type MoodBoardProps = {
   project: ProjectRecord;
+  /** When false, this tab is hidden — skip window keyboard undo handling. */
+  active?: boolean;
   /** When set (e.g. from a document embed Open), select that board. */
   focusBoardId?: string | null;
   onInsertedIntoDocument?: () => void;
 };
+
+function cloneBoard(doc: MoodBoardDocument): MoodBoardDocument {
+  return structuredClone(doc);
+}
 
 type ContextMenuState = {
   x: number;
@@ -67,6 +76,7 @@ function emptyBoard(id = "main", name = "Main"): MoodBoardDocument {
 
 export function MoodBoard({
   project,
+  active = true,
   focusBoardId,
   onInsertedIntoDocument,
 }: MoodBoardProps) {
@@ -86,6 +96,15 @@ export function MoodBoard({
   const saveTimer = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const applyingHistory = useRef(false);
+  const {
+    push: pushHistory,
+    undo: undoHistory,
+    redo: redoHistory,
+    clear: clearHistory,
+    canUndo,
+    canRedo,
+  } = useHistoryStack<MoodBoardDocument>();
 
   boardRef.current = board;
   boardIdRef.current = boardId;
@@ -149,6 +168,38 @@ export function MoodBoard({
     [persist, project.id],
   );
 
+  const recordHistory = useCallback(() => {
+    if (applyingHistory.current) return;
+    pushHistory(cloneBoard(boardRef.current));
+  }, [pushHistory]);
+
+  const applySnapshot = useCallback(
+    (snap: MoodBoardDocument) => {
+      applyingHistory.current = true;
+      const prevIds = new Set(boardRef.current.items.map((i) => i.id));
+      const nextIds = new Set(snap.items.map((i) => i.id));
+      const removedIds = [...prevIds].filter((id) => !nextIds.has(id));
+      schedulePersist(cloneBoard(snap), removedIds);
+      setBoardName(snap.name || boardName);
+      applyingHistory.current = false;
+    },
+    [boardName, schedulePersist],
+  );
+
+  const handleUndo = useCallback(() => {
+    const prev = undoHistory(cloneBoard(boardRef.current));
+    if (!prev) return;
+    applySnapshot(prev);
+    setStatus("Undid last mood board edit");
+  }, [undoHistory, applySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    const next = redoHistory(cloneBoard(boardRef.current));
+    if (!next) return;
+    applySnapshot(next);
+    setStatus("Redid mood board edit");
+  }, [redoHistory, applySnapshot]);
+
   const refreshAssets = useCallback(async () => {
     const list = await listAssets(project.id);
     const map: Record<string, AssetRecord> = {};
@@ -197,6 +248,7 @@ export function MoodBoard({
         boardRef.current = doc;
         setBoardName(doc.name || boardName);
         emitMoodBoardSaved(project.id, boardId, doc);
+        clearHistory();
         setStatus(doc.items.length ? "Ready" : "Drop or paste media to begin");
       } catch (e) {
         if (!cancelled) {
@@ -208,7 +260,7 @@ export function MoodBoard({
       cancelled = true;
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [project.id, boardId, refreshAssets]);
+  }, [project.id, boardId, refreshAssets, clearHistory]);
 
   const updateItem = useCallback(
     (
@@ -217,6 +269,7 @@ export function MoodBoard({
         Pick<MoodBoardItem, "comment" | "crop" | "border">
       >,
     ) => {
+      recordHistory();
       const next: MoodBoardDocument = {
         ...boardRef.current,
         id: boardIdRef.current,
@@ -227,7 +280,7 @@ export function MoodBoard({
       };
       schedulePersist(next);
     },
-    [boardName, schedulePersist],
+    [boardName, recordHistory, schedulePersist],
   );
 
   const addFiles = useCallback(
@@ -237,6 +290,8 @@ export function MoodBoard({
         setStatus("No supported media in drop/paste (SVG is blocked)");
         return;
       }
+      // Snapshot before awaits so undo restores the pre-add board.
+      const before = cloneBoard(boardRef.current);
       const added: MoodBoardItem[] = [];
       for (const file of list) {
         try {
@@ -253,6 +308,7 @@ export function MoodBoard({
       }
       if (added.length === 0) return;
       await refreshAssets();
+      pushHistory(before);
       const next: MoodBoardDocument = {
         ...boardRef.current,
         items: [...boardRef.current.items, ...added],
@@ -261,7 +317,7 @@ export function MoodBoard({
       if (added.length) setSelection(added.map((i) => i.id));
       setStatus(`Added ${added.length} item${added.length === 1 ? "" : "s"}`);
     },
-    [project.id, refreshAssets, schedulePersist, setSelection],
+    [project.id, pushHistory, refreshAssets, schedulePersist, setSelection],
   );
 
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -286,6 +342,7 @@ export function MoodBoard({
 
   const removeItems = useCallback(
     (ids: string[]) => {
+      recordHistory();
       const idSet = new Set(ids);
       const next: MoodBoardDocument = {
         ...boardRef.current,
@@ -298,7 +355,7 @@ export function MoodBoard({
         return nextSel;
       });
     },
-    [schedulePersist],
+    [recordHistory, schedulePersist],
   );
 
   const copyItems = useCallback(
@@ -335,6 +392,7 @@ export function MoodBoard({
         crop: i.crop ? { ...i.crop } : i.crop,
         border: i.border ? { ...i.border } : i.border,
       }));
+      recordHistory();
       const next: MoodBoardDocument = {
         ...boardRef.current,
         items: [...boardRef.current.items, ...clones],
@@ -379,7 +437,7 @@ export function MoodBoard({
     }
     setStatus("Clipboard is empty");
     closeMenu();
-  }, [addFiles, closeMenu, schedulePersist, setSelection]);
+  }, [addFiles, closeMenu, recordHistory, schedulePersist, setSelection]);
 
   const createColourPalette = useCallback(async () => {
     const ids =
@@ -419,6 +477,7 @@ export function MoodBoard({
         ? `Building palette from ${imageItems.length} image(s); skipped ${skipped} non-image…`
         : `Building palette from ${imageItems.length} image(s)…`,
     );
+    const before = cloneBoard(boardRef.current);
     try {
       const srcs: string[] = [];
       for (const item of imageItems) {
@@ -431,6 +490,7 @@ export function MoodBoard({
       });
       const asset = await saveAssetFromFile(project.id, file);
       await refreshAssets();
+      pushHistory(before);
       const tile: MoodBoardItem = {
         id: crypto.randomUUID(),
         assetId: asset.id,
@@ -459,6 +519,7 @@ export function MoodBoard({
     closeMenu,
     menu,
     project.id,
+    pushHistory,
     refreshAssets,
     schedulePersist,
     setSelection,
@@ -550,6 +611,24 @@ export function MoodBoard({
     };
 
     const onKey = (e: KeyboardEvent) => {
+      if (!active) return;
+      const undoAction = undoRedoFromKeyboard(e);
+      if (undoAction) {
+        if (
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLTextAreaElement
+        ) {
+          return;
+        }
+        if (undoAction === "undo" && canUndo) {
+          e.preventDefault();
+          handleUndo();
+        } else if (undoAction === "redo" && canRedo) {
+          e.preventDefault();
+          handleRedo();
+        }
+        return;
+      }
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "v") {
         if (clipboardRef.current && !e.shiftKey) {
@@ -595,7 +674,17 @@ export function MoodBoard({
       el.removeEventListener("paste", onPaste);
       window.removeEventListener("keydown", onKey);
     };
-  }, [addFiles, copyItems, pasteClipboard, removeItems]);
+  }, [
+    active,
+    addFiles,
+    canRedo,
+    canUndo,
+    copyItems,
+    handleRedo,
+    handleUndo,
+    pasteClipboard,
+    removeItems,
+  ]);
 
   const activeMenuItem = menu
     ? board.items.find((i) => i.id === menu.itemId)
@@ -652,6 +741,13 @@ export function MoodBoard({
           </p>
         </div>
         <div className="mood-toolbar-actions">
+          <UndoRedoButtons
+            variant="text"
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
           <button
             type="button"
             className="ghost"
