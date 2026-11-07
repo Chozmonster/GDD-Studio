@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.1.9] - 2026-11-07
+
+Per-tab undo/redo and full Mood Board colour-palette tiles.
+
 ### Added
 
 - Per-tab **Undo / Redo** buttons (and Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z or Ctrl+Y) on Document, Flowcharts, RGD, and Mood Board. Each tab keeps its own history stack — switching tabs does not mix them. Document drives TipTap rich-text history; the tool tabs snapshot meaningful mutations (nodes/edges, form fields, tiles, palette create, etc.). Redo clears after a new edit following undo.
@@ -14,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Mood Board **colour-palette tiles** show the full labelled swatch strip on the board (and in document embeds) instead of clipping the generated PNG inside the default 4:3 photo crop. Click a colour block to copy its hex.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.8] - 2026-11-06
 
