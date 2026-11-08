@@ -154,7 +154,18 @@ export function ChartFormulaPanel({
       </p>
 
       <div className="charts-formula-top">
-        <label className="charts-inline-field grow">
+        <label className="charts-inline-field charts-formula-expr-field">
+          <span className="muted tiny">Formula</span>
+          <input
+            className="charts-formula-expr"
+            value={state.expression}
+            spellCheck={false}
+            placeholder="e.g. a * x^b + c"
+            aria-label="Formula expression"
+            onChange={(e) => setExpression(e.target.value)}
+          />
+        </label>
+        <label className="charts-inline-field charts-formula-preset-field">
           <span className="muted tiny">Preset</span>
           <select
             value={state.presetId}
@@ -168,17 +179,6 @@ export function ChartFormulaPanel({
               </option>
             ))}
           </select>
-        </label>
-        <label className="charts-inline-field grow charts-formula-expr-field">
-          <span className="muted tiny">Formula</span>
-          <input
-            className="charts-formula-expr"
-            value={state.expression}
-            spellCheck={false}
-            placeholder="e.g. a * x^b + c"
-            aria-label="Formula expression"
-            onChange={(e) => setExpression(e.target.value)}
-          />
         </label>
       </div>
 
@@ -194,10 +194,10 @@ export function ChartFormulaPanel({
         ) : (
           <ul className="charts-formula-var-list">
             {state.variables.map((v) => (
-              <li key={v.name}>
+              <li key={v.name} className="charts-formula-var-chip">
                 <span className="charts-formula-var-name">{v.name}</span>
                 <input
-                  className="chart-cell-input"
+                  className="chart-cell-input charts-formula-var-value"
                   inputMode="decimal"
                   value={v.value}
                   aria-label={`Value for ${v.name}`}
@@ -205,11 +205,12 @@ export function ChartFormulaPanel({
                 />
                 <button
                   type="button"
-                  className="ghost tiny-btn"
-                  title="Remove variable"
+                  className="ghost tiny-btn charts-formula-var-remove"
+                  title={`Remove ${v.name}`}
+                  aria-label={`Remove ${v.name}`}
                   onClick={() => removeVariable(v.name)}
                 >
-                  Remove
+                  ×
                 </button>
               </li>
             ))}
