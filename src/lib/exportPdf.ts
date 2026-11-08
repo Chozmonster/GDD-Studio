@@ -5,7 +5,7 @@ import { writeExportHtml } from "../api";
 /** Soft cap — very tall embeds are cropped so print pages stay usable. */
 const MAX_CAPTURE_HEIGHT_PX = 1800;
 const EMBED_SELECTOR =
-  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed';
+  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed';
 
 type CapturedEmbed = {
   dataUrl: string;
@@ -71,12 +71,13 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
 function embedLabel(el: HTMLElement): string {
   const title =
     el.querySelector(
-      ".flowchart-embed-title, .rgd-live-table-title, .rgd-sheet-card-title, .rgd-block-title, .media-embed-name",
+      ".flowchart-embed-title, .rgd-live-table-title, .rgd-sheet-card-title, .rgd-block-title, .media-embed-name, .chart-embed-title",
     )
       ?.textContent?.trim() ||
     el.getAttribute("data-flowchart-id") ||
     el.getAttribute("data-sheet-id") ||
     el.getAttribute("data-mood-board-item-id") ||
+    el.getAttribute("data-chart-id") ||
     "";
   if (el.matches(".flowchart-embed, [data-type='flowchart-embed']")) {
     return title || "Flowchart";
@@ -90,6 +91,9 @@ function embedLabel(el: HTMLElement): string {
   }
   if (el.matches(".mood-board-embed, [data-type='mood-board-embed']")) {
     return title || "Mood Board";
+  }
+  if (el.matches(".chart-embed, [data-type='chart-embed']")) {
+    return title || "Chart";
   }
   return title || "Embed";
 }
@@ -241,7 +245,11 @@ async function buildExportHtml(
     } else {
       const kind = el.matches(".flowchart-embed, [data-type='flowchart-embed']")
         ? "Flowchart embed"
-        : "RGD embed";
+        : el.matches(".chart-embed, [data-type='chart-embed']")
+          ? "Chart embed"
+          : el.matches(".mood-board-embed, [data-type='mood-board-embed']")
+            ? "Mood Board embed"
+            : "RGD embed";
       el.replaceWith(placeholder(kind));
     }
   });

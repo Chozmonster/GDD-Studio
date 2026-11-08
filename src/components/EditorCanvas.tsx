@@ -10,6 +10,7 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  BarChart3,
   Bold,
   BookOpen,
   FileDown,
@@ -31,19 +32,25 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SplitPane } from "./SplitPane";
 import {
+  chartExists,
+  createChart,
   createRgdSheet,
   ensureVariable,
   flowchartExists,
+  listCharts,
   listFlowcharts,
   listRgdSheets,
+  loadChart,
   loadFlowchart,
   loadProjectDocument,
   loadRgdSheet,
   saveAssetFromFile,
+  saveChart,
   saveFlowchart,
   saveProjectDocument,
   saveRgdSheet,
 } from "../api";
+import { emitChartSaved } from "../lib/chartEvents";
 import { exportDocumentPdf } from "../lib/exportPdf";
 import { isAllowedMediaFile } from "../lib/mediaFile";
 import {
@@ -58,6 +65,7 @@ import { emitVariablesChanged } from "../lib/variableEvents";
 import { getSpellEngine } from "../lib/spellcheck";
 import { lookupWord } from "../lib/wordLookup";
 import type {
+  ChartSummary,
   DocVariable,
   FlowchartSummary,
   ProjectDocument,
@@ -65,6 +73,8 @@ import type {
   RgdSheetSummary,
   WordDefinition,
 } from "../types";
+import { emptyChartDocument } from "./charts/chartModel";
+import { ChartEmbed } from "./editor/chartEmbedExtension";
 import { DocumentMap } from "./editor/DocumentMap";
 import { DocsSidebar } from "./editor/DocsSidebar";
 import { FlowchartEmbed } from "./editor/flowchartEmbedExtension";
@@ -102,6 +112,7 @@ type EditorCanvasProps = {
   onOpenFlowchart?: (flowchartId: string) => void;
   onOpenRgdSheet?: (sheetId: string) => void;
   onOpenMoodBoard?: (boardId?: string) => void;
+  onOpenChart?: (chartId?: string) => void;
 };
 
 type SpellMenuState = {
@@ -123,14 +134,17 @@ export function EditorCanvas({
   onOpenFlowchart,
   onOpenRgdSheet,
   onOpenMoodBoard,
+  onOpenChart,
 }: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
   /** TipTap History canUndo/canRedo — refreshed on every transaction. */
   const [, setHistoryTick] = useState(0);
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const [rgdSheets, setRgdSheets] = useState<RgdSheetSummary[]>([]);
+  const [charts, setCharts] = useState<ChartSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rgdPickerOpen, setRgdPickerOpen] = useState(false);
+  const [chartPickerOpen, setChartPickerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [activeDocId, setActiveDocId] = useState("main");
   const [docMeta, setDocMeta] = useState<ProjectDocument | null>(null);
@@ -246,6 +260,10 @@ export function EditorCanvas({
           projectId: project.id,
           onOpenMoodBoard,
         }),
+        ChartEmbed.configure({
+          projectId: project.id,
+          onOpenChart,
+        }),
         WikiLink.configure({
           projectId: project.id,
           onOpenDoc: (docId) => {
@@ -317,7 +335,7 @@ export function EditorCanvas({
         }, 500);
       },
     },
-    [project.id, onOpenFlowchart, onOpenRgdSheet, onOpenMoodBoard],
+    [project.id, onOpenFlowchart, onOpenRgdSheet, onOpenMoodBoard, onOpenChart],
   );
 
   editorRef.current = editor;
@@ -419,14 +437,16 @@ export function EditorCanvas({
     let cancelled = false;
     void (async () => {
       try {
-        const [doc, list, sheets] = await Promise.all([
+        const [doc, list, sheets, chartList] = await Promise.all([
           loadProjectDocument(project.id, activeDocId),
           listFlowcharts(project.id),
           listRgdSheets(project.id),
+          listCharts(project.id),
         ]);
         if (cancelled || !editor) return;
         setFlowcharts(list);
         setRgdSheets(sheets);
+        setCharts(chartList);
 
         let content = doc.body;
         let nextMeta = doc;
@@ -530,6 +550,10 @@ export function EditorCanvas({
     setRgdSheets(await listRgdSheets(project.id));
   }, [project.id]);
 
+  const refreshCharts = useCallback(async () => {
+    setCharts(await listCharts(project.id));
+  }, [project.id]);
+
   const insertFlowchart = async (flowchartId: string) => {
     if (!(await flowchartExists(project.id, flowchartId))) {
       const doc = await loadFlowchart(project.id, flowchartId);
@@ -559,13 +583,41 @@ export function EditorCanvas({
     setStatus(`Embedded RGD “${named}”`);
   };
 
+  const insertChart = async (chartId: string) => {
+    if (!(await chartExists(project.id, chartId))) {
+      const doc = emptyChartDocument(chartId);
+      await saveChart(project.id, chartId, doc);
+      emitChartSaved(project.id, chartId, doc);
+    } else {
+      // Touch-load so missing-on-disk main still materializes if needed.
+      await loadChart(project.id, chartId);
+    }
+    editor?.chain().focus().insertChartEmbed(chartId).run();
+    setChartPickerOpen(false);
+    const named = charts.find((c) => c.id === chartId)?.name ?? chartId;
+    setStatus(`Embedded chart “${named}”`);
+  };
+
+  const createAndInsertChart = async () => {
+    const name = window.prompt("New chart name", "Untitled chart");
+    if (name === null) return;
+    const created = await createChart(project.id, name);
+    const chart = emptyChartDocument(created.id, created.name);
+    await saveChart(project.id, created.id, chart);
+    emitChartSaved(project.id, created.id, chart);
+    await refreshCharts();
+    await insertChart(created.id);
+  };
+
   const atomEmbedAlignType = editor?.isActive("rgdSheetEmbed")
     ? "rgdSheetEmbed"
     : editor?.isActive("mediaEmbed")
       ? "mediaEmbed"
       : editor?.isActive("moodBoardEmbed")
         ? "moodBoardEmbed"
-        : null;
+        : editor?.isActive("chartEmbed")
+          ? "chartEmbed"
+          : null;
 
   const atomEmbedAlign = atomEmbedAlignType
     ? String(
@@ -902,6 +954,7 @@ export function EditorCanvas({
             className="primary"
             onClick={() => {
               setRgdPickerOpen(false);
+              setChartPickerOpen(false);
               setTemplatesOpen(false);
               void refreshFlowcharts().then(() => setPickerOpen(true));
             }}
@@ -915,6 +968,7 @@ export function EditorCanvas({
             aria-haspopup="dialog"
             onClick={() => {
               setPickerOpen(false);
+              setChartPickerOpen(false);
               setTemplatesOpen(false);
               void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
             }}
@@ -922,11 +976,26 @@ export function EditorCanvas({
             RGD
           </ToolbarIconButton>
           <ToolbarIconButton
+            label="Insert chart"
+            icon={BarChart3}
+            aria-expanded={chartPickerOpen}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setPickerOpen(false);
+              setRgdPickerOpen(false);
+              setTemplatesOpen(false);
+              void refreshCharts().then(() => setChartPickerOpen((o) => !o));
+            }}
+          >
+            Chart
+          </ToolbarIconButton>
+          <ToolbarIconButton
             label="Insert media"
             icon={ImageIcon}
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
+              setChartPickerOpen(false);
               fileInputRef.current?.click();
             }}
           >
@@ -946,6 +1015,7 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
+              setChartPickerOpen(false);
               setTemplatesOpen((o) => !o);
             }}
           >
@@ -1033,6 +1103,42 @@ export function EditorCanvas({
             type="button"
             className="ghost"
             onClick={() => setRgdPickerOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {chartPickerOpen && (
+        <div
+          className="embed-picker chart-insert-menu"
+          role="dialog"
+          aria-label="Insert chart"
+        >
+          <p className="muted tiny">
+            Embed a live chart that references the Charts library (edits update
+            every embed).
+          </p>
+          <ul>
+            {charts.map((c) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => void insertChart(c.id)}>
+                  {c.name} <span className="muted tiny">({c.id})</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void createAndInsertChart()}
+          >
+            New chart + insert
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setChartPickerOpen(false)}
           >
             Cancel
           </button>

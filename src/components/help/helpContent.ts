@@ -12,6 +12,7 @@ import {
 export type HelpSectionId =
   | "app"
   | "moodboard"
+  | "charts"
   | "rgd-overview"
   | "rgd-steps"
   | "rgd-skills"
@@ -25,6 +26,7 @@ export type HelpNavItem = {
 export const HELP_NAV: HelpNavItem[] = [
   { id: "app", label: "How GDD Studio works" },
   { id: "moodboard", label: "Mood Board" },
+  { id: "charts", label: "Charts" },
   { id: "rgd-overview", label: "What is RGD?" },
   { id: "rgd-steps", label: "The 7 steps" },
   { id: "rgd-skills", label: "Player skills" },
@@ -96,11 +98,11 @@ export const HELP_APP: HelpArticleContent = {
     },
     {
       title: "Live tool → document embeds",
-      lead: "Flowcharts, RGD tables, and Mood Board inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
+      lead: "Flowcharts, RGD tables, Mood Board, and Charts inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
       tips: [
         "Flowchart embeds re-fit when the chart or embed size changes so the graph stays centered — they do not free-pan.",
         "Flowchart descriptions edit from the Flowcharts list and appear under every embed of that chart.",
-        "RGD and Mood Board details: see Using RGD here and Mood Board.",
+        "RGD, Mood Board, and Charts details: see their Help sections.",
       ],
     },
     {
@@ -109,8 +111,45 @@ export const HELP_APP: HelpArticleContent = {
         "Media — paste or Insert media (images, gifs, video, audio). Embeds are resizable and follow text alignment. SVG files are not imported.",
         "Templates — save the active body as an app- or project-scoped template; apply replaces the current body (confirm).",
         "Spellcheck — offline underlines. Right-click or Alt+Click for suggestions, Add to dictionary, or Look up. Toolbar Look up opens definitions.",
-        "Export PDF — print dialog (Save as PDF). Flowchart and RGD embeds are captured as screenshots in place; images export normally; video may show a single frame.",
+        "Export PDF — print dialog (Save as PDF). Flowchart, RGD, Mood Board, and Charts embeds are captured as screenshots in place; images export normally; video may show a single frame.",
       ],
+    },
+  ],
+};
+
+export const HELP_CHARTS: HelpArticleContent = {
+  title: "Charts",
+  lead: "Named library of table-driven progression graphs (XP curves, power scaling). Not a spreadsheet and not economy simulation — a guttable MVP for design curves.",
+  topics: [
+    {
+      title: "Library",
+      steps: [
+        "Open the Charts tab — left list to create, rename, delete, or switch charts (Main cannot be deleted).",
+        "Each chart stores an X column plus one or more numeric Y series, with line or bar view.",
+        "Undo / Redo on the Charts toolbar reverse edits on this tab only (table, series, formula fill, type). Shortcuts: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y).",
+      ],
+    },
+    {
+      title: "Formula helper",
+      steps: [
+        "Open Formula… — type a freeform expression (e.g. a * x^b + c, m*x + b, a * exp(k*x)).",
+        "Add variables beneath the formula and set numeric values. Names detected in the expression offer Add shortcuts; x is the swept axis and is not listed.",
+        "Set x start / x end / step. The formula updates the table and graph live (debounced); Apply to table commits immediately. Errors show inline without crashing.",
+        "Presets: Linear, Quadratic, Power, Exponential — selecting one fills the formula and seeds default variables (still editable).",
+      ],
+      tips: [
+        "Supports + − * / ^, parentheses, and functions exp / abs / sqrt / ln / log / sin / cos / tan / min / max / pow. Not a spreadsheet engine.",
+        "Replace all rows rebuilds the table; uncheck to merge Y values into matching X rows.",
+      ],
+    },
+    {
+      title: "Document embeds",
+      steps: [
+        "Document toolbar → Chart inserts a live reference by chart id.",
+        "Edits on the Charts tab update every embed automatically. Embeds are resizable and respect text alignment; PDF export captures them as images.",
+        "Open in Charts jumps to the referenced chart.",
+      ],
+      note: "Charts live under project/charts/*.json so the feature can be removed cleanly if the approach fails.",
     },
   ],
 };

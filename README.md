@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, and RGD workspace. Cloud sync / share links remain v1.5+.
+Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, Charts (progression graphs MVP), and RGD workspace. Cloud sync / share links remain v1.5+.
 
 ## Prerequisites
 
@@ -63,18 +63,19 @@ Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from 
 │   ├── components/
 │   │   ├── Launcher.tsx      # Godot-like project manager
 │   │   ├── OptionsPanel.tsx  # Options window / modal
-│   │   ├── EditorShell.tsx   # Document / Flowcharts tabs
+│   │   ├── EditorShell.tsx   # Document / Flowcharts / RGD / Mood Board / Charts
 │   │   ├── EditorCanvas.tsx  # TipTap
-│   │   └── flowchart/        # @xyflow: typed shapes, colors, resize, edge styles
+│   │   ├── flowchart/        # @xyflow: typed shapes, colors, resize, edge styles
+│   │   └── charts/           # Charts MVP (table + line/bar + formula helper)
 │   └── api.ts
 ├── src-tauri/
-│   ├── src/store.rs          # Project library, settings, flowchart JSON
+│   ├── src/store.rs          # Project library, settings, tool JSON payloads
 │   ├── src/updates.rs        # Updater check / install / daily gate
 │   └── tauri.conf.json       # productName + updater endpoints
 └── .github/workflows/ci.yml
 ```
 
-Flowcharts save under `{project}/flowcharts/main.json` (browser preview uses `localStorage`).
+Flowcharts save under `{project}/flowcharts/*.json`; Charts under `{project}/charts/*.json` (browser preview uses `localStorage`).
 
 ## Automatic updates (GitHub Releases)
 
