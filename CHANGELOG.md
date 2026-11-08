@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Charts values table: **X column** and **Y series** headers are inline-editable above the numeric rows (single place to rename axes / series). Renames update the chart preview and live document embeds, and undo/redo on the Charts tab. Duplicate top-level X/Y label fields removed; multi-series charts keep a shared **Y axis** field when needed.
+
 ## [0.1.10] - 2026-11-08
 
 Charts library MVP: formula UX, live embeds, and layout polish.

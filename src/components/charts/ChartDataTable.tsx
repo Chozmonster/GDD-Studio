@@ -17,14 +17,19 @@ export function ChartDataTable({
   onChange,
   onBeforeChange,
 }: ChartDataTableProps) {
+  const updateXLabel = (xLabel: string) => {
+    onBeforeChange({ coalesce: true });
+    onChange({ ...doc, xLabel });
+  };
+
   const updateSeriesName = (seriesId: string, name: string) => {
     onBeforeChange({ coalesce: true });
-    onChange({
-      ...doc,
-      series: doc.series.map((s) =>
-        s.id === seriesId ? { ...s, name } : s,
-      ),
-    });
+    const series = doc.series.map((s) =>
+      s.id === seriesId ? { ...s, name } : s,
+    );
+    // Single-series charts: keep the Y-axis title aligned with the column header.
+    const yLabel = doc.series.length === 1 ? name : doc.yLabel;
+    onChange({ ...doc, series, yLabel });
   };
 
   const addSeries = () => {
@@ -118,13 +123,22 @@ export function ChartDataTable({
         <table className="chart-data-table">
           <thead>
             <tr>
-              <th scope="col">{doc.xLabel || "X"}</th>
+              <th scope="col">
+                <input
+                  className="chart-series-name-input"
+                  value={doc.xLabel}
+                  placeholder="X"
+                  aria-label="X column name"
+                  onChange={(e) => updateXLabel(e.target.value)}
+                />
+              </th>
               {doc.series.map((s) => (
                 <th key={s.id} scope="col">
                   <input
                     className="chart-series-name-input"
                     value={s.name}
-                    aria-label="Series name"
+                    placeholder="Y"
+                    aria-label="Y series name"
                     onChange={(e) => updateSeriesName(s.id, e.target.value)}
                   />
                   {doc.series.length > 1 && (

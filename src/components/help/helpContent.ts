@@ -126,6 +126,7 @@ export const HELP_CHARTS: HelpArticleContent = {
       steps: [
         "Open the Charts tab — left list to create, rename, delete, or switch charts (Main cannot be deleted).",
         "Each chart stores an X column plus one or more numeric Y series, with line or bar view.",
+        "Rename the X column and Y series headers directly in the values table (above the numbers) — chart axes and legend update live, including document embeds.",
         "Undo / Redo on the Charts toolbar reverse edits on this tab only (table, series, formula fill, type). Shortcuts: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y).",
       ],
     },

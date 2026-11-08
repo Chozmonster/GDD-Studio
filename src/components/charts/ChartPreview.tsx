@@ -182,7 +182,9 @@ export function ChartPreview({
           fontSize={11}
           transform={`rotate(-90 14 ${pad.top + innerH / 2})`}
         >
-          {doc.yLabel || "Y"}
+          {doc.series.length === 1
+            ? doc.series[0]?.name || doc.yLabel || "Y"
+            : doc.yLabel || "Y"}
         </text>
 
         {doc.chartType === "bar"
