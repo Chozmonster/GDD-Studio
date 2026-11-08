@@ -131,9 +131,15 @@ export const HELP_CHARTS: HelpArticleContent = {
     },
     {
       title: "Formula helper",
+      steps: [
+        "Open Formula… — type a freeform expression (e.g. a * x^b + c, m*x + b, a * exp(k*x)).",
+        "Add variables beneath the formula and set numeric values. Names detected in the expression offer Add shortcuts; x is the swept axis and is not listed.",
+        "Set x start / x end / step. The formula updates the table and graph live (debounced); Apply to table commits immediately. Errors show inline without crashing.",
+        "Presets: Linear, Quadratic, Power, Exponential — selecting one fills the formula and seeds default variables (still editable).",
+      ],
       tips: [
-        "Formula… fills a series with y = a · x^b + c over an X range — convenience for RPG curves, not a full formula engine.",
-        "Choose Replace all rows, or merge into existing rows by matching X values.",
+        "Supports + − * / ^, parentheses, and functions exp / abs / sqrt / ln / log / sin / cos / tan / min / max / pow. Not a spreadsheet engine.",
+        "Replace all rows rebuilds the table; uncheck to merge Y values into matching X rows.",
       ],
     },
     {

@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Charts** top-level tab: named library (create / rename / delete / switch) for table-driven progression graphs. Edit an X column plus numeric Y series, switch **line** / **bar** view, optional `a · x^b + c` formula → rows helper. Live Document embeds by chart id (resize + alignment; PDF captures as screenshots). Per-tab Undo/Redo. Persists under `charts/*.json` so the module stays guttable.
+- **Charts** top-level tab: named library (create / rename / delete / switch) for table-driven progression graphs. Edit an X column plus numeric Y series, switch **line** / **bar** view. Live Document embeds by chart id (resize + alignment; PDF captures as screenshots). Per-tab Undo/Redo. Persists under `charts/*.json` so the module stays guttable.
+- Charts **formula helper**: freeform expression field with addable variables, auto-detect Add for identifiers in the formula (excluding swept `x`), presets (Linear / Quadratic / Power / Exponential), domain start/end/step, and debounced live eval into the table + graph (Apply to table for an immediate commit; inline errors).
 
 
 ## [0.1.9] - 2026-11-07

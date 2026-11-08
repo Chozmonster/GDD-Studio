@@ -5,12 +5,20 @@ import {
   type PushHistoryOptions,
 } from "../../hooks/useHistoryStack";
 import { emitChartSaved } from "../../lib/chartEvents";
-import { generatePowerCurve } from "../../lib/chartFormula";
+import {
+  CHART_INDEPENDENT_VAR,
+  evaluateFormulaSweep,
+} from "../../lib/chartFormula";
 import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
 import type { ChartDocument, ProjectRecord } from "../../types";
 import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 import { SplitPane } from "../SplitPane";
 import { ChartDataTable } from "./ChartDataTable";
+import {
+  ChartFormulaPanel,
+  defaultChartFormulaState,
+  type ChartFormulaState,
+} from "./ChartFormulaPanel";
 import {
   cloneChart,
   emptyChartDocument,
@@ -28,25 +36,26 @@ type ChartsEditorProps = {
   focusChartId?: string | null;
 };
 
-type FormulaState = {
-  a: string;
-  b: string;
-  c: string;
-  xStart: string;
-  xEnd: string;
-  seriesId: string;
-  replaceRows: boolean;
-};
+function parseDomainNumber(raw: string, fallback: number): number | null {
+  const t = raw.trim();
+  if (!t) return fallback;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
 
-const defaultFormula = (seriesId: string): FormulaState => ({
-  a: "100",
-  b: "1.5",
-  c: "0",
-  xStart: "1",
-  xEnd: "20",
-  seriesId,
-  replaceRows: true,
-});
+function bindingsFromState(
+  state: ChartFormulaState,
+): { ok: true; vars: Record<string, number> } | { ok: false; error: string } {
+  const vars: Record<string, number> = {};
+  for (const v of state.variables) {
+    const n = Number(v.value.trim());
+    if (!Number.isFinite(n)) {
+      return { ok: false, error: `Variable “${v.name}” needs a numeric value` };
+    }
+    vars[v.name] = n;
+  }
+  return { ok: true, vars };
+}
 
 export function ChartsEditor({
   project,
@@ -58,12 +67,16 @@ export function ChartsEditor({
   const [doc, setDoc] = useState<ChartDocument>(() => emptyChartDocument());
   const [status, setStatus] = useState("Loading…");
   const [formulaOpen, setFormulaOpen] = useState(false);
-  const [formula, setFormula] = useState<FormulaState>(() =>
-    defaultFormula("series-1"),
+  const [formula, setFormula] = useState<ChartFormulaState>(() =>
+    defaultChartFormulaState("series-1"),
   );
+  const [formulaError, setFormulaError] = useState<string | null>(null);
+  const [formulaHint, setFormulaHint] = useState<string | null>(null);
   const docRef = useRef(doc);
   const chartIdRef = useRef(chartId);
+  const formulaRef = useRef(formula);
   const saveTimer = useRef<number | null>(null);
+  const formulaTimer = useRef<number | null>(null);
   const applyingHistory = useRef(false);
   const {
     push: pushHistory,
@@ -76,11 +89,14 @@ export function ChartsEditor({
 
   docRef.current = doc;
   chartIdRef.current = chartId;
+  formulaRef.current = formula;
 
   const selectChart = useCallback((id: string, name: string) => {
     setChartId(id);
     setChartName(name);
     setFormulaOpen(false);
+    setFormulaError(null);
+    setFormulaHint(null);
   }, []);
 
   const persist = useCallback(
@@ -145,6 +161,129 @@ export function ChartsEditor({
     setStatus("Redid chart edit");
   }, [redoHistory, applySnapshot]);
 
+  const applyFormulaToDoc = useCallback(
+    (
+      state: ChartFormulaState,
+      opts?: { coalesce?: boolean; source?: "live" | "apply" },
+    ): boolean => {
+      const xStart = parseDomainNumber(state.xStart, 1);
+      const xEnd = parseDomainNumber(state.xEnd, 20);
+      const step = parseDomainNumber(state.step, 1);
+      if (xStart === null || xEnd === null || step === null) {
+        setFormulaError("x start, x end, and step must be numbers");
+        setFormulaHint(null);
+        return false;
+      }
+      if (step === 0) {
+        setFormulaError("step cannot be 0");
+        setFormulaHint(null);
+        return false;
+      }
+      const bound = bindingsFromState(state);
+      if (!bound.ok) {
+        setFormulaError(bound.error);
+        setFormulaHint(null);
+        return false;
+      }
+      const result = evaluateFormulaSweep({
+        expression: state.expression,
+        variables: bound.vars,
+        xStart,
+        xEnd,
+        step,
+        independent: CHART_INDEPENDENT_VAR,
+      });
+      if (!result.ok) {
+        setFormulaError(result.error);
+        setFormulaHint(null);
+        return false;
+      }
+
+      recordHistory(opts?.coalesce ? { coalesce: true } : undefined);
+      const current = cloneChart(docRef.current);
+      let seriesId = state.seriesId;
+      if (!current.series.some((s) => s.id === seriesId)) {
+        seriesId = current.series[0]?.id ?? newEntityId("series");
+        if (!current.series.some((s) => s.id === seriesId)) {
+          current.series = [
+            ...current.series,
+            { id: seriesId, name: "Generated" },
+          ];
+        }
+      }
+      const yFor = (y: number) => {
+        const map: Record<string, number | null> = {};
+        for (const s of current.series) {
+          map[s.id] = s.id === seriesId ? y : null;
+        }
+        return map;
+      };
+      if (state.replaceRows) {
+        current.rows = result.points.map((p) => ({
+          id: newEntityId("row"),
+          x: p.x,
+          y: yFor(p.y),
+        }));
+      } else {
+        const byX = new Map(current.rows.map((r) => [String(r.x), r]));
+        for (const p of result.points) {
+          const key = String(p.x);
+          const existing = byX.get(key);
+          if (existing) {
+            existing.y = { ...existing.y, [seriesId]: p.y };
+          } else {
+            const row = {
+              id: newEntityId("row"),
+              x: p.x,
+              y: yFor(p.y),
+            };
+            current.rows.push(row);
+            byX.set(key, row);
+          }
+        }
+        current.rows.sort((a, b) => {
+          const an = typeof a.x === "number" ? a.x : Number(a.x);
+          const bn = typeof b.x === "number" ? b.x : Number(b.x);
+          if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+          return String(a.x).localeCompare(String(b.x));
+        });
+      }
+      schedulePersist(current);
+      setFormulaError(null);
+      const msg = `Updated ${result.points.length} points from formula`;
+      setFormulaHint(msg);
+      if (opts?.source === "apply") {
+        setStatus(msg);
+      }
+      return true;
+    },
+    [recordHistory, schedulePersist],
+  );
+
+  const handleFormulaChange = useCallback((next: ChartFormulaState) => {
+    setFormula(next);
+    formulaRef.current = next;
+    setFormulaError(null);
+  }, []);
+
+  // Debounced live eval while the formula panel is open.
+  useEffect(() => {
+    if (!formulaOpen) {
+      if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
+      return;
+    }
+    if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
+    formulaTimer.current = window.setTimeout(() => {
+      applyFormulaToDoc(formulaRef.current, {
+        coalesce: true,
+        source: "live",
+      });
+    }, 400);
+    return () => {
+      if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
+    };
+  }, [formula, formulaOpen, applyFormulaToDoc]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -181,7 +320,9 @@ export function ChartsEditor({
         setDoc(loaded);
         docRef.current = loaded;
         setChartName(loaded.name);
-        setFormula(defaultFormula(loaded.series[0]?.id ?? "series-1"));
+        setFormula(defaultChartFormulaState(loaded.series[0]?.id ?? "series-1"));
+        setFormulaError(null);
+        setFormulaHint(null);
         clearHistory();
         setStatus("Ready");
       } catch (e) {
@@ -216,6 +357,7 @@ export function ChartsEditor({
   useEffect(() => {
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
     };
   }, []);
 
@@ -226,75 +368,6 @@ export function ChartsEditor({
   ) => {
     recordHistory(historyOpts);
     schedulePersist({ ...docRef.current, [key]: value });
-  };
-
-  const runFormula = () => {
-    const a = Number(formula.a);
-    const b = Number(formula.b);
-    const c = Number(formula.c || 0);
-    const xStart = Number(formula.xStart);
-    const xEnd = Number(formula.xEnd);
-    if (![a, b, c, xStart, xEnd].every(Number.isFinite)) {
-      setStatus("Formula needs numeric a, b, c, xStart, xEnd");
-      return;
-    }
-    const points = generatePowerCurve({ a, b, c, xStart, xEnd });
-    if (points.length === 0) {
-      setStatus("Formula produced no points");
-      return;
-    }
-    recordHistory();
-    const current = cloneChart(docRef.current);
-    let seriesId = formula.seriesId;
-    if (!current.series.some((s) => s.id === seriesId)) {
-      seriesId = current.series[0]?.id ?? newEntityId("series");
-      if (!current.series.some((s) => s.id === seriesId)) {
-        current.series = [
-          ...current.series,
-          { id: seriesId, name: "Generated" },
-        ];
-      }
-    }
-    const yFor = (y: number) => {
-      const map: Record<string, number | null> = {};
-      for (const s of current.series) {
-        map[s.id] = s.id === seriesId ? y : null;
-      }
-      return map;
-    };
-    if (formula.replaceRows) {
-      current.rows = points.map((p) => ({
-        id: newEntityId("row"),
-        x: p.x,
-        y: yFor(p.y),
-      }));
-    } else {
-      const byX = new Map(current.rows.map((r) => [String(r.x), r]));
-      for (const p of points) {
-        const key = String(p.x);
-        const existing = byX.get(key);
-        if (existing) {
-          existing.y = { ...existing.y, [seriesId]: p.y };
-        } else {
-          const row = {
-            id: newEntityId("row"),
-            x: p.x,
-            y: yFor(p.y),
-          };
-          current.rows.push(row);
-          byX.set(key, row);
-        }
-      }
-      current.rows.sort((a, b) => {
-        const an = typeof a.x === "number" ? a.x : Number(a.x);
-        const bn = typeof b.x === "number" ? b.x : Number(b.x);
-        if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
-        return String(a.x).localeCompare(String(b.x));
-      });
-    }
-    schedulePersist(current);
-    setStatus(`Generated ${points.length} points (a·x^b + c)`);
-    setFormulaOpen(false);
   };
 
   return (
@@ -351,6 +424,7 @@ export function ChartsEditor({
                     seriesId: doc.series[0]?.id ?? f.seriesId,
                   }));
                   setFormulaOpen((o) => !o);
+                  setFormulaError(null);
                 }}
               >
                 Formula…
@@ -390,102 +464,20 @@ export function ChartsEditor({
           </div>
 
           {formulaOpen && (
-            <div className="charts-formula-panel" role="dialog" aria-label="Generate from formula">
-              <p className="muted tiny">
-                Fill a series with <code>y = a · x^b + c</code> (RPG curve helper — not a full formula engine).
-              </p>
-              <div className="charts-formula-grid">
-                <label>
-                  a
-                  <input
-                    value={formula.a}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, a: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  b
-                  <input
-                    value={formula.b}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, b: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  c
-                  <input
-                    value={formula.c}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, c: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  x start
-                  <input
-                    value={formula.xStart}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, xStart: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  x end
-                  <input
-                    value={formula.xEnd}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, xEnd: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  Series
-                  <select
-                    value={formula.seriesId}
-                    onChange={(e) =>
-                      setFormula((f) => ({ ...f, seriesId: e.target.value }))
-                    }
-                  >
-                    {doc.series.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="charts-formula-replace">
-                <input
-                  type="checkbox"
-                  checked={formula.replaceRows}
-                  onChange={(e) =>
-                    setFormula((f) => ({
-                      ...f,
-                      replaceRows: e.target.checked,
-                    }))
-                  }
-                />
-                Replace all rows
-              </label>
-              <div className="charts-formula-actions">
-                <button
-                  type="button"
-                  className="primary tiny-btn"
-                  onClick={runFormula}
-                >
-                  Generate
-                </button>
-                <button
-                  type="button"
-                  className="ghost tiny-btn"
-                  onClick={() => setFormulaOpen(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            <ChartFormulaPanel
+              state={formula}
+              series={doc.series}
+              error={formulaError}
+              hint={formulaHint}
+              onChange={handleFormulaChange}
+              onApply={() => {
+                applyFormulaToDoc(formulaRef.current, { source: "apply" });
+              }}
+              onClose={() => {
+                setFormulaOpen(false);
+                setFormulaError(null);
+              }}
+            />
           )}
 
           <div className="charts-workspace">
