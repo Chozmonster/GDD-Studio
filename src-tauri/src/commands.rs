@@ -458,6 +458,51 @@ pub fn delete_mood_board(
 }
 
 #[tauri::command]
+pub fn list_charts(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<store::ChartSummary>, String> {
+    store::list_charts(&app, project_id)
+}
+
+#[tauri::command]
+pub fn load_chart(
+    app: AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<store::ChartDocument, String> {
+    store::load_chart(&app, project_id, chart_id)
+}
+
+#[tauri::command]
+pub fn save_chart(
+    app: AppHandle,
+    project_id: String,
+    chart_id: String,
+    document: store::ChartDocument,
+) -> Result<store::ChartDocument, String> {
+    store::save_chart(&app, project_id, chart_id, document)
+}
+
+#[tauri::command]
+pub fn chart_exists(
+    app: AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<bool, String> {
+    store::chart_exists(&app, project_id, chart_id)
+}
+
+#[tauri::command]
+pub fn delete_chart(
+    app: AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<(), String> {
+    store::delete_chart(&app, project_id, chart_id)
+}
+
+#[tauri::command]
 pub fn list_templates(
     app: AppHandle,
     project_id: Option<String>,

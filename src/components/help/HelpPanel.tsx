@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
   HELP_APP,
+  HELP_CHARTS,
   HELP_MOOD_BOARD,
   HELP_NAV,
   HELP_RGD_APP,
@@ -88,6 +89,7 @@ export function HelpPanel({
           <div className="help-content" tabIndex={0}>
             {section === "app" && <Article article={HELP_APP} />}
             {section === "moodboard" && <Article article={HELP_MOOD_BOARD} />}
+            {section === "charts" && <Article article={HELP_CHARTS} />}
             {section === "rgd-overview" && (
               <Article article={HELP_RGD_OVERVIEW} />
             )}

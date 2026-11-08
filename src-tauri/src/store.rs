@@ -1,5 +1,5 @@
 //! Local persistence for the project library, settings, and on-disk project
-//! payloads (docs, flowcharts, RGD sheets, mood boards, assets, templates).
+//! payloads (docs, flowcharts, RGD sheets, mood boards, charts, assets, templates).
 //!
 //! Security invariants:
 //! - Entity ids are filename-safe (`validate_entity_id`) — no path traversal.
@@ -183,6 +183,10 @@ const MAX_ASSET_BYTES: usize = 200 * 1024 * 1024;
 const MAX_EXPORT_HTML_BYTES: usize = 32 * 1024 * 1024;
 const MAX_MOOD_BOARD_ITEMS: usize = 500;
 const MAX_MOOD_COMMENT_CHARS: usize = 2_000;
+const MAX_CHART_SERIES: usize = 24;
+const MAX_CHART_ROWS: usize = 2_000;
+const MAX_CHART_LABEL_CHARS: usize = 120;
+const MAX_CHART_DESCRIPTION_CHARS: usize = 2_000;
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<T, String> {
     if !path.exists() {
@@ -1603,6 +1607,377 @@ pub fn delete_mood_board(
     let path = mood_board_path(&project, id)?;
     if path.is_file() {
         fs::remove_file(&path).map_err(|e| format!("delete mood board: {e}"))?;
+    }
+    Ok(())
+}
+
+// ── Charts (named library; guttable MVP) ───────────────────────────────────
+
+const CHARTS_DIR: &str = "charts";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChartSummary {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChartSeries {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChartRow {
+    pub id: String,
+    /// Number or string X value (JSON number / string).
+    pub x: serde_json::Value,
+    /// seriesId → number | null
+    #[serde(default)]
+    pub y: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChartDocument {
+    pub format: String,
+    pub version: u32,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_chart_type")]
+    pub chart_type: String,
+    #[serde(default = "default_x_label")]
+    pub x_label: String,
+    #[serde(default = "default_y_label")]
+    pub y_label: String,
+    #[serde(default)]
+    pub series: Vec<ChartSeries>,
+    #[serde(default)]
+    pub rows: Vec<ChartRow>,
+}
+
+fn default_chart_type() -> String {
+    "line".into()
+}
+
+fn default_x_label() -> String {
+    "Level".into()
+}
+
+fn default_y_label() -> String {
+    "Value".into()
+}
+
+fn charts_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(CHARTS_DIR)
+}
+
+fn chart_path(project: &ProjectRecord, chart_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(chart_id, "chart")?;
+    let id = chart_id.trim();
+    let dir = charts_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
+}
+
+fn empty_chart(id: &str) -> ChartDocument {
+    ChartDocument {
+        format: "gdd-studio-chart".into(),
+        version: 1,
+        id: id.into(),
+        name: if id == "main" {
+            "Main".into()
+        } else {
+            id.into()
+        },
+        description: String::new(),
+        chart_type: "line".into(),
+        x_label: "Level".into(),
+        y_label: "Value".into(),
+        series: vec![ChartSeries {
+            id: "series-1".into(),
+            name: "Series 1".into(),
+            color: None,
+        }],
+        rows: Vec::new(),
+    }
+}
+
+fn sanitize_chart_label(label: &str, fallback: &str) -> String {
+    let t: String = label
+        .trim()
+        .chars()
+        .take(MAX_CHART_LABEL_CHARS)
+        .collect();
+    if t.is_empty() {
+        fallback.into()
+    } else {
+        t
+    }
+}
+
+fn sanitize_chart_description(description: &str) -> String {
+    description
+        .trim()
+        .chars()
+        .take(MAX_CHART_DESCRIPTION_CHARS)
+        .collect()
+}
+
+fn sanitize_chart_color(color: &Option<String>) -> Option<String> {
+    let Some(raw) = color else {
+        return None;
+    };
+    let t = raw.trim();
+    if t.is_empty() || t.len() > 32 {
+        return None;
+    }
+    let ok = t.starts_with('#')
+        || t.starts_with("rgb(")
+        || t.starts_with("rgba(")
+        || t.chars().all(|c| c.is_ascii_alphanumeric() || "-_".contains(c));
+    if ok {
+        Some(t.to_string())
+    } else {
+        None
+    }
+}
+
+fn sanitize_chart_x(x: serde_json::Value) -> serde_json::Value {
+    match x {
+        serde_json::Value::Number(n) => {
+            if n.as_f64().map(f64::is_finite).unwrap_or(false) {
+                serde_json::Value::Number(n)
+            } else {
+                serde_json::Value::Number(serde_json::Number::from(0))
+            }
+        }
+        serde_json::Value::String(s) => {
+            let t: String = s.chars().take(MAX_CHART_LABEL_CHARS).collect();
+            serde_json::Value::String(t)
+        }
+        serde_json::Value::Null => serde_json::Value::String(String::new()),
+        other => serde_json::Value::String(other.to_string()),
+    }
+}
+
+fn sanitize_chart_y_map(
+    y: &serde_json::Map<String, serde_json::Value>,
+    series_ids: &std::collections::HashSet<String>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut out = serde_json::Map::new();
+    for id in series_ids {
+        let val = match y.get(id) {
+            Some(serde_json::Value::Null) | None => serde_json::Value::Null,
+            Some(serde_json::Value::Number(n))
+                if n.as_f64().map(f64::is_finite).unwrap_or(false) =>
+            {
+                serde_json::Value::Number(n.clone())
+            }
+            Some(serde_json::Value::String(s)) => {
+                let t = s.trim();
+                if t.is_empty() {
+                    serde_json::Value::Null
+                } else if let Ok(n) = t.parse::<f64>() {
+                    if n.is_finite() {
+                        serde_json::Number::from_f64(n)
+                            .map(serde_json::Value::Number)
+                            .unwrap_or(serde_json::Value::Null)
+                    } else {
+                        serde_json::Value::Null
+                    }
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            _ => serde_json::Value::Null,
+        };
+        out.insert(id.clone(), val);
+    }
+    out
+}
+
+fn sanitize_chart_doc(doc: &mut ChartDocument) {
+    doc.format = "gdd-studio-chart".into();
+    doc.version = 1;
+    doc.description = sanitize_chart_description(&doc.description);
+    doc.x_label = sanitize_chart_label(&doc.x_label, "Level");
+    doc.y_label = sanitize_chart_label(&doc.y_label, "Value");
+    doc.chart_type = if doc.chart_type.trim().eq_ignore_ascii_case("bar") {
+        "bar".into()
+    } else {
+        "line".into()
+    };
+
+    doc.series.retain(|s| validate_entity_id(&s.id, "chart series").is_ok());
+    if doc.series.is_empty() {
+        doc.series.push(ChartSeries {
+            id: "series-1".into(),
+            name: "Series 1".into(),
+            color: None,
+        });
+    }
+    if doc.series.len() > MAX_CHART_SERIES {
+        doc.series.truncate(MAX_CHART_SERIES);
+    }
+    for (i, series) in doc.series.iter_mut().enumerate() {
+        series.name = sanitize_chart_label(&series.name, &format!("Series {}", i + 1));
+        series.color = sanitize_chart_color(&series.color);
+    }
+
+    let series_ids: std::collections::HashSet<String> =
+        doc.series.iter().map(|s| s.id.clone()).collect();
+    doc.rows.retain(|r| validate_entity_id(&r.id, "chart row").is_ok());
+    if doc.rows.len() > MAX_CHART_ROWS {
+        doc.rows.truncate(MAX_CHART_ROWS);
+    }
+    for row in &mut doc.rows {
+        row.x = sanitize_chart_x(std::mem::take(&mut row.x));
+        row.y = sanitize_chart_y_map(&row.y, &series_ids);
+    }
+}
+
+pub fn list_charts(
+    app: &AppHandle,
+    project_id: String,
+) -> Result<Vec<ChartSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    let dir = charts_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read charts: {e}"))? {
+            let entry = entry.map_err(|e| format!("read charts entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("untitled")
+                .to_string();
+            if validate_entity_id(&id, "chart").is_err() {
+                continue;
+            }
+            let name = fs::read_to_string(&path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<ChartDocument>(&raw).ok())
+                .map(|doc| {
+                    if doc.name.trim().is_empty() {
+                        if id == "main" {
+                            "Main".into()
+                        } else {
+                            id.clone()
+                        }
+                    } else {
+                        doc.name
+                    }
+                })
+                .unwrap_or_else(|| {
+                    if id == "main" {
+                        "Main".into()
+                    } else {
+                        id.clone()
+                    }
+                });
+            items.push(ChartSummary { id, name });
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    if items.is_empty() {
+        items.push(ChartSummary {
+            id: "main".into(),
+            name: "Main".into(),
+        });
+    }
+    Ok(items)
+}
+
+pub fn load_chart(
+    app: &AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<ChartDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = chart_path(&project, &chart_id)?;
+    if !path.exists() {
+        return Ok(empty_chart(&chart_id));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read chart: {e}"))?;
+    let mut doc: ChartDocument =
+        serde_json::from_str(&raw).map_err(|e| format!("parse chart: {e}"))?;
+    sanitize_chart_doc(&mut doc);
+    if doc.id.trim().is_empty() {
+        doc.id = chart_id.trim().to_string();
+    }
+    if doc.name.trim().is_empty() {
+        doc.name = if chart_id.trim() == "main" {
+            "Main".into()
+        } else {
+            chart_id.trim().to_string()
+        };
+    }
+    Ok(doc)
+}
+
+pub fn save_chart(
+    app: &AppHandle,
+    project_id: String,
+    chart_id: String,
+    document: ChartDocument,
+) -> Result<ChartDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let mut document = document;
+    document.id = chart_id.trim().to_string();
+    if document.name.trim().is_empty() {
+        document.name = if document.id == "main" {
+            "Main".into()
+        } else {
+            document.id.clone()
+        };
+    }
+    sanitize_chart_doc(&mut document);
+    let path = chart_path(&project, &chart_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create charts dir: {e}"))?;
+    }
+    write_json(&path, &document)?;
+    Ok(document)
+}
+
+pub fn chart_exists(
+    app: &AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<bool, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = chart_path(&project, &chart_id)?;
+    Ok(path.is_file())
+}
+
+pub fn delete_chart(
+    app: &AppHandle,
+    project_id: String,
+    chart_id: String,
+) -> Result<(), String> {
+    let id = chart_id.trim();
+    if id == "main" {
+        return Err("Main chart cannot be deleted".into());
+    }
+    let project = project_by_id(app, &project_id)?;
+    let path = chart_path(&project, id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete chart: {e}"))?;
     }
     Ok(())
 }

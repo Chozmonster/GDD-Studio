@@ -13,6 +13,8 @@ import { fileToBase64 } from "./lib/bytes";
 import type {
   AppSettings,
   AssetRecord,
+  ChartDocument,
+  ChartSummary,
   DocSummary,
   DocVariable,
   FlowchartDocument,
@@ -27,6 +29,7 @@ import type {
   TemplateRecord,
   UpdateStatus,
 } from "./types";
+import { emptyChartDocument, normalizeChart } from "./components/charts/chartModel";
 
 const BROWSER_KEY = "gdd-studio.browser-store";
 
@@ -59,6 +62,8 @@ type BrowserStore = {
     string,
     MoodBoardDocument | Record<string, MoodBoardDocument>
   >;
+  /** projectId → chartId → document */
+  charts?: Record<string, Record<string, ChartDocument>>;
   /** app-level templates */
   appTemplates?: TemplateRecord[];
   /** projectId → templates */
@@ -1160,6 +1165,113 @@ export async function createMoodBoard(
   const doc = emptyMoodBoard(id);
   doc.name = trimmed;
   await saveMoodBoard(projectId, id, doc);
+  return { id, name: trimmed };
+}
+
+export async function listCharts(projectId: string): Promise<ChartSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = store.charts?.[projectId] ?? {};
+    const items = Object.values(map).map((doc) => ({
+      id: doc.id,
+      name: doc.name?.trim() || doc.id,
+    }));
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    if (items.length === 0) return [{ id: "main", name: "Main" }];
+    return items;
+  }
+  return invoke<ChartSummary[]>("list_charts", { projectId });
+}
+
+export async function loadChart(
+  projectId: string,
+  chartId: string,
+): Promise<ChartDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const doc = store.charts?.[projectId]?.[chartId];
+    return normalizeChart(doc ?? emptyChartDocument(chartId));
+  }
+  return normalizeChart(
+    await invoke<ChartDocument>("load_chart", { projectId, chartId }),
+  );
+}
+
+export async function saveChart(
+  projectId: string,
+  chartId: string,
+  document: ChartDocument,
+): Promise<ChartDocument> {
+  const next = normalizeChart({
+    ...document,
+    id: chartId,
+    format: "gdd-studio-chart",
+    version: 1,
+  });
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.charts) store.charts = {};
+    if (!store.charts[projectId]) store.charts[projectId] = {};
+    store.charts[projectId][chartId] = next;
+    saveBrowser(store);
+    return next;
+  }
+  return normalizeChart(
+    await invoke<ChartDocument>("save_chart", {
+      projectId,
+      chartId,
+      document: next,
+    }),
+  );
+}
+
+export async function chartExists(
+  projectId: string,
+  chartId: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return Boolean(store.charts?.[projectId]?.[chartId]);
+  }
+  return invoke<boolean>("chart_exists", { projectId, chartId });
+}
+
+export async function deleteChart(
+  projectId: string,
+  chartId: string,
+): Promise<void> {
+  if (chartId.trim() === "main") {
+    throw new Error("Main chart cannot be deleted");
+  }
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.charts?.[projectId]) {
+      delete store.charts[projectId][chartId];
+      saveBrowser(store);
+    }
+    return;
+  }
+  await invoke("delete_chart", { projectId, chartId });
+}
+
+/** Create an empty named chart and persist it. */
+export async function createChart(
+  projectId: string,
+  name: string,
+): Promise<ChartSummary> {
+  const trimmed = name.trim() || "Untitled";
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "chart";
+  let id = base;
+  let n = 2;
+  while (await chartExists(projectId, id)) {
+    id = `${base}-${n++}`;
+  }
+  const doc = emptyChartDocument(id, trimmed);
+  await saveChart(projectId, id, doc);
   return { id, name: trimmed };
 }
 

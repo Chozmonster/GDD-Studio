@@ -32,7 +32,50 @@ export type UpdateStatus = {
   automaticUpdates: boolean;
 };
 
-export type ProjectTab = "document" | "flowchart" | "rgd" | "moodboard";
+export type ProjectTab =
+  | "document"
+  | "flowchart"
+  | "rgd"
+  | "moodboard"
+  | "charts";
+
+/** Charts MVP — line/bar progression graphs (guttable module). */
+export type ChartKind = "line" | "bar";
+
+export type ChartSeries = {
+  id: string;
+  name: string;
+  /** Optional CSS color; UI falls back to a dark-theme palette by index. */
+  color?: string;
+};
+
+export type ChartRow = {
+  id: string;
+  /** X value — typically a level index; strings allowed for category bars. */
+  x: number | string;
+  /** seriesId → Y value (`null` = blank cell). */
+  y: Record<string, number | null>;
+};
+
+export type ChartSummary = {
+  id: string;
+  name: string;
+};
+
+/** Project-persisted chart (named library entry). */
+export type ChartDocument = {
+  format: "gdd-studio-chart";
+  version: 1;
+  id: string;
+  name: string;
+  /** Designer note — shown under live document embeds. */
+  description: string;
+  chartType: ChartKind;
+  xLabel: string;
+  yLabel: string;
+  series: ChartSeries[];
+  rows: ChartRow[];
+};
 
 /** Normalized crop rect over the source image (fractions of natural size). */
 export type MoodBoardCrop = {

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { openOptionsWindow } from "../api";
 import type { ProjectRecord, ProjectTab } from "../types";
+import { ChartsEditor } from "./charts/ChartsEditor";
 import { EditorCanvas } from "./EditorCanvas";
 import { FlowchartEditor } from "./flowchart/FlowchartEditor";
 import { HelpPanel } from "./help/HelpPanel";
@@ -16,6 +17,7 @@ type EditorShellProps = {
 function helpSectionForTab(tab: ProjectTab) {
   if (tab === "rgd") return "rgd-overview" as const;
   if (tab === "moodboard") return "moodboard" as const;
+  if (tab === "charts") return "charts" as const;
   return "app" as const;
 }
 
@@ -26,6 +28,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
   const [focusFlowchartId, setFocusFlowchartId] = useState<string | null>(null);
   const [focusSheetId, setFocusSheetId] = useState<string | null>(null);
   const [focusMoodBoardId, setFocusMoodBoardId] = useState<string | null>(null);
+  const [focusChartId, setFocusChartId] = useState<string | null>(null);
 
   const openFlowchart = useCallback((flowchartId: string) => {
     setFocusFlowchartId(flowchartId);
@@ -40,6 +43,11 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
   const openMoodBoard = useCallback((boardId?: string) => {
     setFocusMoodBoardId(boardId ?? null);
     setTab("moodboard");
+  }, []);
+
+  const openChart = useCallback((chartId?: string) => {
+    setFocusChartId(chartId ?? null);
+    setTab("charts");
   }, []);
 
   const handleOptions = async () => {
@@ -90,6 +98,14 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           >
             Mood Board
           </button>
+          <button
+            type="button"
+            className={tab === "charts" ? "tab active" : "tab"}
+            onClick={() => setTab("charts")}
+            aria-current={tab === "charts" ? "page" : undefined}
+          >
+            Charts
+          </button>
         </nav>
         <div className="chrome-right">
           <p className="chrome-meta muted path-line" title={project.path}>
@@ -129,6 +145,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             onOpenFlowchart={openFlowchart}
             onOpenRgdSheet={openRgdSheet}
             onOpenMoodBoard={openMoodBoard}
+            onOpenChart={openChart}
           />
         </div>
 
@@ -173,6 +190,20 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             active={tab === "moodboard"}
             focusBoardId={focusMoodBoardId}
             onInsertedIntoDocument={() => setTab("document")}
+          />
+        </div>
+
+        <div
+          className={
+            tab === "charts" ? "editor-tab-panel" : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "charts"}
+          aria-hidden={tab !== "charts"}
+        >
+          <ChartsEditor
+            project={project}
+            active={tab === "charts"}
+            focusChartId={focusChartId}
           />
         </div>
       </main>
