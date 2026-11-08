@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-08
+
+Charts axis text layout: title lanes and readable tick formatting.
+
 ### Fixed
 
 - Charts preview / document embeds: Y-axis title no longer overlaps tick labels. Left/bottom margins reserve lanes for axis titles vs ticks; Y ticks use nice 1/2/5 steps with sensible formatting (no needless long decimals); crowded X labels thin out; legend packs into rows without colliding with the plot.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.11] - 2026-11-08
 
