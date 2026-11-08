@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-08
+
+Charts library MVP: formula UX, live embeds, and layout polish.
+
 ### Added
 
 - **Charts** top-level tab: named library (create / rename / delete / switch) for table-driven progression graphs. Edit an X column plus numeric Y series, switch **line** / **bar** view. Live Document embeds by chart id (resize + alignment; PDF captures as screenshots). Per-tab Undo/Redo. Persists under `charts/*.json` so the module stays guttable.
 - Charts **formula helper**: freeform expression field with addable variables, auto-detect Add for identifiers in the formula (excluding swept `x`), presets (Linear / Quadratic / Power / Exponential), domain start/end/step, and debounced live eval into the table + graph (Apply to table for an immediate commit; inline errors).
+- Formula panel **layout polish**: formula on the left, preset selector on the right; compact variable chips (name / value / remove) instead of full-width controls across the panel.
 
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.9] - 2026-11-07
 
