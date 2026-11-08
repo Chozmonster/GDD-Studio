@@ -443,24 +443,19 @@ export function ChartsEditor({
                 }
               />
             </label>
-            <label className="charts-inline-field">
-              <span className="muted tiny">X label</span>
-              <input
-                value={doc.xLabel}
-                onChange={(e) =>
-                  applyField("xLabel", e.target.value, { coalesce: true })
-                }
-              />
-            </label>
-            <label className="charts-inline-field">
-              <span className="muted tiny">Y label</span>
-              <input
-                value={doc.yLabel}
-                onChange={(e) =>
-                  applyField("yLabel", e.target.value, { coalesce: true })
-                }
-              />
-            </label>
+            {doc.series.length > 1 && (
+              <label className="charts-inline-field">
+                <span className="muted tiny">Y axis</span>
+                <input
+                  value={doc.yLabel}
+                  placeholder="Value"
+                  aria-label="Shared Y axis label"
+                  onChange={(e) =>
+                    applyField("yLabel", e.target.value, { coalesce: true })
+                  }
+                />
+              </label>
+            )}
           </div>
 
           {formulaOpen && (
