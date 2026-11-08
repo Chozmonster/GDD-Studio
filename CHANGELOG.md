@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Charts preview / document embeds: Y-axis title no longer overlaps tick labels. Left/bottom margins reserve lanes for axis titles vs ticks; Y ticks use nice 1/2/5 steps with sensible formatting (no needless long decimals); crowded X labels thin out; legend packs into rows without colliding with the plot.
+
 ## [0.1.11] - 2026-11-08
 
 Charts polish: editable axis headers and variable chip layout fix.
