@@ -3881,7 +3881,9 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  max-width: 11.5rem;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
   padding: 0.15rem 0.2rem 0.15rem 0.35rem;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -3896,10 +3898,12 @@ code {
   color: var(--ink-strong);
 }
 
-.charts-formula-var-value {
+/* input. prefix beats input:not([type]) { width:100% } so the value stays compact. */
+input.charts-formula-var-value {
   width: 4.25rem;
+  max-width: 4.25rem;
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 0 4.25rem;
   padding: 0.2rem 0.3rem;
 }
 
