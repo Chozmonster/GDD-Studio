@@ -3731,6 +3731,59 @@ code {
   height: auto;
 }
 
+.chart-preview-hit {
+  cursor: crosshair;
+}
+
+.chart-preview-tooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 7.5rem;
+  max-width: 14rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elevated);
+  color: var(--ink-strong);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.chart-preview-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.chart-preview-tooltip-row + .chart-preview-tooltip-row {
+  margin-top: 0.2rem;
+}
+
+.chart-preview-tooltip-swatch {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.chart-preview-tooltip-label {
+  color: var(--muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-preview-tooltip-value {
+  color: var(--ink-strong);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
 .chart-preview-empty {
   position: absolute;
   inset: auto 0 0.6rem 0;

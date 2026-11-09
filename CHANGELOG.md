@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Charts preview / document embeds: hover a data point or bar to see a tooltip with the X label, series name, and Y value (shared `ChartPreview` path).
+
 ## [0.1.12] - 2026-11-08
 
 Charts axis text layout: title lanes and readable tick formatting.
