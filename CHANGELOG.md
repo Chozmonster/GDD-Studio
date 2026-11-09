@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Graph preview / document embeds: chart SVG always fits its pane when resized — plot, axis titles, tick labels, and legend stay fully visible (no overflow clipping). Shared `ChartPreview` sizes its viewBox to the container via `ResizeObserver` while keeping axis-margin layout.
+
 ## [0.1.13] - 2026-11-08
 
 Graph rename, formula presets with explanations, hover tooltips, and reliable chart PDF capture.

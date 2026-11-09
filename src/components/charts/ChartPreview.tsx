@@ -1,4 +1,9 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { seriesColorAt } from "../../lib/chartFormula";
 import type { ChartDocument } from "../../types";
 
@@ -8,6 +13,14 @@ type ChartPreviewProps = {
   compact?: boolean;
   className?: string;
 };
+
+/** Fallback / minimum plot box before ResizeObserver measures the pane. */
+const FULL_FALLBACK = { width: 720, height: 340 } as const;
+const COMPACT_FALLBACK = { width: 520, height: 240 } as const;
+const MIN_PLOT_W = 160;
+const MIN_PLOT_H = 120;
+const COMPACT_ASPECT =
+  COMPACT_FALLBACK.height / COMPACT_FALLBACK.width;
 
 type PlotPoint = {
   xLabel: string;
@@ -356,16 +369,64 @@ function tipFromHit(hit: HitTarget): HoverTip {
   };
 }
 
+function measurePreviewSize(
+  boxW: number,
+  boxH: number,
+  compact: boolean,
+): { width: number; height: number } {
+  if (compact) {
+    // Embeds are width-driven; keep a stable aspect so height:auto SVG
+    // layout does not fight the observer.
+    const width = Math.max(MIN_PLOT_W, Math.floor(boxW) || COMPACT_FALLBACK.width);
+    const height = Math.max(MIN_PLOT_H, Math.round(width * COMPACT_ASPECT));
+    return { width, height };
+  }
+  const width = Math.max(MIN_PLOT_W, Math.floor(boxW) || FULL_FALLBACK.width);
+  const height = Math.max(MIN_PLOT_H, Math.floor(boxH) || FULL_FALLBACK.height);
+  return { width, height };
+}
+
 export function ChartPreview({
   document: doc,
   compact = false,
   className = "",
 }: ChartPreviewProps) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<HoverTip | null>(null);
+  const [size, setSize] = useState<{ width: number; height: number }>(() =>
+    compact
+      ? { width: COMPACT_FALLBACK.width, height: COMPACT_FALLBACK.height }
+      : { width: FULL_FALLBACK.width, height: FULL_FALLBACK.height },
+  );
 
-  const width = compact ? 520 : 720;
-  const height = compact ? 240 : 340;
+  // Size the SVG viewBox to the pane so the full plot (axes, legend) fits
+  // without overflow clipping when the Graph workspace or embed is resized.
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const apply = (boxW: number, boxH: number) => {
+      const next = measurePreviewSize(boxW, boxH, compact);
+      setSize((prev) =>
+        prev.width === next.width && prev.height === next.height ? prev : next,
+      );
+    };
+
+    apply(el.clientWidth, el.clientHeight);
+
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      apply(entry.contentRect.width, entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compact]);
+
+  const paneW = size.width;
+  const paneH = size.height;
   const { points, yMin, yMax } = buildPlot(doc);
   const { ticks: yTicks, step: yStep, domainMin, domainMax } = niceTicks(yMin, yMax);
   const tickLabels = yTicks.map((t) => formatTick(t, yStep));
@@ -378,7 +439,9 @@ export function ChartPreview({
   const yTitleLane = TITLE_FONT + 6;
   const gapTitleTicks = 10;
   const gapTicksAxis = 8;
-  const left = Math.ceil(yTitleLane + gapTitleTicks + maxTickLabelW + gapTicksAxis);
+  const left = Math.ceil(
+    yTitleLane + gapTitleTicks + maxTickLabelW + gapTicksAxis,
+  );
 
   // Vertical lanes: [plot][gap][X ticks][gap][X title]
   const xTickLane = 16;
@@ -387,21 +450,23 @@ export function ChartPreview({
   const bottom = xTickLane + gapTicksTitle + xTitleLane + 4;
 
   const right = 16;
-  // Legend sits in the top margin; size top pad from packed rows.
-  const legendProbe = layoutLegend(
+  const minInner = 48;
+  // If the pane is smaller than label/legend lanes, grow the viewBox and let
+  // preserveAspectRatio=meet scale the whole chart down so nothing clips.
+  const width = Math.max(paneW, left + right + minInner);
+  const legend = layoutLegend(
     doc.series,
     left,
-    width - right,
+    Math.max(left + 1, width - right),
     12,
     16,
   );
-  const top = Math.max(28, 8 + legendProbe.rows * 16 + 6);
+  const top = Math.max(28, 8 + legend.rows * 16 + 6);
+  const height = Math.max(paneH, top + bottom + minInner);
 
   const pad = { top, right, bottom, left };
-  const innerW = width - pad.left - pad.right;
-  const innerH = height - pad.top - pad.bottom;
-
-  const legend = layoutLegend(doc.series, pad.left, width - pad.right, 12, 16);
+  const innerW = Math.max(1, width - pad.left - pad.right);
+  const innerH = Math.max(1, height - pad.top - pad.bottom);
 
   const yScale = (y: number) =>
     pad.top +
@@ -533,12 +598,14 @@ export function ChartPreview({
 
   return (
     <div
+      ref={wrapRef}
       className={`chart-preview ${compact ? "is-compact" : ""} ${className}`.trim()}
       onPointerLeave={clearHover}
     >
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={`${doc.chartType} chart ${doc.name}`}
         className="chart-preview-svg"
