@@ -15,7 +15,7 @@ type EditorShellProps = {
 };
 
 function helpSectionForTab(tab: ProjectTab) {
-  if (tab === "rgd") return "rgd-overview" as const;
+  if (tab === "rgd") return "rgd" as const;
   if (tab === "moodboard") return "moodboard" as const;
   if (tab === "charts") return "charts" as const;
   return "app" as const;

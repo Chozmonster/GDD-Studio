@@ -90,12 +90,7 @@ export function HelpPanel({
             {section === "app" && <Article article={HELP_APP} />}
             {section === "moodboard" && <Article article={HELP_MOOD_BOARD} />}
             {section === "charts" && <Article article={HELP_CHARTS} />}
-            {section === "rgd-overview" && (
-              <Article article={HELP_RGD_OVERVIEW} />
-            )}
-            {section === "rgd-steps" && <RgdSteps />}
-            {section === "rgd-skills" && <RgdSkills />}
-            {section === "rgd-app" && <Article article={HELP_RGD_APP} />}
+            {section === "rgd" && <RgdPage />}
           </div>
         </div>
       </div>
@@ -152,60 +147,97 @@ function TopicBlock({ topic }: { topic: HelpTopic }) {
   );
 }
 
-function RgdSteps() {
+/** Single scrollable RGD Help page: intro + 7 steps + skills + using the app. */
+function RgdPage() {
   return (
     <article className="help-article">
-      <h3>The 7 steps</h3>
-      <p className="muted">{HELP_RGD_STEPS_LEAD}</p>
-      <ol className="help-step-list">
-        {RGD_STEP_HELP.map((s) => (
-          <li key={s.n}>
-            <div className="help-step-card">
-              <span className="help-step-badge" aria-hidden>
-                {s.n}
-              </span>
-              <div>
-                <h4>{s.title}</h4>
-                <p>{s.why}</p>
-                <p className="muted tiny">{s.map}</p>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </article>
-  );
-}
+      <h3>{HELP_RGD_OVERVIEW.title}</h3>
+      {HELP_RGD_OVERVIEW.lead ? (
+        <p className="muted">{HELP_RGD_OVERVIEW.lead}</p>
+      ) : null}
+      {HELP_RGD_OVERVIEW.topics?.map((topic) => (
+        <TopicBlock key={topic.title} topic={topic} />
+      ))}
 
-function RgdSkills() {
-  return (
-    <article className="help-article">
-      <h3>Player skills</h3>
-      <p className="muted">{HELP_RGD_SKILLS_LEAD}</p>
-      <div className="help-skill-grid">
-        {RGD_SKILL_HELP.map((cat) => (
-          <section
-            key={cat.id}
-            className={`help-skill-card rgd-skill-cat-${cat.id}`}
-            aria-labelledby={`help-skill-${cat.id}`}
-          >
-            <h4 id={`help-skill-${cat.id}`}>{cat.label} Skills</h4>
-            <p className="help-skill-def">{cat.definition}</p>
-            <ul className="help-skill-examples">
-              {cat.examples.map((skill) => (
-                <li key={skill}>
-                  <span className={`help-skill-chip rgd-skill-cat-${cat.id}`}>
-                    {skill}
+      <section className="help-major-section" aria-labelledby="help-rgd-steps">
+        <h4 id="help-rgd-steps" className="help-subhead">
+          The 7 steps
+        </h4>
+        <p className="muted">{HELP_RGD_STEPS_LEAD}</p>
+        <ol className="help-step-list">
+          {RGD_STEP_HELP.map((s) => (
+            <li key={s.n}>
+              <div className="help-step-card">
+                <span className="help-step-badge" aria-hidden>
+                  {s.n}
+                </span>
+                <div>
+                  <h4>{s.title}</h4>
+                  <p>{s.why}</p>
+                  <p className="muted tiny">{s.map}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="help-major-section" aria-labelledby="help-rgd-skills">
+        <h4 id="help-rgd-skills" className="help-subhead">
+          Player skills
+        </h4>
+        <p className="muted">{HELP_RGD_SKILLS_LEAD}</p>
+        <div className="help-skill-grid">
+          {RGD_SKILL_HELP.map((cat) => (
+            <section
+              key={cat.id}
+              className={`help-skill-card rgd-skill-cat-${cat.id}`}
+              aria-labelledby={`help-skill-${cat.id}`}
+            >
+              <h4 id={`help-skill-${cat.id}`}>{cat.label} Skills</h4>
+              <p className="help-skill-def">{cat.definition}</p>
+              <ul className="help-skill-examples">
+                {cat.examples.map((skill) => (
+                  <li key={skill}>
+                    <span className={`help-skill-chip rgd-skill-cat-${cat.id}`}>
+                      {skill}
+                    </span>
+                  </li>
+                ))}
+                <li>
+                  <span className="help-skill-chip help-skill-chip-etc">
+                    Etc.
                   </span>
                 </li>
-              ))}
-              <li>
-                <span className="help-skill-chip help-skill-chip-etc">Etc.</span>
-              </li>
-            </ul>
-          </section>
+              </ul>
+            </section>
+          ))}
+        </div>
+      </section>
+
+      <section className="help-major-section" aria-labelledby="help-rgd-app">
+        <h4 id="help-rgd-app" className="help-subhead">
+          {HELP_RGD_APP.title}
+        </h4>
+        {HELP_RGD_APP.topics?.map((topic) => (
+          <TopicBlock key={topic.title} topic={topic} />
         ))}
-      </div>
+        {HELP_RGD_APP.furtherReading &&
+        HELP_RGD_APP.furtherReading.length > 0 ? (
+          <>
+            <h4 className="help-subhead">Further reading</h4>
+            <ul className="help-feature-list muted">
+              {HELP_RGD_APP.furtherReading.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
+
+      {HELP_RGD_OVERVIEW.footnote ? (
+        <p className="muted tiny">{HELP_RGD_OVERVIEW.footnote}</p>
+      ) : null}
     </article>
   );
 }

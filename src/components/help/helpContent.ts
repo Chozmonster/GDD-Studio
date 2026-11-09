@@ -1,6 +1,7 @@
 /**
  * In-app Help — single source of truth for nav + section copy.
  * RGD teaching text follows project store docs/rgd-help-sources.md.
+ * RGD is one nav entry / one scrollable page (overview + 7 steps + skills + using the app).
  */
 
 import {
@@ -9,14 +10,7 @@ import {
   type SkillCategory,
 } from "../editor/rgd/rgdPresets";
 
-export type HelpSectionId =
-  | "app"
-  | "moodboard"
-  | "charts"
-  | "rgd-overview"
-  | "rgd-steps"
-  | "rgd-skills"
-  | "rgd-app";
+export type HelpSectionId = "app" | "moodboard" | "charts" | "rgd";
 
 export type HelpNavItem = {
   id: HelpSectionId;
@@ -27,10 +21,7 @@ export const HELP_NAV: HelpNavItem[] = [
   { id: "app", label: "How GDD Studio works" },
   { id: "moodboard", label: "Mood Board" },
   { id: "charts", label: "Graph" },
-  { id: "rgd-overview", label: "What is RGD?" },
-  { id: "rgd-steps", label: "The 7 steps" },
-  { id: "rgd-skills", label: "Player skills" },
-  { id: "rgd-app", label: "Using RGD here" },
+  { id: "rgd", label: "Rational Game Design" },
 ];
 
 /** Scannable topic block: short lead + how-to steps and/or tip bullets. */
@@ -202,8 +193,9 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
   ],
 };
 
+/** Intro block for the single RGD Help page. */
 export const HELP_RGD_OVERVIEW: HelpArticleContent = {
-  title: "What is Rational Game Design?",
+  title: "Rational Game Design",
   lead: "A Ubisoft-origin methodology for rationalizing gameplay: strip a challenge to skills, inputs, and measurable atomic parameters, then recombine those into patterns with readable signs and feedback. Goal: intentional difficulty and variety — not feel-based tweaks alone.",
   topics: [
     {
@@ -260,7 +252,7 @@ export const RGD_STEP_HELP: RgdStepHelp[] = [
     n: 4,
     title: "Skills & inputs",
     why: "Player skills: Physical (timing, reflexes…), Mental (strategy, observation…), Social (cooperation…). Map to concrete inputs. Input cost is part of difficulty.",
-    map: "Form → Player skill + Category under each mechanic. See Help → Player skills.",
+    map: "Form → Player skill + Category under each mechanic. See Player skills below.",
   },
   {
     n: 5,
@@ -283,11 +275,12 @@ export const RGD_STEP_HELP: RgdStepHelp[] = [
 ];
 
 export const HELP_RGD_STEPS_LEAD =
-  "Teaching scaffold for the methodology. Day-to-day editing centers on the mechanic → skill → parameter table; pillars, patterns, and signs stay optional sheet context. Fill what you need.";
+  "Teaching scaffold for the methodology. Day-to-day editing centers on the mechanic → skill → parameter table; pillars, patterns, and signs stay optional sheet context. Fill what you need. Industry decks sometimes compress the list — GDD Studio still teaches all seven steps.";
 
 export const HELP_RGD_SKILLS_LEAD =
   "Every skill on an RGD sheet has a required Physical / Mental / Social category. Document table cells are color-coded blue / orange / green to match.";
 
+/** App-usage block for the single RGD Help page (further reading lives here). */
 export const HELP_RGD_APP: HelpArticleContent = {
   title: "Using RGD in this app",
   topics: [

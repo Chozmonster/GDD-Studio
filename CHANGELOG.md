@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Help: Rational Game Design is one sidebar entry and one scrollable page (overview, 7 steps, player skills, using RGD in the app, further reading) instead of four separate Help pages.
+
 ## [0.1.14] - 2026-11-09
 
 Graph preview fits its pane without clipping when resized.
