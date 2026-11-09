@@ -124,7 +124,8 @@ export const HELP_CHARTS: HelpArticleContent = {
     {
       title: "Formula helper",
       steps: [
-        "Open Formula… — type a freeform expression (e.g. a * x^b + c, m*x + b, a * exp(k*x)).",
+        "The formula pane stays open for the selected graph — type a freeform expression (e.g. a * x^b + c, m*x + b, a * exp(k*x)).",
+        "Choose Line or Bar with the Type dropdown next to Preset in the formula pane.",
         "Add variables beneath the formula and set numeric values. Names detected in the expression offer Add shortcuts; x is the swept axis and is not listed.",
         "Set x start / x end / step. The formula updates the table and graph live (debounced); Apply to table commits immediately. Errors show inline without crashing.",
         "Presets (Linear, Quadratic, Power, Exponential, Linear-Exponential Hybrid, Logarithmic, Mitigation, Soft Pity Rate, Cumulative Chance) fill the formula, seed variables/domain/axis labels, and show a short use + design-example blurb. Custom hides the preset-specific blurb for a generic note.",
