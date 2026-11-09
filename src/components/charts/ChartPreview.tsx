@@ -50,6 +50,45 @@ const CHAR_W = 0.62;
 /** Max distance (SVG units) to snap hover to a line point. */
 const POINT_HIT_RADIUS = 28;
 
+/**
+ * Concrete theme colors for SVG presentation attributes.
+ * `html-to-image` serializes SVG into a standalone image document where
+ * `fill="var(--…)"` / `stroke="var(--…)"` do not resolve — axes/grid/text
+ * go blank while hex series strokes still paint. Always bake resolved colors.
+ */
+type ChartThemeColors = {
+  bgPanel: string;
+  line: string;
+  lineStrong: string;
+  muted: string;
+  ink: string;
+  inkStrong: string;
+};
+
+const CHART_THEME_FALLBACK: ChartThemeColors = {
+  bgPanel: "#333333",
+  line: "#4a4a4a",
+  lineStrong: "#5a5a5a",
+  muted: "#a8a8a8",
+  ink: "#e8e8e8",
+  inkStrong: "#f5f5f5",
+};
+
+function chartThemeColors(): ChartThemeColors {
+  if (typeof document === "undefined") return CHART_THEME_FALLBACK;
+  const root = getComputedStyle(document.documentElement);
+  const read = (name: string, fallback: string) =>
+    root.getPropertyValue(name).trim() || fallback;
+  return {
+    bgPanel: read("--bg-panel", CHART_THEME_FALLBACK.bgPanel),
+    line: read("--line", CHART_THEME_FALLBACK.line),
+    lineStrong: read("--line-strong", CHART_THEME_FALLBACK.lineStrong),
+    muted: read("--muted", CHART_THEME_FALLBACK.muted),
+    ink: read("--ink", CHART_THEME_FALLBACK.ink),
+    inkStrong: read("--ink-strong", CHART_THEME_FALLBACK.inkStrong),
+  };
+}
+
 function approxTextWidth(text: string, fontSize: number): number {
   return Math.max(0, text.length) * fontSize * CHAR_W;
 }
@@ -398,6 +437,7 @@ export function ChartPreview({
   const tickLabelX = pad.left - gapTicksAxis;
   const xTickY = pad.top + innerH + 14;
   const xTitleY = height - xTitleLane / 2;
+  const theme = chartThemeColors();
   const xHeader = doc.xLabel || "X";
 
   const hits: HitTarget[] = [];
@@ -508,7 +548,7 @@ export function ChartPreview({
           y={0}
           width={width}
           height={height}
-          fill="var(--bg-panel)"
+          fill={theme.bgPanel}
           rx={4}
         />
         {/* Grid + Y ticks */}
@@ -521,7 +561,7 @@ export function ChartPreview({
                 x2={width - pad.right}
                 y1={y}
                 y2={y}
-                stroke="var(--line)"
+                stroke={theme.line}
                 strokeWidth={1}
                 opacity={0.55}
               />
@@ -529,7 +569,7 @@ export function ChartPreview({
                 x={tickLabelX}
                 y={y + 3}
                 textAnchor="end"
-                fill="var(--muted)"
+                fill={theme.muted}
                 fontSize={TICK_FONT}
               >
                 {tickLabels[ti]}
@@ -542,7 +582,7 @@ export function ChartPreview({
           x2={pad.left}
           y1={pad.top}
           y2={pad.top + innerH}
-          stroke="var(--line-strong)"
+          stroke={theme.lineStrong}
           strokeWidth={1.25}
         />
         <line
@@ -550,7 +590,7 @@ export function ChartPreview({
           x2={width - pad.right}
           y1={pad.top + innerH}
           y2={pad.top + innerH}
-          stroke="var(--line-strong)"
+          stroke={theme.lineStrong}
           strokeWidth={1.25}
         />
         <text
@@ -558,7 +598,7 @@ export function ChartPreview({
           y={xTitleY}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="var(--muted)"
+          fill={theme.muted}
           fontSize={TITLE_FONT}
         >
           {doc.xLabel || "X"}
@@ -568,7 +608,7 @@ export function ChartPreview({
           y={yTitleY}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="var(--muted)"
+          fill={theme.muted}
           fontSize={TITLE_FONT}
           transform={`rotate(-90 ${yTitleX} ${yTitleY})`}
         >
@@ -599,7 +639,7 @@ export function ChartPreview({
                         height={h}
                         fill={v.color}
                         opacity={active ? 1 : 0.92}
-                        stroke={active ? "var(--ink-strong)" : "none"}
+                        stroke={active ? theme.inkStrong : "none"}
                         strokeWidth={active ? 1.25 : 0}
                         pointerEvents="none"
                       />
@@ -610,7 +650,7 @@ export function ChartPreview({
                       x={groupCenter}
                       y={xTickY}
                       textAnchor="middle"
-                      fill="var(--muted)"
+                      fill={theme.muted}
                       fontSize={TICK_FONT}
                     >
                       {p.xLabel}
@@ -653,7 +693,7 @@ export function ChartPreview({
                         cy={c.y}
                         r={active ? 5 : 3.2}
                         fill={color}
-                        stroke={active ? "var(--ink-strong)" : "none"}
+                        stroke={active ? theme.inkStrong : "none"}
                         strokeWidth={active ? 1.25 : 0}
                         pointerEvents="none"
                       />
@@ -671,7 +711,7 @@ export function ChartPreview({
                 x={xScale(pi)}
                 y={xTickY}
                 textAnchor="middle"
-                fill="var(--muted)"
+                fill={theme.muted}
                 fontSize={TICK_FONT}
               >
                 {p.xLabel}
@@ -683,7 +723,7 @@ export function ChartPreview({
         {legend.items.map((item) => (
           <g key={`leg-${item.id}`} transform={`translate(${item.x}, ${item.y})`}>
             <rect width={10} height={10} rx={2} fill={item.color} />
-            <text x={14} y={9} fill="var(--ink)" fontSize={LEGEND_FONT}>
+            <text x={14} y={9} fill={theme.ink} fontSize={LEGEND_FONT}>
               {item.name}
             </text>
           </g>
