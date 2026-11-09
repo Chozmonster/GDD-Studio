@@ -1,3 +1,4 @@
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { seriesColorAt } from "../../lib/chartFormula";
 import type { ChartDocument } from "../../types";
 
@@ -14,11 +15,40 @@ type PlotPoint = {
   values: Array<{ seriesId: string; y: number | null; color: string; name: string }>;
 };
 
+type HitTarget = {
+  key: string;
+  cx: number;
+  cy: number;
+  /** Inclusive bar hit box in SVG coords (optional). */
+  x0?: number;
+  x1?: number;
+  yTop?: number;
+  yBottom?: number;
+  xHeader: string;
+  xValue: string;
+  seriesName: string;
+  yValue: string;
+  color: string;
+};
+
+type HoverTip = {
+  key: string;
+  xSvg: number;
+  ySvg: number;
+  xHeader: string;
+  xValue: string;
+  seriesName: string;
+  yValue: string;
+  color: string;
+};
+
 const TICK_FONT = 10;
 const TITLE_FONT = 11;
 const LEGEND_FONT = 11;
 /** Approximate glyph width for UI sans digits/labels at a given font size. */
 const CHAR_W = 0.62;
+/** Max distance (SVG units) to snap hover to a line point. */
+const POINT_HIT_RADIUS = 28;
 
 function approxTextWidth(text: string, fontSize: number): number {
   return Math.max(0, text.length) * fontSize * CHAR_W;
@@ -138,6 +168,20 @@ function formatTick(value: number, step: number): string {
   return s === "-0" ? "0" : s;
 }
 
+/** Format a hovered Y value for the tooltip (compact, readable). */
+function formatValue(y: number): string {
+  if (!Number.isFinite(y)) return "—";
+  if (Number.isInteger(y)) return String(y);
+  const abs = Math.abs(y);
+  if (abs !== 0 && (abs >= 1e6 || abs < 1e-4)) {
+    return y.toExponential(3).replace(/\.?0+e/, "e");
+  }
+  const rounded = Math.round(y * 1e6) / 1e6;
+  let s = String(rounded);
+  if (s.includes(".")) s = s.replace(/\.?0+$/, "");
+  return s === "-0" ? "0" : s;
+}
+
 function yAxisTitle(doc: ChartDocument): string {
   if (doc.series.length === 1) {
     return doc.series[0]?.name || doc.yLabel || "Y";
@@ -179,11 +223,108 @@ function layoutLegend(
   return { items, rows };
 }
 
+function clientToSvg(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const local = pt.matrixTransform(ctm.inverse());
+  return { x: local.x, y: local.y };
+}
+
+function findNearestHit(
+  hits: HitTarget[],
+  x: number,
+  y: number,
+  chartType: ChartDocument["chartType"],
+): HitTarget | null {
+  if (hits.length === 0) return null;
+
+  // Bars: prefer a hit box that contains the pointer.
+  if (chartType === "bar") {
+    let contained: HitTarget | null = null;
+    let containedDist = Infinity;
+    for (const h of hits) {
+      if (
+        h.x0 == null ||
+        h.x1 == null ||
+        h.yTop == null ||
+        h.yBottom == null
+      ) {
+        continue;
+      }
+      if (x >= h.x0 && x <= h.x1 && y >= h.yTop && y <= h.yBottom) {
+        const d = Math.hypot(h.cx - x, h.cy - y);
+        if (d < containedDist) {
+          containedDist = d;
+          contained = h;
+        }
+      }
+    }
+    if (contained) return contained;
+
+    // Nearest bar by x-column, then vertical distance to bar body.
+    let best: HitTarget | null = null;
+    let bestScore = Infinity;
+    for (const h of hits) {
+      if (h.x0 == null || h.x1 == null) continue;
+      const midX = (h.x0 + h.x1) / 2;
+      const dx = Math.abs(midX - x);
+      const halfW = Math.max(4, (h.x1 - h.x0) / 2 + 6);
+      if (dx > halfW) continue;
+      const yClamped =
+        h.yTop != null && h.yBottom != null
+          ? Math.min(h.yBottom, Math.max(h.yTop, y))
+          : h.cy;
+      const dy = Math.abs(yClamped - y);
+      const score = dx * 0.35 + dy;
+      if (score < bestScore) {
+        bestScore = score;
+        best = h;
+      }
+    }
+    return best;
+  }
+
+  // Line: nearest point within snap radius.
+  let best: HitTarget | null = null;
+  let bestD = POINT_HIT_RADIUS;
+  for (const h of hits) {
+    const d = Math.hypot(h.cx - x, h.cy - y);
+    if (d < bestD) {
+      bestD = d;
+      best = h;
+    }
+  }
+  return best;
+}
+
+function tipFromHit(hit: HitTarget): HoverTip {
+  return {
+    key: hit.key,
+    xSvg: hit.cx,
+    ySvg: hit.cy,
+    xHeader: hit.xHeader,
+    xValue: hit.xValue,
+    seriesName: hit.seriesName,
+    yValue: hit.yValue,
+    color: hit.color,
+  };
+}
+
 export function ChartPreview({
   document: doc,
   compact = false,
   className = "",
 }: ChartPreviewProps) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hover, setHover] = useState<HoverTip | null>(null);
+
   const width = compact ? 520 : 720;
   const height = compact ? 240 : 340;
   const { points, yMin, yMax } = buildPlot(doc);
@@ -257,10 +398,106 @@ export function ChartPreview({
   const tickLabelX = pad.left - gapTicksAxis;
   const xTickY = pad.top + innerH + 14;
   const xTitleY = height - xTitleLane / 2;
+  const xHeader = doc.xLabel || "X";
+
+  const hits: HitTarget[] = [];
+  if (doc.chartType === "bar") {
+    points.forEach((p, pi) => {
+      const groupCenter = pad.left + (pi + 0.5) * barGroupWidth;
+      p.values.forEach((v, vi) => {
+        if (v.y === null) return;
+        const y0 = yScale(0);
+        const y1 = yScale(v.y);
+        const barTop = Math.min(y0, y1);
+        const barBottom = Math.max(y0, y1);
+        const x = groupCenter - barSlot / 2 + vi * (barW + 2);
+        hits.push({
+          key: `bar-${pi}-${v.seriesId}`,
+          cx: x + barW / 2,
+          cy: barTop,
+          x0: x,
+          x1: x + barW,
+          yTop: barTop,
+          yBottom: Math.max(barBottom, barTop + 1),
+          xHeader,
+          xValue: p.xLabel,
+          seriesName: v.name || "Series",
+          yValue: formatValue(v.y),
+          color: v.color,
+        });
+      });
+    });
+  } else {
+    doc.series.forEach((series, si) => {
+      const color = seriesColorAt(si, series.color);
+      points.forEach((p, pi) => {
+        const y = p.values.find((v) => v.seriesId === series.id)?.y;
+        if (y === null || y === undefined) return;
+        hits.push({
+          key: `pt-${series.id}-${pi}`,
+          cx: xScale(pi),
+          cy: yScale(y),
+          xHeader,
+          xValue: p.xLabel,
+          seriesName: series.name || "Series",
+          yValue: formatValue(y),
+          color,
+        });
+      });
+    });
+  }
+
+  const onPlotPointerMove = (e: ReactPointerEvent<SVGRectElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const local = clientToSvg(svg, e.clientX, e.clientY);
+    if (!local) {
+      setHover(null);
+      return;
+    }
+    // Ignore pointer outside the plot area (axes / legend).
+    if (
+      local.x < pad.left ||
+      local.x > width - pad.right ||
+      local.y < pad.top ||
+      local.y > pad.top + innerH
+    ) {
+      setHover(null);
+      return;
+    }
+    const hit = findNearestHit(hits, local.x, local.y, doc.chartType);
+    setHover(hit ? tipFromHit(hit) : null);
+  };
+
+  const clearHover = () => setHover(null);
+
+  // Drop stale tips if the underlying hit set changed (formula refresh, etc.).
+  const activeHover =
+    hover && hits.some((h) => h.key === hover.key) ? hover : null;
+
+  // Keep tooltip inside the preview (overflow:hidden on .chart-preview).
+  const tipStyle = (() => {
+    if (!activeHover) return undefined;
+    const leftPct = (activeHover.xSvg / width) * 100;
+    const topPct = (activeHover.ySvg / height) * 100;
+    const flipX = leftPct > 72;
+    const flipY = topPct < 28;
+    return {
+      left: `${leftPct}%`,
+      top: `${topPct}%`,
+      transform: `translate(${flipX ? "calc(-100% - 10px)" : "10px"}, ${
+        flipY ? "8px" : "calc(-100% - 10px)"
+      })`,
+    } as const;
+  })();
 
   return (
-    <div className={`chart-preview ${compact ? "is-compact" : ""} ${className}`.trim()}>
+    <div
+      className={`chart-preview ${compact ? "is-compact" : ""} ${className}`.trim()}
+      onPointerLeave={clearHover}
+    >
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label={`${doc.chartType} chart ${doc.name}`}
@@ -351,6 +588,8 @@ export function ChartPreview({
                     const h = Math.max(1, Math.abs(y1 - y0));
                     const x =
                       groupCenter - barSlot / 2 + vi * (barW + 2);
+                    const key = `bar-${pi}-${v.seriesId}`;
+                    const active = activeHover?.key === key;
                     return (
                       <rect
                         key={v.seriesId}
@@ -359,7 +598,10 @@ export function ChartPreview({
                         width={barW}
                         height={h}
                         fill={v.color}
-                        opacity={0.92}
+                        opacity={active ? 1 : 0.92}
+                        stroke={active ? "var(--ink-strong)" : "none"}
+                        strokeWidth={active ? 1.25 : 0}
+                        pointerEvents="none"
                       />
                     );
                   })}
@@ -383,9 +625,9 @@ export function ChartPreview({
                 .map((p, pi) => {
                   const y = p.values.find((v) => v.seriesId === series.id)?.y;
                   if (y === null || y === undefined) return null;
-                  return { x: xScale(pi), y: yScale(y) };
+                  return { x: xScale(pi), y: yScale(y), pi };
                 })
-                .filter(Boolean) as Array<{ x: number; y: number }>;
+                .filter(Boolean) as Array<{ x: number; y: number; pi: number }>;
               if (coords.length === 0) return null;
               const d = coords
                 .map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`)
@@ -399,16 +641,24 @@ export function ChartPreview({
                     strokeWidth={2.25}
                     strokeLinejoin="round"
                     strokeLinecap="round"
+                    pointerEvents="none"
                   />
-                  {coords.map((c, i) => (
-                    <circle
-                      key={`${series.id}-pt-${i}`}
-                      cx={c.x}
-                      cy={c.y}
-                      r={3.2}
-                      fill={color}
-                    />
-                  ))}
+                  {coords.map((c) => {
+                    const key = `pt-${series.id}-${c.pi}`;
+                    const active = activeHover?.key === key;
+                    return (
+                      <circle
+                        key={key}
+                        cx={c.x}
+                        cy={c.y}
+                        r={active ? 5 : 3.2}
+                        fill={color}
+                        stroke={active ? "var(--ink-strong)" : "none"}
+                        strokeWidth={active ? 1.25 : 0}
+                        pointerEvents="none"
+                      />
+                    );
+                  })}
                 </g>
               );
             })}
@@ -438,7 +688,52 @@ export function ChartPreview({
             </text>
           </g>
         ))}
+
+        {/* Invisible plot hit surface — nearest point/bar tooltip. */}
+        {hits.length > 0 && (
+          <rect
+            className="chart-preview-hit"
+            x={pad.left}
+            y={pad.top}
+            width={innerW}
+            height={innerH}
+            fill="transparent"
+            onPointerMove={onPlotPointerMove}
+            onPointerLeave={clearHover}
+            onPointerCancel={clearHover}
+          />
+        )}
       </svg>
+      {activeHover && (
+        <div
+          className="chart-preview-tooltip"
+          style={tipStyle}
+          role="tooltip"
+          data-export-ignore="true"
+        >
+          <div className="chart-preview-tooltip-row">
+            <span className="chart-preview-tooltip-label">
+              {activeHover.xHeader}
+            </span>
+            <span className="chart-preview-tooltip-value">
+              {activeHover.xValue}
+            </span>
+          </div>
+          <div className="chart-preview-tooltip-row">
+            <span
+              className="chart-preview-tooltip-swatch"
+              style={{ background: activeHover.color }}
+              aria-hidden
+            />
+            <span className="chart-preview-tooltip-label">
+              {activeHover.seriesName}
+            </span>
+            <span className="chart-preview-tooltip-value">
+              {activeHover.yValue}
+            </span>
+          </div>
+        </div>
+      )}
       {points.length === 0 && (
         <p className="muted tiny chart-preview-empty">
           Add rows in the data table to plot a curve.

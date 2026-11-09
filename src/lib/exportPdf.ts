@@ -118,6 +118,8 @@ function scrubExportRoot(root: HTMLElement): void {
   });
   root.querySelectorAll(".media-embed-chrome").forEach((el) => el.remove());
   root.querySelectorAll(".rgd-embed-resize-handle").forEach((el) => el.remove());
+  // Ephemeral UI (e.g. chart hover tooltips) must not appear in export HTML.
+  root.querySelectorAll("[data-export-ignore]").forEach((el) => el.remove());
 
   // Harden export HTML: drop executable / navigable attack surfaces from cloned TipTap DOM
   root
