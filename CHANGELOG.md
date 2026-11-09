@@ -7,19 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-08
+
+Graph rename, formula presets with explanations, hover tooltips, and reliable chart PDF capture.
+
 ### Changed
 
 - **Charts → Graph** in user-facing UI (main tab, sidebar header/empty state, Help, Document insert menu, embed “Open in Graph”, PDF caption). Internal tab id, API, and `charts/*.json` disk paths stay unchanged for project compatibility.
 
 ### Added
 
-- Charts preview / document embeds: hover a data point or bar to see a tooltip with the X label, series name, and Y value (shared `ChartPreview` path).
+- Graph preview / document embeds: hover a data point or bar to see a tooltip with the X label, series name, and Y value (shared `ChartPreview` path).
 - Graph formula presets: **Linear-Exponential Hybrid** (`a*x + b*(r^x - 1)`), **Logarithmic** (`a * ln(x + c) + b`), **Mitigation (Armor & Defense)** (`x / (x + k)`), **Soft Pity Rate (Gacha)** (`min(pmax, base + max(0, x - start) * ramp)`), and **Cumulative Chance (Loot)** (`1 - (1 - p)^x`), alongside existing Linear / Quadratic / Power / Exponential.
 - Formula pane shows a short **preset explanation** (use + variable meanings + design examples) when a preset is selected; Custom shows a generic note. Presets also seed domain and thoughtful axis / series labels (e.g. Armor → Damage reduction).
 
 ### Fixed
 
-- PDF export: Chart embeds rasterize as real PNG screenshots in the document body (same path as flowchart / RGD). Chart SVG theme colors are baked to concrete values so axes, grid, and labels survive `html-to-image`; ephemeral hover tips (`data-export-ignore`) are stripped from both the capture filter and the export HTML clone.
+- PDF export: Graph embeds rasterize as real PNG screenshots in the document body (same path as flowchart / RGD). Chart SVG theme colors are baked to concrete values so axes, grid, and labels survive `html-to-image`; ephemeral hover tips (`data-export-ignore`) are stripped from both the capture filter and the export HTML clone.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.12] - 2026-11-08
 
