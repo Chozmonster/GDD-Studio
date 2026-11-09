@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Charts → Graph** in user-facing UI (main tab, sidebar header/empty state, Help, Document insert menu, embed “Open in Graph”, PDF caption). Internal tab id, API, and `charts/*.json` disk paths stay unchanged for project compatibility.
+
 ### Added
 
 - Charts preview / document embeds: hover a data point or bar to see a tooltip with the X label, series name, and Y value (shared `ChartPreview` path).
+- Graph formula presets: **Linear-Exponential Hybrid** (`a*x + b*(r^x - 1)`), **Logarithmic** (`a * ln(x + c) + b`), **Mitigation (Armor & Defense)** (`x / (x + k)`), **Soft Pity Rate (Gacha)** (`min(pmax, base + max(0, x - start) * ramp)`), and **Cumulative Chance (Loot)** (`1 - (1 - p)^x`), alongside existing Linear / Quadratic / Power / Exponential.
+- Formula pane shows a short **preset explanation** (use + variable meanings + design examples) when a preset is selected; Custom shows a generic note. Presets also seed domain and thoughtful axis / series labels (e.g. Armor → Damage reduction).
 
 ### Fixed
 

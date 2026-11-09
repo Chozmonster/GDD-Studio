@@ -191,13 +191,13 @@ export function ChartEmbedView(props: NodeViewProps) {
           disabled={missing || !chartId}
           onClick={() => chartId && extra.onOpenChart?.(chartId)}
         >
-          Open in Charts
+          Open in Graph
         </button>
       </div>
       {loading && <p className="muted tiny embed-status">Loading…</p>}
       {missing && (
         <p className="error embed-status">
-          Broken embed — this chart was deleted or never saved. Insert another
+          Broken embed — this graph was deleted or never saved. Insert another
           from the toolbar.
         </p>
       )}

@@ -1,9 +1,10 @@
 /**
- * Charts formula helper — freeform expression → swept X rows.
+ * Graph (Charts) formula helper — freeform expression → swept X rows.
  * Safe AST evaluator (no eval/Function). Not a spreadsheet engine.
+ * Disk/API IDs stay under `charts`; UI label is Graph.
  */
 
-/** Dark-theme-friendly series colours (Charts MVP palette). */
+/** Dark-theme-friendly series colours (Graph / Charts MVP palette). */
 export const CHART_SERIES_COLORS = [
   "#6db3a8",
   "#c9a86c",
@@ -40,13 +41,38 @@ const BUILTIN_CONSTS: Record<string, number> = {
   e: Math.E,
 };
 
+export type FormulaPresetAxisDefaults = {
+  xLabel?: string;
+  yLabel?: string;
+  seriesName?: string;
+};
+
+export type FormulaPresetDomainDefaults = {
+  xStart: string;
+  xEnd: string;
+  step: string;
+};
+
 export type FormulaPreset = {
   id: string;
   label: string;
   expression: string;
   /** Default constant bindings (not including x). */
   variables: Array<{ name: string; value: string }>;
+  /**
+   * Compact formula-pane blurb: what the shape is for + 1–2 design examples.
+   * Shown when this preset is selected.
+   */
+  explanation: string;
+  /** Optional domain seeded when the preset is selected. */
+  domain?: FormulaPresetDomainDefaults;
+  /** Optional axis / series labels seeded when the preset is selected. */
+  axis?: FormulaPresetAxisDefaults;
 };
+
+/** Shown when Preset = Custom (or formula edited away from a preset). */
+export const CUSTOM_FORMULA_NOTE =
+  "Custom expression — add variables below and sweep x over a domain. Presets seed common design curves.";
 
 export const CHART_FORMULA_PRESETS: FormulaPreset[] = [
   {
@@ -57,6 +83,10 @@ export const CHART_FORMULA_PRESETS: FormulaPreset[] = [
       { name: "m", value: "1" },
       { name: "b", value: "0" },
     ],
+    explanation:
+      "Steady, constant-rate growth. Vars: m = slope (gain per x); b = intercept (value at x = 0). Examples: fixed XP per level; a shop price that rises by the same amount each tier.",
+    domain: { xStart: "1", xEnd: "20", step: "1" },
+    axis: { xLabel: "Level", seriesName: "Value", yLabel: "Value" },
   },
   {
     id: "quadratic",
@@ -67,6 +97,10 @@ export const CHART_FORMULA_PRESETS: FormulaPreset[] = [
       { name: "b", value: "0" },
       { name: "c", value: "0" },
     ],
+    explanation:
+      "Gentle early, steeper later (or reverse with negative a). Vars: a = curvature; b = linear tilt; c = offset. Examples: soft-cap XP tables; mid-game damage that accelerates.",
+    domain: { xStart: "1", xEnd: "20", step: "1" },
+    axis: { xLabel: "Level", seriesName: "Value", yLabel: "Value" },
   },
   {
     id: "power",
@@ -77,6 +111,10 @@ export const CHART_FORMULA_PRESETS: FormulaPreset[] = [
       { name: "b", value: "1.5" },
       { name: "c", value: "0" },
     ],
+    explanation:
+      "Tunable curvature via exponent. Vars: a = scale; b = exponent (>1 accelerates, <1 softens); c = offset. Examples: classic RPG XP-to-next-level; upgrade costs that scale superlinearly.",
+    domain: { xStart: "1", xEnd: "20", step: "1" },
+    axis: { xLabel: "Level", seriesName: "XP", yLabel: "XP" },
   },
   {
     id: "exponential",
@@ -86,9 +124,96 @@ export const CHART_FORMULA_PRESETS: FormulaPreset[] = [
       { name: "a", value: "10" },
       { name: "r", value: "1.15" },
     ],
+    explanation:
+      "Compound growth each step. Vars: a = starting scale; r = growth ratio per x (e.g. 1.15 ≈ +15%/step). Examples: interest-like rewards; enemy HP that multiplies every few levels.",
+    domain: { xStart: "1", xEnd: "20", step: "1" },
+    axis: { xLabel: "Level", seriesName: "Value", yLabel: "Value" },
+  },
+  {
+    id: "linear-exp-hybrid",
+    label: "Linear-Exponential Hybrid",
+    expression: "a*x + b*(r^x - 1)",
+    variables: [
+      { name: "a", value: "5" },
+      { name: "b", value: "2" },
+      { name: "r", value: "1.08" },
+    ],
+    explanation:
+      "Blend of linear growth and exponential kick. Vars: a = linear rate; b = exponential weight; r = growth ratio (>1 accelerates). Examples: upgrade costs gentle early then steep; XP sinks fair early, punishing late.",
+    domain: { xStart: "1", xEnd: "25", step: "1" },
+    axis: { xLabel: "Level", seriesName: "Cost", yLabel: "Cost" },
+  },
+  {
+    id: "logarithmic",
+    label: "Logarithmic Curve",
+    expression: "a * ln(x + c) + b",
+    variables: [
+      { name: "a", value: "10" },
+      { name: "c", value: "1" },
+      { name: "b", value: "0" },
+    ],
+    explanation:
+      "Diminishing returns. Vars: a = scale; c = domain shift (keep x+c > 0); b = offset. Examples: accuracy/crit soft-caps; gather yield that flattens with investment.",
+    domain: { xStart: "0", xEnd: "50", step: "1" },
+    axis: { xLabel: "Investment", seriesName: "Return", yLabel: "Return" },
+  },
+  {
+    id: "mitigation",
+    label: "Mitigation (Armor & Defense)",
+    expression: "x / (x + k)",
+    variables: [{ name: "k", value: "100" }],
+    explanation:
+      "Diminishing mitigation → approaches 100%, never reaches it. Vars: k = half-mitigation point (at x = k, y = 0.5). Examples: armor → damage reduction; magic resist → spell mitigation. Same shape as 1 − 1/(1 + x/k).",
+    domain: { xStart: "0", xEnd: "500", step: "25" },
+    axis: {
+      xLabel: "Armor",
+      seriesName: "Damage reduction",
+      yLabel: "Damage reduction",
+    },
+  },
+  {
+    id: "pity-rate",
+    label: "Soft Pity Rate (Gacha)",
+    expression: "min(pmax, base + max(0, x - start) * ramp)",
+    variables: [
+      { name: "base", value: "0.006" },
+      { name: "start", value: "74" },
+      { name: "ramp", value: "0.06" },
+      { name: "pmax", value: "1" },
+    ],
+    explanation:
+      "Per-pull hit rate with soft pity. Vars: base = rate before pity; start = pull where ramp begins; ramp = rate added per pull after start; pmax = cap (often 1). Examples: gacha rate-up banners; climb toward a guaranteed drop.",
+    domain: { xStart: "1", xEnd: "90", step: "1" },
+    axis: {
+      xLabel: "Pull #",
+      seriesName: "Hit rate",
+      yLabel: "Hit rate",
+    },
+  },
+  {
+    id: "pity-cumulative",
+    label: "Cumulative Chance (Loot)",
+    expression: "1 - (1 - p)^x",
+    variables: [{ name: "p", value: "0.05" }],
+    explanation:
+      "Chance of ≥1 hit after x independent rolls. Vars: p = per-roll success rate (0–1). Examples: loot-table “how many chests until likely”; pair with Soft Pity Rate when per-pull odds also ramp.",
+    domain: { xStart: "1", xEnd: "100", step: "1" },
+    axis: {
+      xLabel: "Pulls / rolls",
+      seriesName: "Cumulative chance",
+      yLabel: "Cumulative chance",
+    },
   },
 ];
 
+export function formulaPresetById(id: string): FormulaPreset | undefined {
+  return CHART_FORMULA_PRESETS.find((p) => p.id === id);
+}
+
+export function explanationForPresetId(presetId: string): string {
+  if (!presetId) return CUSTOM_FORMULA_NOTE;
+  return formulaPresetById(presetId)?.explanation ?? CUSTOM_FORMULA_NOTE;
+}
 export type FormulaPoint = {
   x: number;
   y: number;

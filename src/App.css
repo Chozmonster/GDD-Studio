@@ -3878,9 +3878,15 @@ code {
 }
 
 .charts-formula-preset-field {
-  flex: 0 1 14rem;
-  min-width: 10rem;
-  max-width: 18rem;
+  flex: 0 1 16rem;
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.charts-formula-explanation {
+  margin: 0;
+  line-height: 1.35;
+  max-width: 52rem;
 }
 
 .charts-formula-expr {

@@ -189,7 +189,7 @@ function embedLabel(el: HTMLElement): string {
     return title || "Mood Board";
   }
   if (el.matches(".chart-embed, [data-type='chart-embed']")) {
-    return title || "Chart";
+    return title || "Graph";
   }
   return title || "Embed";
 }
@@ -346,7 +346,7 @@ async function buildExportHtml(
       const kind = el.matches(".flowchart-embed, [data-type='flowchart-embed']")
         ? "Flowchart embed"
         : el.matches(".chart-embed, [data-type='chart-embed']")
-          ? "Chart embed"
+          ? "Graph embed"
           : el.matches(".mood-board-embed, [data-type='mood-board-embed']")
             ? "Mood Board embed"
             : "RGD embed";

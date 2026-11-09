@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, Charts (progression graphs MVP), and RGD workspace. Cloud sync / share links remain v1.5+.
+Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, Graph (progression graphs MVP; internal `charts/`), and RGD workspace. Cloud sync / share links remain v1.5+.
 
 ## Prerequisites
 
@@ -63,10 +63,10 @@ Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from 
 │   ├── components/
 │   │   ├── Launcher.tsx      # Godot-like project manager
 │   │   ├── OptionsPanel.tsx  # Options window / modal
-│   │   ├── EditorShell.tsx   # Document / Flowcharts / RGD / Mood Board / Charts
+│   │   ├── EditorShell.tsx   # Document / Flowcharts / RGD / Mood Board / Graph
 │   │   ├── EditorCanvas.tsx  # TipTap
 │   │   ├── flowchart/        # @xyflow: typed shapes, colors, resize, edge styles
-│   │   └── charts/           # Charts MVP (table + line/bar + formula helper)
+│   │   └── charts/           # Graph MVP (table + line/bar + formula; disk: charts/)
 │   └── api.ts
 ├── src-tauri/
 │   ├── src/store.rs          # Project library, settings, tool JSON payloads
@@ -75,7 +75,7 @@ Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from 
 └── .github/workflows/ci.yml
 ```
 
-Flowcharts save under `{project}/flowcharts/*.json`; Charts under `{project}/charts/*.json` (browser preview uses `localStorage`).
+Flowcharts save under `{project}/flowcharts/*.json`; Graph (UI) under `{project}/charts/*.json` (browser preview uses `localStorage`).
 
 ## Automatic updates (GitHub Releases)
 

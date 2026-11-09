@@ -2,9 +2,12 @@ import { useMemo, useState } from "react";
 import {
   CHART_FORMULA_PRESETS,
   CHART_INDEPENDENT_VAR,
+  CUSTOM_FORMULA_NOTE,
   detectFormulaIdentifiers,
+  explanationForPresetId,
   isValidFormulaVarName,
   type FormulaPreset,
+  type FormulaPresetAxisDefaults,
 } from "../../lib/chartFormula";
 import type { ChartSeries } from "../../types";
 
@@ -30,9 +33,9 @@ export function defaultChartFormulaState(seriesId: string): ChartFormulaState {
   return {
     expression: power.expression,
     variables: power.variables.map((v) => ({ ...v })),
-    xStart: "1",
-    xEnd: "20",
-    step: "1",
+    xStart: power.domain?.xStart ?? "1",
+    xEnd: power.domain?.xEnd ?? "20",
+    step: power.domain?.step ?? "1",
     seriesId,
     replaceRows: true,
     presetId: power.id,
@@ -48,6 +51,13 @@ export function applyPresetToState(
     expression: preset.expression,
     variables: preset.variables.map((v) => ({ ...v })),
     presetId: preset.id,
+    ...(preset.domain
+      ? {
+          xStart: preset.domain.xStart,
+          xEnd: preset.domain.xEnd,
+          step: preset.domain.step,
+        }
+      : {}),
   };
 }
 
@@ -59,6 +69,8 @@ type ChartFormulaPanelProps = {
   /** Soft status (e.g. “Updated 20 points”). */
   hint?: string | null;
   onChange: (next: ChartFormulaState) => void;
+  /** Called when a preset seeds suggested axis / series labels. */
+  onAxisDefaults?: (axis: FormulaPresetAxisDefaults) => void;
   onApply: () => void;
   onClose: () => void;
 };
@@ -69,6 +81,7 @@ export function ChartFormulaPanel({
   error,
   hint,
   onChange,
+  onAxisDefaults,
   onApply,
   onClose,
 }: ChartFormulaPanelProps) {
@@ -89,6 +102,8 @@ export function ChartFormulaPanel({
     detected.ok
       ? detected.names.filter((n) => !boundNames.has(n.toLowerCase()))
       : [];
+
+  const explanation = explanationForPresetId(state.presetId);
 
   const setExpression = (expression: string) => {
     onChange({ ...state, expression, presetId: "" });
@@ -138,6 +153,7 @@ export function ChartFormulaPanel({
     const preset = CHART_FORMULA_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
     onChange(applyPresetToState(state, preset));
+    if (preset.axis) onAxisDefaults?.(preset.axis);
   };
 
   return (
@@ -181,6 +197,14 @@ export function ChartFormulaPanel({
           </select>
         </label>
       </div>
+
+      <p
+        className="muted tiny charts-formula-explanation"
+        role="note"
+        aria-live="polite"
+      >
+        {explanation || CUSTOM_FORMULA_NOTE}
+      </p>
 
       <div className="charts-formula-vars">
         <div className="charts-formula-vars-header">

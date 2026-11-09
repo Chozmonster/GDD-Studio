@@ -8,6 +8,7 @@ import { emitChartSaved } from "../../lib/chartEvents";
 import {
   CHART_INDEPENDENT_VAR,
   evaluateFormulaSweep,
+  type FormulaPresetAxisDefaults,
 } from "../../lib/chartFormula";
 import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
 import type { ChartDocument, ProjectRecord } from "../../types";
@@ -266,6 +267,41 @@ export function ChartsEditor({
     setFormulaError(null);
   }, []);
 
+  /** Seed axis / series labels when a formula preset is picked. */
+  const handlePresetAxisDefaults = useCallback(
+    (axis: FormulaPresetAxisDefaults) => {
+      const current = cloneChart(docRef.current);
+      let changed = false;
+      if (axis.xLabel !== undefined && current.xLabel !== axis.xLabel) {
+        current.xLabel = axis.xLabel;
+        changed = true;
+      }
+      if (axis.yLabel !== undefined && current.yLabel !== axis.yLabel) {
+        current.yLabel = axis.yLabel;
+        changed = true;
+      }
+      if (axis.seriesName !== undefined) {
+        const seriesId = formulaRef.current.seriesId;
+        const idx = current.series.findIndex((s) => s.id === seriesId);
+        const target =
+          idx >= 0 ? idx : current.series.length > 0 ? 0 : -1;
+        if (
+          target >= 0 &&
+          current.series[target]!.name !== axis.seriesName
+        ) {
+          current.series = current.series.map((s, i) =>
+            i === target ? { ...s, name: axis.seriesName! } : s,
+          );
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      recordHistory();
+      schedulePersist(current);
+    },
+    [recordHistory, schedulePersist],
+  );
+
   // Debounced live eval while the formula panel is open.
   useEffect(() => {
     if (!formulaOpen) {
@@ -465,6 +501,7 @@ export function ChartsEditor({
               error={formulaError}
               hint={formulaHint}
               onChange={handleFormulaChange}
+              onAxisDefaults={handlePresetAxisDefaults}
               onApply={() => {
                 applyFormulaToDoc(formulaRef.current, { source: "apply" });
               }}
