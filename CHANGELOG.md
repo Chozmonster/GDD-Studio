@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Charts preview / document embeds: hover a data point or bar to see a tooltip with the X label, series name, and Y value (shared `ChartPreview` path).
 
+### Fixed
+
+- PDF export: Chart embeds rasterize as real PNG screenshots in the document body (same path as flowchart / RGD). Chart SVG theme colors are baked to concrete values so axes, grid, and labels survive `html-to-image`; ephemeral hover tips (`data-export-ignore`) are stripped from both the capture filter and the export HTML clone.
+
 ## [0.1.12] - 2026-11-08
 
 Charts axis text layout: title lanes and readable tick formatting.

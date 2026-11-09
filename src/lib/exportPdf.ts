@@ -13,7 +13,16 @@ type CapturedEmbed = {
   cropped: boolean;
 };
 
-/** Outermost flowchart / RGD embed nodes only (avoid nested selector doubles). */
+const SVG_COLOR_ATTRS = [
+  "fill",
+  "stroke",
+  "stop-color",
+  "flood-color",
+  "lighting-color",
+  "color",
+] as const;
+
+/** Outermost flowchart / RGD / chart embed nodes only (avoid nested selector doubles). */
 function collectEmbedElements(root: HTMLElement): HTMLElement[] {
   const nodes = Array.from(
     root.querySelectorAll(EMBED_SELECTOR),
@@ -23,11 +32,97 @@ function collectEmbedElements(root: HTMLElement): HTMLElement[] {
   );
 }
 
+function isChartEmbed(el: HTMLElement): boolean {
+  return el.matches(".chart-embed, [data-type='chart-embed']");
+}
+
+/**
+ * Chart embeds load async — wait briefly so the SVG (or a settled empty/error
+ * state) is in the live DOM before we rasterize.
+ */
+async function waitForChartEmbedReady(el: HTMLElement): Promise<void> {
+  if (!isChartEmbed(el)) return;
+  if (
+    el.querySelector(
+      ".chart-preview-svg, .chart-preview-empty, .error.embed-status",
+    )
+  ) {
+    return;
+  }
+  const deadline = Date.now() + 2500;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    if (
+      el.querySelector(
+        ".chart-preview-svg, .chart-preview-empty, .error.embed-status",
+      )
+    ) {
+      return;
+    }
+  }
+}
+
+/**
+ * html-to-image re-serializes SVG into a standalone image document. CSS custom
+ * properties in presentation attributes do not resolve there — bake computed
+ * colors (and explicit width/height) so axes/grid/text survive the raster.
+ */
+function prepareSvgsForCapture(root: HTMLElement): () => void {
+  const restores: Array<() => void> = [];
+  const svgs = Array.from(root.querySelectorAll("svg"));
+  for (const svg of svgs) {
+    const svgEl = svg as SVGSVGElement;
+    const box = svgEl.getBoundingClientRect();
+    const prevW = svgEl.getAttribute("width");
+    const prevH = svgEl.getAttribute("height");
+    if ((!prevW || prevW === "auto") && box.width > 0) {
+      svgEl.setAttribute("width", String(Math.round(box.width)));
+    }
+    if ((!prevH || prevH === "auto") && box.height > 0) {
+      svgEl.setAttribute("height", String(Math.round(box.height)));
+    }
+    restores.push(() => {
+      if (prevW === null) svgEl.removeAttribute("width");
+      else svgEl.setAttribute("width", prevW);
+      if (prevH === null) svgEl.removeAttribute("height");
+      else svgEl.setAttribute("height", prevH);
+    });
+
+    const nodes = [svgEl, ...Array.from(svgEl.querySelectorAll("*"))];
+    for (const node of nodes) {
+      for (const attr of SVG_COLOR_ATTRS) {
+        const raw = node.getAttribute(attr);
+        if (!raw || !raw.includes("var(")) continue;
+        const computed = getComputedStyle(node).getPropertyValue(attr).trim();
+        if (!computed || computed === "none") continue;
+        node.setAttribute(attr, computed);
+        restores.push(() => node.setAttribute(attr, raw));
+      }
+    }
+  }
+  return () => {
+    for (let i = restores.length - 1; i >= 0; i--) restores[i]!();
+  };
+}
+
+function shouldSkipExportNode(node: HTMLElement): boolean {
+  if (node.tagName === "BUTTON") return true;
+  if (node.hasAttribute("data-export-ignore")) return true;
+  if (node.classList.contains("media-embed-chrome")) return true;
+  if (node.classList.contains("rgd-embed-resize-handle")) return true;
+  // Skip attribution / selection chrome from React Flow if present
+  if (node.classList.contains("react-flow__panel")) return true;
+  if (node.classList.contains("react-flow__attribution")) return true;
+  return false;
+}
+
 /**
  * Capture a live embed node as a PNG data URL.
- * Buttons / interactive chrome are filtered out of the raster.
+ * Buttons / interactive chrome / ephemeral tips are filtered out of the raster.
  */
 async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> {
+  await waitForChartEmbedReady(el);
+
   const label = embedLabel(el);
   const fullHeight = Math.max(el.scrollHeight, el.offsetHeight, 1);
   const cropped = fullHeight > MAX_CAPTURE_HEIGHT_PX;
@@ -38,6 +133,7 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
     getComputedStyle(document.body).backgroundColor ||
     "#1e1e1e";
 
+  const restoreSvgs = prepareSvgsForCapture(el);
   try {
     const dataUrl = await toPng(el, {
       cacheBust: true,
@@ -51,20 +147,20 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
         overflow: "hidden",
       },
       filter: (node) => {
+        // TipTap/HTML tips use data-export-ignore; match Element (not only HTMLElement).
+        if (node instanceof Element && node.hasAttribute("data-export-ignore")) {
+          return false;
+        }
         if (!(node instanceof HTMLElement)) return true;
-        if (node.tagName === "BUTTON") return false;
-        if (node.classList.contains("media-embed-chrome")) return false;
-        if (node.classList.contains("rgd-embed-resize-handle")) return false;
-        // Skip attribution / selection chrome from React Flow if present
-        if (node.classList.contains("react-flow__panel")) return false;
-        if (node.classList.contains("react-flow__attribution")) return false;
-        return true;
+        return !shouldSkipExportNode(node);
       },
     });
     if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
     return { dataUrl, label, cropped };
   } catch {
     return null;
+  } finally {
+    restoreSvgs();
   }
 }
 
@@ -220,7 +316,7 @@ function enhanceMediaForPrint(root: HTMLElement): void {
 
 /**
  * Build a print-friendly HTML snapshot of the current TipTap document.
- * Flowchart / RGD embeds are rasterized in place; media kept when feasible.
+ * Flowchart / RGD / chart embeds are rasterized in place; media kept when feasible.
  */
 async function buildExportHtml(
   title: string,
@@ -229,10 +325,12 @@ async function buildExportHtml(
   const liveRoot = editor.view.dom as HTMLElement;
   const liveEmbeds = collectEmbedElements(liveRoot);
 
-  // Capture from the live DOM (canvas / React Flow do not survive cloneNode)
-  const captures = await Promise.all(
-    liveEmbeds.map((el) => captureEmbedNode(el)),
-  );
+  // Capture from the live DOM (canvas / React Flow / chart SVG do not survive cloneNode)
+  // Sequential capture keeps SVG prep mutations from overlapping across embeds.
+  const captures: Array<CapturedEmbed | null> = [];
+  for (const el of liveEmbeds) {
+    captures.push(await captureEmbedNode(el));
+  }
 
   const root = liveRoot.cloneNode(true) as HTMLElement;
   scrubExportRoot(root);
