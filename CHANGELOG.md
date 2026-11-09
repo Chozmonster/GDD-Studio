@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Help: Rational Game Design is one sidebar entry and one scrollable page (overview, 7 steps, player skills, using RGD in the app, further reading) instead of four separate Help pages.
+- Graph formula pane is **always open** for the selected graph (no Formula… toolbar toggle / Close). Bar/line **Type** lives in the formula pane next to Preset.
 
 ## [0.1.14] - 2026-11-09
 

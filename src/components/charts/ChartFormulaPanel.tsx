@@ -64,26 +64,28 @@ export function applyPresetToState(
 type ChartFormulaPanelProps = {
   state: ChartFormulaState;
   series: ChartSeries[];
+  chartType: "line" | "bar";
   /** Inline eval error (null when ok / idle). */
   error: string | null;
   /** Soft status (e.g. “Updated 20 points”). */
   hint?: string | null;
   onChange: (next: ChartFormulaState) => void;
+  onChartTypeChange: (next: "line" | "bar") => void;
   /** Called when a preset seeds suggested axis / series labels. */
   onAxisDefaults?: (axis: FormulaPresetAxisDefaults) => void;
   onApply: () => void;
-  onClose: () => void;
 };
 
 export function ChartFormulaPanel({
   state,
   series,
+  chartType,
   error,
   hint,
   onChange,
+  onChartTypeChange,
   onAxisDefaults,
   onApply,
-  onClose,
 }: ChartFormulaPanelProps) {
   const [draftVarName, setDraftVarName] = useState("");
   const [draftVarError, setDraftVarError] = useState<string | null>(null);
@@ -194,6 +196,19 @@ export function ChartFormulaPanel({
                 {p.label}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="charts-inline-field charts-formula-type-field">
+          <span className="muted tiny">Type</span>
+          <select
+            value={chartType}
+            onChange={(e) =>
+              onChartTypeChange(e.target.value === "bar" ? "bar" : "line")
+            }
+            aria-label="Chart type"
+          >
+            <option value="line">Line</option>
+            <option value="bar">Bar</option>
           </select>
         </label>
       </div>
@@ -358,9 +373,6 @@ export function ChartFormulaPanel({
       <div className="charts-formula-actions">
         <button type="button" className="primary tiny-btn" onClick={onApply}>
           Apply to table
-        </button>
-        <button type="button" className="ghost tiny-btn" onClick={onClose}>
-          Close
         </button>
       </div>
     </div>

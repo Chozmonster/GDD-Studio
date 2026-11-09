@@ -3917,6 +3917,11 @@ code {
   max-width: 22rem;
 }
 
+.charts-formula-type-field {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+}
+
 .charts-formula-explanation {
   margin: 0;
   line-height: 1.35;

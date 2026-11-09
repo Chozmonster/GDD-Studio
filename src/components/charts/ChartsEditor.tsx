@@ -67,7 +67,6 @@ export function ChartsEditor({
   const [chartName, setChartName] = useState("Main");
   const [doc, setDoc] = useState<ChartDocument>(() => emptyChartDocument());
   const [status, setStatus] = useState("Loading…");
-  const [formulaOpen, setFormulaOpen] = useState(false);
   const [formula, setFormula] = useState<ChartFormulaState>(() =>
     defaultChartFormulaState("series-1"),
   );
@@ -78,6 +77,8 @@ export function ChartsEditor({
   const formulaRef = useRef(formula);
   const saveTimer = useRef<number | null>(null);
   const formulaTimer = useRef<number | null>(null);
+  /** Live eval only after the user edits the formula (avoids wiping rows on chart load). */
+  const liveEvalEnabled = useRef(false);
   const applyingHistory = useRef(false);
   const {
     push: pushHistory,
@@ -95,7 +96,6 @@ export function ChartsEditor({
   const selectChart = useCallback((id: string, name: string) => {
     setChartId(id);
     setChartName(name);
-    setFormulaOpen(false);
     setFormulaError(null);
     setFormulaHint(null);
   }, []);
@@ -262,6 +262,7 @@ export function ChartsEditor({
   );
 
   const handleFormulaChange = useCallback((next: ChartFormulaState) => {
+    liveEvalEnabled.current = true;
     setFormula(next);
     formulaRef.current = next;
     setFormulaError(null);
@@ -302,9 +303,9 @@ export function ChartsEditor({
     [recordHistory, schedulePersist],
   );
 
-  // Debounced live eval while the formula panel is open.
+  // Debounced live eval after user edits — formula pane is always visible.
   useEffect(() => {
-    if (!formulaOpen) {
+    if (!liveEvalEnabled.current) {
       if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
       return;
     }
@@ -318,7 +319,7 @@ export function ChartsEditor({
     return () => {
       if (formulaTimer.current) window.clearTimeout(formulaTimer.current);
     };
-  }, [formula, formulaOpen, applyFormulaToDoc]);
+  }, [formula, applyFormulaToDoc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,6 +357,7 @@ export function ChartsEditor({
         setDoc(loaded);
         docRef.current = loaded;
         setChartName(loaded.name);
+        liveEvalEnabled.current = false;
         setFormula(defaultChartFormulaState(loaded.series[0]?.id ?? "series-1"));
         setFormulaError(null);
         setFormulaHint(null);
@@ -436,35 +438,6 @@ export function ChartsEditor({
                 onUndo={handleUndo}
                 onRedo={handleRedo}
               />
-              <label className="charts-inline-field">
-                <span className="muted tiny">Type</span>
-                <select
-                  value={doc.chartType}
-                  onChange={(e) =>
-                    applyField(
-                      "chartType",
-                      e.target.value === "bar" ? "bar" : "line",
-                    )
-                  }
-                >
-                  <option value="line">Line</option>
-                  <option value="bar">Bar</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                className="ghost tiny-btn"
-                onClick={() => {
-                  setFormula((f) => ({
-                    ...f,
-                    seriesId: doc.series[0]?.id ?? f.seriesId,
-                  }));
-                  setFormulaOpen((o) => !o);
-                  setFormulaError(null);
-                }}
-              >
-                Formula…
-              </button>
             </div>
           </header>
 
@@ -494,23 +467,19 @@ export function ChartsEditor({
             )}
           </div>
 
-          {formulaOpen && (
-            <ChartFormulaPanel
-              state={formula}
-              series={doc.series}
-              error={formulaError}
-              hint={formulaHint}
-              onChange={handleFormulaChange}
-              onAxisDefaults={handlePresetAxisDefaults}
-              onApply={() => {
-                applyFormulaToDoc(formulaRef.current, { source: "apply" });
-              }}
-              onClose={() => {
-                setFormulaOpen(false);
-                setFormulaError(null);
-              }}
-            />
-          )}
+          <ChartFormulaPanel
+            state={formula}
+            series={doc.series}
+            chartType={doc.chartType}
+            error={formulaError}
+            hint={formulaHint}
+            onChange={handleFormulaChange}
+            onChartTypeChange={(next) => applyField("chartType", next)}
+            onAxisDefaults={handlePresetAxisDefaults}
+            onApply={() => {
+              applyFormulaToDoc(formulaRef.current, { source: "apply" });
+            }}
+          />
 
           <div className="charts-workspace">
             <ChartPreview document={doc} />

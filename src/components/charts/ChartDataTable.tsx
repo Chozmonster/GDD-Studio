@@ -162,7 +162,7 @@ export function ChartDataTable({
             {doc.rows.length === 0 ? (
               <tr>
                 <td colSpan={doc.series.length + 2} className="muted tiny">
-                  No rows yet — add a row or open Formula… to fill from a curve.
+                  No rows yet — add a row or use the formula pane to fill from a curve.
                 </td>
               </tr>
             ) : (
