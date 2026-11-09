@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-09
+
+Graph preview fits its pane without clipping when resized.
+
 ### Fixed
 
 - Graph preview / document embeds: chart SVG always fits its pane when resized — plot, axis titles, tick labels, and legend stay fully visible (no overflow clipping). Shared `ChartPreview` sizes its viewBox to the container via `ResizeObserver` while keeping axis-margin layout.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.13] - 2026-11-08
 
