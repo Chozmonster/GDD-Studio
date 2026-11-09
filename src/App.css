@@ -2825,6 +2825,17 @@ code {
   margin-top: 0.65rem;
 }
 
+/* Major blocks on the single RGD Help page (intro → steps → skills → app). */
+.help-major-section {
+  margin-top: 1.15rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.help-major-section > .help-subhead:first-child {
+  margin-top: 0;
+}
+
 .help-article p {
   margin: 0 0 0.65rem;
   font-size: 0.88rem;
