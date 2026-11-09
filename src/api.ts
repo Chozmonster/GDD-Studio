@@ -1241,7 +1241,7 @@ export async function deleteChart(
   chartId: string,
 ): Promise<void> {
   if (chartId.trim() === "main") {
-    throw new Error("Main chart cannot be deleted");
+    throw new Error("Main graph cannot be deleted");
   }
   if (!isTauriRuntime()) {
     const store = loadBrowser();

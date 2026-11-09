@@ -104,7 +104,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             onClick={() => setTab("charts")}
             aria-current={tab === "charts" ? "page" : undefined}
           >
-            Charts
+            Graph
           </button>
         </nav>
         <div className="chrome-right">

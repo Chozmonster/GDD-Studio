@@ -599,7 +599,7 @@ export function EditorCanvas({
   };
 
   const createAndInsertChart = async () => {
-    const name = window.prompt("New chart name", "Untitled chart");
+    const name = window.prompt("New graph name", "Untitled graph");
     if (name === null) return;
     const created = await createChart(project.id, name);
     const chart = emptyChartDocument(created.id, created.name);
@@ -976,7 +976,7 @@ export function EditorCanvas({
             RGD
           </ToolbarIconButton>
           <ToolbarIconButton
-            label="Insert chart"
+            label="Insert graph"
             icon={BarChart3}
             aria-expanded={chartPickerOpen}
             aria-haspopup="dialog"
@@ -987,7 +987,7 @@ export function EditorCanvas({
               void refreshCharts().then(() => setChartPickerOpen((o) => !o));
             }}
           >
-            Chart
+            Graph
           </ToolbarIconButton>
           <ToolbarIconButton
             label="Insert media"
@@ -1113,10 +1113,10 @@ export function EditorCanvas({
         <div
           className="embed-picker chart-insert-menu"
           role="dialog"
-          aria-label="Insert chart"
+          aria-label="Insert graph"
         >
           <p className="muted tiny">
-            Embed a live chart that references the Charts library (edits update
+            Embed a live graph that references the Graph library (edits update
             every embed).
           </p>
           <ul>
@@ -1133,7 +1133,7 @@ export function EditorCanvas({
             className="primary"
             onClick={() => void createAndInsertChart()}
           >
-            New chart + insert
+            New graph + insert
           </button>
           <button
             type="button"

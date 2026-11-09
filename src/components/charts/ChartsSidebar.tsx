@@ -37,7 +37,7 @@ export function ChartsSidebar({
   }, [refresh]);
 
   const handleCreate = async () => {
-    const name = window.prompt("New chart name", "Untitled");
+    const name = window.prompt("New graph name", "Untitled");
     if (name === null) return;
     setBusy(true);
     try {
@@ -51,7 +51,7 @@ export function ChartsSidebar({
   };
 
   const handleRename = async (item: ChartSummary) => {
-    const name = window.prompt("Rename chart", item.name);
+    const name = window.prompt("Rename graph", item.name);
     if (name === null) return;
     const trimmed = name.trim() || item.name;
     setBusy(true);
@@ -71,7 +71,7 @@ export function ChartsSidebar({
     if (item.id === "main") return;
     if (
       !window.confirm(
-        `Delete chart “${item.name}”? Document embeds that target this chart will show a broken state.`,
+        `Delete graph “${item.name}”? Document embeds that target this graph will show a broken state.`,
       )
     ) {
       return;
@@ -91,9 +91,9 @@ export function ChartsSidebar({
   };
 
   return (
-    <aside className="flowchart-sidebar charts-sidebar" aria-label="Charts in project">
+    <aside className="flowchart-sidebar charts-sidebar" aria-label="Graphs in project">
       <header className="flowchart-sidebar-header">
-        <h3>Charts</h3>
+        <h3>Graph</h3>
         <button
           type="button"
           className="primary tiny-btn"
@@ -105,7 +105,7 @@ export function ChartsSidebar({
       </header>
       {list.length === 0 ? (
         <p className="muted tiny flowchart-sidebar-empty">
-          No charts yet. Create one for XP or power curves.
+          No graphs yet. Create one for XP or power curves.
         </p>
       ) : (
         <ul className="flowchart-sidebar-list">
@@ -140,7 +140,7 @@ export function ChartsSidebar({
                   onClick={() => void handleDelete(item)}
                   title={
                     item.id === "main"
-                      ? "Main chart cannot be deleted"
+                      ? "Main graph cannot be deleted"
                       : "Delete"
                   }
                 >

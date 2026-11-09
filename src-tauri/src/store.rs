@@ -1972,7 +1972,7 @@ pub fn delete_chart(
 ) -> Result<(), String> {
     let id = chart_id.trim();
     if id == "main" {
-        return Err("Main chart cannot be deleted".into());
+        return Err("Main graph cannot be deleted".into());
     }
     let project = project_by_id(app, &project_id)?;
     let path = chart_path(&project, id)?;
