@@ -3705,14 +3705,17 @@ code {
 .charts-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0.75rem;
   min-height: 0;
   flex: 1;
+  align-items: stretch;
 }
 
 @media (max-width: 980px) {
   .charts-workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(12rem, 1fr) minmax(12rem, 1fr);
   }
 }
 
@@ -3722,13 +3725,32 @@ code {
   border-radius: 8px;
   background: var(--bg-panel);
   overflow: hidden;
+  min-width: 0;
   min-height: 0;
+  /* Fill the Graph workspace grid cell so ResizeObserver sees the pane. */
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.chart-preview.is-compact {
+  /* Document embeds are width-driven; let SVG aspect set height. */
+  height: auto;
 }
 
 .chart-preview-svg {
   display: block;
   width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chart-preview.is-compact .chart-preview-svg {
   height: auto;
+  flex: 0 0 auto;
 }
 
 .chart-preview-hit {
@@ -3797,6 +3819,7 @@ code {
   flex-direction: column;
   gap: 0.4rem;
   min-height: 0;
+  height: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg-panel);
