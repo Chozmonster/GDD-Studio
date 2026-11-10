@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-10
+
+Whiteboard pen pressure, tool icons/tooltips, and brush size preview.
+
 ### Added
 
 - Whiteboard freehand **pen pressure**: stylus Pointer Events `pressure` maps to stroke width around the brush size (~0.5×–1.5×; mouse/fallback stays constant). Per-point pressure persists so embeds and PDF match the editor.
 - Whiteboard tool bar uses **Lucide icons** (Select, Pen, Eraser, Line, Rectangle, Ellipse) with hover tooltips, matching document toolbar conventions.
 - Whiteboard **brush size preview**: live circle next to the Width slider updates with size and stroke colour.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.18] - 2026-11-10
 
