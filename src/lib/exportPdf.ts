@@ -268,7 +268,12 @@ function embedLabel(el: HTMLElement): string {
     return title || "Graph";
   }
   if (el.matches(".whiteboard-embed, [data-type='whiteboard-embed']")) {
-    return title || "Whiteboard";
+    return (
+      title ||
+      el.getAttribute("data-whiteboard-name")?.trim() ||
+      el.getAttribute("data-whiteboard-id") ||
+      "Whiteboard"
+    );
   }
   return title || "Embed";
 }

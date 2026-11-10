@@ -4481,6 +4481,16 @@ input.charts-formula-var-value {
   border: none;
 }
 
+/* Doc embed — fixed frame, content centered via viewBox (flowchart fitView spirit). */
+.whiteboard-preview.embed {
+  width: 100%;
+  height: 260px;
+  border: none;
+  border-radius: 0;
+  background: #F7F4EC;
+  overflow: hidden;
+}
+
 .whiteboard-preview-svg {
   display: block;
   width: 100%;
@@ -4488,10 +4498,15 @@ input.charts-formula-var-value {
   min-height: 10rem;
 }
 
-.whiteboard-preview.is-compact .whiteboard-preview-svg {
+.whiteboard-preview.is-compact:not(.embed) .whiteboard-preview-svg {
   min-height: 8rem;
   height: auto;
   aspect-ratio: 16 / 10;
+}
+
+.whiteboard-preview.embed .whiteboard-preview-svg {
+  min-height: 0;
+  height: 100%;
 }
 
 .whiteboard-preview-empty {
@@ -4504,12 +4519,15 @@ input.charts-formula-var-value {
 
 .whiteboard-embed {
   position: relative;
+  box-sizing: border-box;
   display: block;
-  margin: 0.65rem 0;
-  border: 1px solid var(--line);
+  margin: 0.85rem 0;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--bg-panel);
-  padding: 0.45rem 0.55rem 0.6rem;
+  color: var(--ink);
+  overflow: hidden;
+  padding: 0;
 }
 
 .whiteboard-embed.is-align-center {
@@ -4529,48 +4547,15 @@ input.charts-formula-var-value {
 }
 
 .whiteboard-embed.broken {
-  border-color: var(--danger);
+  border-color: #8b3a3a;
+  background: #2a1f1f;
+  color: #ffd0d0;
 }
 
-.whiteboard-embed-chrome {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.35rem;
-}
-
-.whiteboard-embed-badge {
-  flex: 0 0 auto;
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent);
-  border: 1px solid var(--accent-soft);
-  background: var(--accent-soft);
-  border-radius: 4px;
-  padding: 0.12rem 0.35rem;
-}
-
-.whiteboard-embed-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.whiteboard-embed-title {
-  font-weight: 600;
-  color: var(--ink-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.whiteboard-embed-description {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.whiteboard-embed-frame {
+  position: relative;
+  width: 100%;
+  min-height: 0;
 }
 
 .whiteboard-embed-preview {

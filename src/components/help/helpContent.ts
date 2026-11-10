@@ -170,7 +170,7 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
       steps: [
         "Toolbar icons (hover for name): Select, Pen, Eraser, Line, Rectangle, Ellipse. Adjust stroke width and stroke/fill colour — the live brush preview next to Width shows the current size.",
         "Pen tablet / stylus: freehand strokes use Pointer Events pressure around the brush size (mouse stays a constant width). Variable-width ink persists into document embeds and PDF.",
-        "Select moves or deletes strokes and shapes (Delete / Backspace). Eraser removes objects the brush touches.",
+        "Select moves or deletes strokes and shapes (Delete / Backspace). Eraser removes any ink the brush overlaps — pen strokes, lines, and filled or hollow rectangles/ellipses (click inside a shape works).",
         "Pan with Space+drag, Alt+drag, or middle mouse. Wheel zooms. Chrome stays dark; the paper is light.",
       ],
     },
@@ -186,8 +186,7 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
       title: "Document embeds",
       steps: [
         "Document toolbar → Whiteboard inserts a live reference by board id.",
-        "Edits on the Whiteboard tab update every embed automatically. Embeds are resizable and respect text alignment; PDF/print captures them as images (like Mood Board).",
-        "Open in Whiteboard jumps to the referenced board.",
+        "Edits on the Whiteboard tab update every embed automatically. Embeds show only the board image, centered and fitted in the frame (like flowchart embeds — no title chrome; double-click opens the board). Resizable + text alignment; PDF/print captures them as images.",
       ],
       note: "Boards persist under project/whiteboards/*.json so the module can be removed cleanly if needed. Out of scope for this MVP: multiplayer, tilt, OCR, infinite-canvas polish, importing Mood Board images as layers.",
     },

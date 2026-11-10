@@ -413,12 +413,63 @@ function distToSegment(
   return Math.sqrt(dist2(px, py, ax + t * abx, ay + t * aby));
 }
 
+/**
+ * Distance from point to a solid axis-aligned rect (0 when inside).
+ * Used so filled *and* stroked rects share one eraser/select hit path.
+ */
+function distToSolidRect(
+  px: number,
+  py: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): number {
+  const dx = Math.max(x - px, 0, px - (x + w));
+  const dy = Math.max(y - py, 0, py - (y + h));
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Approximate distance from point to a solid ellipse (0 when inside).
+ * Scales into unit circle space so thin ellipses stay hittable.
+ */
+function distToSolidEllipse(
+  px: number,
+  py: number,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+): number {
+  const safeRx = Math.max(1e-6, rx);
+  const safeRy = Math.max(1e-6, ry);
+  const nx = (px - cx) / safeRx;
+  const ny = (py - cy) / safeRy;
+  const r = Math.hypot(nx, ny);
+  if (r <= 1) return 0;
+  // Convert unit-space overflow back to an approximate world distance.
+  return (r - 1) * Math.min(safeRx, safeRy);
+}
+
+/**
+ * Hit-test ink under a point.
+ *
+ * `threshold` is extra radius beyond the stroke half-width (select slop or
+ * eraser brush radius). Closed shapes (rect/ellipse) always treat the
+ * geometric interior as solid ink for hit purposes — otherwise hollow
+ * rectangles/ellipses are effectively undeletable when the brush misses the
+ * thin stroke ring. Filled shapes also honor `threshold` (and the exterior
+ * stroke) so a brush that merely grazes the edge still erases.
+ */
 export function hitTestObject(
   obj: WhiteboardObject,
   x: number,
   y: number,
   threshold = 6,
 ): boolean {
+  const pad = Math.max(0, threshold);
+
   if (obj.kind === "path") {
     const pts = obj.points;
     for (let i = 1; i < pts.length; i++) {
@@ -426,7 +477,7 @@ export function hitTestObject(
         (pointStrokeWidth(obj.width, pts[i - 1].pressure) +
           pointStrokeWidth(obj.width, pts[i].pressure)) /
         2;
-      const tol = Math.max(threshold, w / 2 + 2);
+      const tol = w / 2 + pad;
       if (
         distToSegment(x, y, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) <=
         tol
@@ -435,47 +486,30 @@ export function hitTestObject(
       }
     }
     if (pts.length === 1) {
-      const tol = Math.max(
-        threshold,
-        pointStrokeWidth(obj.width, pts[0].pressure) / 2 + 2,
-      );
+      const tol = pointStrokeWidth(obj.width, pts[0].pressure) / 2 + pad;
       return Math.sqrt(dist2(x, y, pts[0].x, pts[0].y)) <= tol;
     }
     return false;
   }
+
   if (obj.kind === "line") {
-    const tol = Math.max(threshold, obj.width / 2 + 2);
-    return distToSegment(x, y, obj.x1, obj.y1, obj.x2, obj.y2) <= tol;
+    return distToSegment(x, y, obj.x1, obj.y1, obj.x2, obj.y2) <= obj.width / 2 + pad;
   }
+
   const b = shapeBounds(obj);
+  const strokePad = obj.width / 2 + pad;
+
   if (obj.kind === "rect") {
-    if (obj.fill) {
-      return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
-    }
-    const tol = Math.max(threshold, obj.width / 2 + 2);
-    const inside =
-      x >= b.x - tol &&
-      x <= b.x + b.w + tol &&
-      y >= b.y - tol &&
-      y <= b.y + b.h + tol;
-    const deepInside =
-      x >= b.x + tol &&
-      x <= b.x + b.w - tol &&
-      y >= b.y + tol &&
-      y <= b.y + b.h - tol;
-    return inside && !deepInside;
+    // Solid interior (fill or hollow) + exterior stroke extent.
+    return distToSolidRect(x, y, b.x, b.y, b.w, b.h) <= strokePad;
   }
+
   // ellipse
   const cx = b.x + b.w / 2;
   const cy = b.y + b.h / 2;
-  const rx = Math.max(1, b.w / 2);
-  const ry = Math.max(1, b.h / 2);
-  const nx = (x - cx) / rx;
-  const ny = (y - cy) / ry;
-  const r2 = nx * nx + ny * ny;
-  if (obj.fill) return r2 <= 1;
-  const tol = Math.max(threshold, obj.width / 2 + 2) / Math.min(rx, ry);
-  return r2 <= 1 + tol && r2 >= 1 - tol;
+  const rx = Math.max(0.5, b.w / 2);
+  const ry = Math.max(0.5, b.h / 2);
+  return distToSolidEllipse(x, y, cx, cy, rx, ry) <= strokePad;
 }
 
 /** Topmost object under point (later objects paint above). */
@@ -514,11 +548,15 @@ export function translateObject(
   };
 }
 
+/**
+ * True when a circular brush centered at (x, y) overlaps object ink.
+ * `radius` is the brush radius in world units (half the Width slider size).
+ */
 export function objectsIntersectBrush(
   obj: WhiteboardObject,
   x: number,
   y: number,
   radius: number,
 ): boolean {
-  return hitTestObject(obj, x, y, radius);
+  return hitTestObject(obj, x, y, Math.max(0, radius));
 }

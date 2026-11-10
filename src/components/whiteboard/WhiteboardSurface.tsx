@@ -208,11 +208,13 @@ export function WhiteboardSurface({
     }
 
     if (tool === "eraser") {
-      // Brush eraser: remove objects the brush touches (lean SVG-friendly).
+      // Brush eraser: remove whole objects the brush overlaps (object delete).
+      // Width slider is brush diameter; hit-test uses radius in world units.
       onBeforeMutate();
+      const brushRadius = Math.max(2, strokeWidth / 2);
       const removed = new Set<string>();
       for (const obj of objects) {
-        if (objectsIntersectBrush(obj, world.x, world.y, strokeWidth)) {
+        if (objectsIntersectBrush(obj, world.x, world.y, brushRadius)) {
           removed.add(obj.id);
         }
       }
@@ -339,10 +341,11 @@ export function WhiteboardSurface({
       return;
     }
     if (drag.type === "erase-stroke") {
+      const brushRadius = Math.max(2, strokeWidth / 2);
       let changed = false;
       for (const obj of objects) {
         if (drag.removed.has(obj.id)) continue;
-        if (objectsIntersectBrush(obj, world.x, world.y, strokeWidth)) {
+        if (objectsIntersectBrush(obj, world.x, world.y, brushRadius)) {
           drag.removed.add(obj.id);
           changed = true;
         }
