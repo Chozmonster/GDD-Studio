@@ -21,7 +21,8 @@ use commands::{
     load_variables, mood_board_exists, open_options_window, open_project, resolve_wiki_slug,
     reveal_project_folder, rgd_sheet_exists, save_asset, save_chart, save_document, save_flowchart,
     save_mood_board, save_project_document, save_rgd_sheet, save_template, save_variables,
-    set_automatic_updates, set_display_variable_names, write_export_html, ActiveSession,
+    set_automatic_updates, set_display_variable_names, set_paper_size, write_export_html,
+    ActiveSession,
 };
 use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
@@ -57,6 +58,7 @@ pub fn run() {
             get_settings,
             set_automatic_updates,
             set_display_variable_names,
+            set_paper_size,
             check_for_updates,
             install_update,
             get_patch_notes,

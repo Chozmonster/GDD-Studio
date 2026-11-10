@@ -130,6 +130,7 @@ function loadBrowser(): BrowserStore {
       automaticUpdates: true,
       lastUpdateCheckAt: null,
       displayVariableNames: false,
+      paperSize: "letter",
     },
     update: null,
   };
@@ -138,10 +139,15 @@ function loadBrowser(): BrowserStore {
 function normalizeSettings(
   settings: Partial<AppSettings> | undefined | null,
 ): AppSettings {
+  const paper =
+    typeof settings?.paperSize === "string" && settings.paperSize.trim()
+      ? settings.paperSize.trim().toLowerCase()
+      : "letter";
   return {
     automaticUpdates: settings?.automaticUpdates ?? true,
     lastUpdateCheckAt: settings?.lastUpdateCheckAt ?? null,
     displayVariableNames: settings?.displayVariableNames ?? false,
+    paperSize: paper,
   };
 }
 
@@ -297,6 +303,21 @@ export async function setDisplayVariableNames(
   }
   return normalizeSettings(
     await invoke<AppSettings>("set_display_variable_names", { enabled }),
+  );
+}
+
+export async function setPaperSize(paperSize: string): Promise<AppSettings> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    store.settings = normalizeSettings({
+      ...store.settings,
+      paperSize,
+    });
+    saveBrowser(store);
+    return store.settings;
+  }
+  return normalizeSettings(
+    await invoke<AppSettings>("set_paper_size", { paperSize }),
   );
 }
 

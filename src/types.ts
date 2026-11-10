@@ -20,6 +20,11 @@ export type AppSettings = {
    * When false (default), chips show the value only; name appears on hover.
    */
   displayVariableNames: boolean;
+  /**
+   * Paper size for Print view + PDF export (`letter`, `a4`, `legal`, …).
+   * Shared by both paths so on-screen pages match print.
+   */
+  paperSize: string;
 };
 
 export type UpdateStatus = {

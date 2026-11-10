@@ -52,7 +52,7 @@ export const HELP_APP: HelpArticleContent = {
       title: "Projects",
       tips: [
         "Launcher is projects only: create, open, or remove.",
-        "Options (launcher or editor): automatic updates, “Display variable names in document”, and Open project folder (DIY backup — no in-app cloud sync).",
+        "Options (launcher or editor): automatic updates, “Display variable names in document”, paper size (Print view + PDF), and Open project folder (DIY backup — no in-app cloud sync).",
         "Open Help from the launcher or the editor chrome.",
       ],
     },
@@ -64,6 +64,7 @@ export const HELP_APP: HelpArticleContent = {
         "Link across docs with [[Doc Title]] (or toolbar Link). There is no section-link picker; use the map for in-doc jumps.",
         "Drag pane handles to resize (map|docs, editor|variables, tool lists). Sizes persist; narrow windows stack instead of dragging.",
         "Undo / Redo on the formatting toolbar reverse rich-text edits on this tab only (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y). Other tabs keep their own history stacks.",
+        "Toolbar Continuous / Print view: Continuous is the default scroll editor; Print view shows editable paper sheets (same paper size as Options / PDF). Editing works in both modes.",
       ],
     },
     {
@@ -102,7 +103,7 @@ export const HELP_APP: HelpArticleContent = {
         "Media — paste or Insert media (images, gifs, video, audio). Embeds are resizable and follow text alignment. SVG files are not imported.",
         "Templates — save the active body as an app- or project-scoped template; apply replaces the current body (confirm).",
         "Spellcheck — offline underlines. Right-click or Alt+Click for suggestions, Add to dictionary, or Look up. Toolbar Look up opens definitions.",
-        "Export PDF — print dialog (Save as PDF). Flowchart, RGD, Mood Board, and Graph embeds are captured as screenshots in place; images export normally; video may show a single frame.",
+        "Export PDF — print dialog (Save as PDF) using the Options paper size (Letter, A4, Legal, …). Flowchart, RGD, Mood Board, and Graph embeds are captured as screenshots in place; images export normally; video may show a single frame.",
       ],
     },
   ],

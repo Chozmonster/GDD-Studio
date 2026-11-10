@@ -1,6 +1,12 @@
 import type { Editor } from "@tiptap/react";
 import { toPng } from "html-to-image";
 import { writeExportHtml } from "../api";
+import {
+  PAGE_MARGIN_MM,
+  normalizePaperSizeId,
+  paperLayoutPx,
+  type PaperSizeId,
+} from "./paperSize";
 
 /** Soft cap — very tall embeds are cropped so print pages stay usable. */
 const MAX_CAPTURE_HEIGHT_PX = 1800;
@@ -321,7 +327,9 @@ function enhanceMediaForPrint(root: HTMLElement): void {
 async function buildExportHtml(
   title: string,
   editor: Editor,
+  paperSize: PaperSizeId,
 ): Promise<string> {
+  const layout = paperLayoutPx(paperSize);
   const liveRoot = editor.view.dom as HTMLElement;
   const liveEmbeds = collectEmbedElements(liveRoot);
 
@@ -365,14 +373,17 @@ async function buildExportHtml(
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"/>
 <title>${escapeHtml(title)} — GDD Studio</title>
 <style>
-  @page { margin: 18mm; }
+  @page {
+    size: ${layout.cssPageSize};
+    margin: ${PAGE_MARGIN_MM}mm;
+  }
   body {
     font-family: "Iowan Old Style", Palatino, Georgia, serif;
     color: #111;
     background: #fff;
     line-height: 1.55;
     font-size: 12pt;
-    max-width: 720px;
+    max-width: ${layout.contentWidthPx}px;
     margin: 0 auto;
     padding: 24px;
   }
@@ -406,7 +417,7 @@ async function buildExportHtml(
   }
   .spell-error { text-decoration: none; }
   @media print {
-    body { padding: 0; }
+    body { padding: 0; max-width: none; }
   }
 </style>
 </head>
@@ -429,12 +440,18 @@ function escapeHtml(s: string): string {
 /**
  * Export current editor doc via print dialog (Save as PDF on most desktops).
  * Also persists a snapshot HTML under app data when running in Tauri.
+ * `paperSize` should match Options → Paper size (same as Print view).
  */
 export async function exportDocumentPdf(
   title: string,
   editor: Editor,
+  paperSize: PaperSizeId | string = "letter",
 ): Promise<{ mode: "print"; path?: string }> {
-  const html = await buildExportHtml(title, editor);
+  const html = await buildExportHtml(
+    title,
+    editor,
+    normalizePaperSizeId(paperSize),
+  );
   let path: string | undefined;
   try {
     path = await writeExportHtml(html);
