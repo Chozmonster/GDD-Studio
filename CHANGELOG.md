@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-11-10
+
+Print view magnification and direct PDF export.
+
+### Added
+
+- Print view **magnification**: Fit width / Fit page and 10%–100% zoom (10% steps), persisted in localStorage. UI chrome only — does not affect PDF export layout.
+
 ### Changed
 
 - **Export PDF** writes a real `.pdf` through the native save dialog (no HTML / print-dialog middle-ground). Defaults to `<project>/exports/<document-title>.pdf` and creates `exports/` when missing. Still uses Options paper size / Print-view layout; embeds stay screenshot-based.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.20] - 2026-11-10
 
