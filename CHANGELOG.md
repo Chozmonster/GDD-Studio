@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-11-10
+
+Larger flowchart arrowheads; embed/editor font match.
+
 ### Fixed
 
 - Flowchart connector arrowheads enlarged again (18 → 28) so Start/End arrows read clearly in the editor and in document embeds (shared `markerForArrow` size).
 - Flowchart node and edge-label fonts match between the Flowcharts editor and live document embeds (both use the UI sans stack; embeds no longer inherit the document serif).
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.16] - 2026-11-10
 
