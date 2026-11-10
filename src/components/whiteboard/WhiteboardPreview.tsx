@@ -5,13 +5,16 @@ import { contentBounds, objectBounds } from "./whiteboardModel";
 
 type WhiteboardPreviewProps = {
   document: WhiteboardDocument;
-  /** Fit content into a compact embed frame. */
+  /** Fit content into a compact embed frame (centered, no editor chrome). */
   compact?: boolean;
   className?: string;
   selectedIds?: ReadonlySet<string>;
   /** Draft object while drawing (not yet committed). */
   draft?: WhiteboardObject | null;
 };
+
+/** Extra viewBox padding so fitted ink isn't flush against the embed edge. */
+const EMBED_FIT_PADDING_RATIO = 0.2;
 
 function selectionOutline(obj: WhiteboardObject) {
   const b = objectBounds(obj);
@@ -32,10 +35,24 @@ function selectionOutline(obj: WhiteboardObject) {
   );
 }
 
+function fitViewBox(
+  bounds: { x: number; y: number; w: number; h: number },
+  padRatio: number,
+): { x: number; y: number; w: number; h: number } {
+  const padX = bounds.w * padRatio;
+  const padY = bounds.h * padRatio;
+  return {
+    x: bounds.x - padX,
+    y: bounds.y - padY,
+    w: Math.max(1, bounds.w + padX * 2),
+    h: Math.max(1, bounds.h + padY * 2),
+  };
+}
+
 /**
  * Shared SVG renderer for Whiteboard tab + live document embeds.
- * Uses an isolated layer so eraser strokes (`destination-out`) punch paper
- * without eating the dark app chrome behind the board.
+ * Compact/embed mode fits content centered in the frame (flowchart fitView
+ * spirit): viewBox padded + `xMidYMid meet`, no pan.
  */
 export function WhiteboardPreview({
   document,
@@ -45,9 +62,10 @@ export function WhiteboardPreview({
   draft = null,
 }: WhiteboardPreviewProps) {
   const objects = document.objects;
-  const bounds = contentBounds(
-    draft ? [...objects, draft] : objects,
-  );
+  const rawBounds = contentBounds(draft ? [...objects, draft] : objects);
+  const bounds = compact
+    ? fitViewBox(rawBounds, EMBED_FIT_PADDING_RATIO)
+    : rawBounds;
   const style: CSSProperties | undefined = compact
     ? undefined
     : { width: "100%", height: "100%" };

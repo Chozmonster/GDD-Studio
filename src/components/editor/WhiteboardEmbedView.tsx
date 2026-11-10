@@ -1,6 +1,7 @@
 /**
- * Live whiteboard embed — subscribes to save/delete events so the Document
- * tab never shows a stale doodle after Whiteboard tab edits.
+ * Live whiteboard embed — image-only frame (centered fit like flowchart
+ * embeds). Subscribes to save/delete events so the Document tab never shows
+ * a stale doodle after Whiteboard tab edits.
  */
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import {
@@ -172,6 +173,11 @@ export function WhiteboardEmbedView(props: NodeViewProps) {
     [props],
   );
 
+  const openBoard = useCallback(() => {
+    if (!whiteboardId || missing) return;
+    extra.onOpenWhiteboard?.(whiteboardId);
+  }, [extra, missing, whiteboardId]);
+
   return (
     <NodeViewWrapper
       className={
@@ -181,50 +187,42 @@ export function WhiteboardEmbedView(props: NodeViewProps) {
       }
       data-type="whiteboard-embed"
       data-whiteboard-id={whiteboardId}
+      data-whiteboard-name={doc?.name ?? whiteboardId}
       data-width={width}
       data-text-align={textAlign}
       style={style}
       onMouseDown={selectEmbed}
+      onDoubleClick={(e: ReactMouseEvent<HTMLElement>) => {
+        if (
+          (e.target as HTMLElement | null)?.closest?.(".rgd-embed-resize-handle")
+        ) {
+          return;
+        }
+        openBoard();
+      }}
+      title={
+        missing
+          ? undefined
+          : `${doc?.name ?? whiteboardId} — double-click to open in Whiteboard`
+      }
     >
-      <div className="whiteboard-embed-chrome" data-drag-handle>
-        <span className="whiteboard-embed-badge">Whiteboard</span>
-        <div className="whiteboard-embed-text">
-          <span className="whiteboard-embed-title">
-            {missing
-              ? `Missing whiteboard “${whiteboardId || "?"}”`
-              : (doc?.name ?? whiteboardId)}
-          </span>
-          {!missing && doc?.description?.trim() ? (
-            <span className="muted tiny whiteboard-embed-description">
-              {doc.description}
-            </span>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          className="ghost tiny-btn"
-          disabled={missing || !whiteboardId}
-          onClick={() =>
-            whiteboardId && extra.onOpenWhiteboard?.(whiteboardId)
-          }
-        >
-          Open in Whiteboard
-        </button>
+      {/* Drag handle on the image frame (no title chrome). */}
+      <div className="whiteboard-embed-frame" data-drag-handle>
+        {loading && <p className="muted tiny embed-status">Loading…</p>}
+        {missing && (
+          <p className="error embed-status">
+            Broken embed — this whiteboard was deleted or never saved. Insert
+            another from the toolbar.
+          </p>
+        )}
+        {!missing && doc && !loading && (
+          <WhiteboardPreview
+            document={doc}
+            compact
+            className="whiteboard-embed-preview embed"
+          />
+        )}
       </div>
-      {loading && <p className="muted tiny embed-status">Loading…</p>}
-      {missing && (
-        <p className="error embed-status">
-          Broken embed — this whiteboard was deleted or never saved. Insert
-          another from the toolbar.
-        </p>
-      )}
-      {!missing && doc && !loading && (
-        <WhiteboardPreview
-          document={doc}
-          compact
-          className="whiteboard-embed-preview"
-        />
-      )}
       {showWest && (
         <span
           className="rgd-embed-resize-handle rgd-embed-resize-w"

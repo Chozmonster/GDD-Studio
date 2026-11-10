@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Whiteboard **eraser** hit-testing: filled shapes honor brush radius/stroke extent, and hollow rectangles/ellipses treat their interior as hittable so shapes are no longer undeletable when the brush misses a thin stroke ring.
+- Document **Whiteboard embeds** show only the fitted, centered board image (flowchart fitView spirit — no title/badge chrome; double-click opens the board). Content stays in-frame on resize.
+
 ## [0.1.19] - 2026-11-10
 
 Whiteboard pen pressure, tool icons/tooltips, and brush size preview.
