@@ -188,7 +188,7 @@ fn is_disallowed_svg(filename: &str, mime: &str) -> bool {
 }
 
 const MAX_ASSET_BYTES: usize = 200 * 1024 * 1024;
-const MAX_EXPORT_HTML_BYTES: usize = 32 * 1024 * 1024;
+const MAX_EXPORT_PDF_BYTES: usize = 64 * 1024 * 1024;
 const MAX_MOOD_BOARD_ITEMS: usize = 500;
 const MAX_MOOD_COMMENT_CHARS: usize = 2_000;
 const MAX_CHART_SERIES: usize = 24;
@@ -676,6 +676,7 @@ pub fn delete_rgd_sheet(
 // ── Project documents (one primary `main` doc; extras kept for migration) ──
 
 const DOCS_DIR: &str = "docs";
+const EXPORTS_DIR: &str = "exports";
 const LEGACY_DOCUMENT_FILE: &str = "document.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2573,18 +2574,59 @@ pub fn load_template(
     Ok(t)
 }
 
-/// Write a UTF-8 export HTML file under app cache for print/PDF workflows.
-pub fn write_export_html(app: &AppHandle, html: String) -> Result<String, String> {
-    if html.len() > MAX_EXPORT_HTML_BYTES {
+/// Ensure `<project>/exports` exists and return its absolute path.
+pub fn ensure_project_exports_dir(app: &AppHandle, project_id: String) -> Result<String, String> {
+    let project = project_by_id(app, &project_id)?;
+    let root = PathBuf::from(&project.path);
+    if !root.is_dir() {
+        return Err(format!("Project folder not found:\n{}", project.path));
+    }
+    let dir = root.join(EXPORTS_DIR);
+    let dir = ensure_path_within(&root, &dir)?;
+    fs::create_dir_all(&dir).map_err(|e| format!("create exports dir: {e}"))?;
+    Ok(dir.to_string_lossy().into_owned())
+}
+
+/// Write a PDF the user chose via the save dialog (absolute path ending in `.pdf`).
+pub fn write_export_pdf(path: String, data_base64: String) -> Result<String, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("PDF path is empty".into());
+    }
+    let path_buf = PathBuf::from(trimmed);
+    let ext_ok = path_buf
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err("PDF path must end with .pdf".into());
+    }
+
+    let bytes = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        data_base64.trim(),
+    )
+    .map_err(|e| format!("decode PDF: {e}"))?;
+    if bytes.is_empty() {
+        return Err("PDF data is empty".into());
+    }
+    if bytes.len() > MAX_EXPORT_PDF_BYTES {
         return Err(format!(
-            "Export HTML exceeds {} MB limit",
-            MAX_EXPORT_HTML_BYTES / (1024 * 1024)
+            "PDF exceeds {} MB limit",
+            MAX_EXPORT_PDF_BYTES / (1024 * 1024)
         ));
     }
-    let dir = data_dir(app)?.join("exports");
-    fs::create_dir_all(&dir).map_err(|e| format!("create exports dir: {e}"))?;
-    let path = dir.join(format!("export-{}.html", now_secs()));
-    let path = ensure_path_within(&dir, &path)?;
-    fs::write(&path, html.as_bytes()).map_err(|e| format!("write export html: {e}"))?;
-    Ok(path.to_string_lossy().into_owned())
+    // Reject obvious non-PDF payloads before writing to a user-chosen path.
+    if bytes.len() < 5 || &bytes[0..5] != b"%PDF-" {
+        return Err("Decoded data is not a PDF".into());
+    }
+
+    if let Some(parent) = path_buf.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(|e| format!("create PDF folder: {e}"))?;
+        }
+    }
+    fs::write(&path_buf, &bytes).map_err(|e| format!("write PDF: {e}"))?;
+    Ok(path_buf.to_string_lossy().into_owned())
 }

@@ -605,6 +605,11 @@ pub fn delete_template(
 }
 
 #[tauri::command]
-pub fn write_export_html(app: AppHandle, html: String) -> Result<String, String> {
-    store::write_export_html(&app, html)
+pub fn ensure_project_exports_dir(app: AppHandle, project_id: String) -> Result<String, String> {
+    store::ensure_project_exports_dir(&app, project_id)
+}
+
+#[tauri::command]
+pub fn write_export_pdf(path: String, data_base64: String) -> Result<String, String> {
+    store::write_export_pdf(path, data_base64)
 }

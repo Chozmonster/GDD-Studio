@@ -251,7 +251,7 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
             <strong>Paper size</strong>
             <span className="muted block">
               Used by Document Print view and PDF export so on-screen pages
-              match print. Switch to Print view from the Document toolbar.
+              match the saved PDF. Switch to Print view from the Document toolbar.
             </span>
           </span>
           <select

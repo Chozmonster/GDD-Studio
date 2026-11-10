@@ -1,8 +1,14 @@
 import type { Editor } from "@tiptap/react";
 import { toPng } from "html-to-image";
-import { writeExportHtml } from "../api";
+import { jsPDF } from "jspdf";
+import {
+  ensureProjectExportsDir,
+  pickPdfSavePath,
+  writeExportPdf,
+} from "../api";
 import {
   PAGE_MARGIN_MM,
+  getPaperSize,
   normalizePaperSizeId,
   paperLayoutPx,
   type PaperSizeId,
@@ -412,10 +418,10 @@ function enhanceMediaForPrint(root: HTMLElement): void {
     }
   });
 }
-
 /**
- * Build a print-friendly HTML snapshot of the current TipTap document.
+ * Build a print-layout HTML snapshot of the current TipTap document.
  * Flowchart / RGD / chart embeds are rasterized in place; media kept when feasible.
+ * Used only as an intermediate for direct PDF generation — never shown to the user.
  */
 async function buildExportHtml(
   title: string,
@@ -461,16 +467,21 @@ async function buildExportHtml(
 
   const bodyHtml = root.innerHTML;
 
+  // Margins are applied by jsPDF (PAGE_MARGIN_MM); body padding stays 0 to avoid doubling.
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"/>
 <title>${escapeHtml(title)} — GDD Studio</title>
 <style>
   @page {
     size: ${layout.cssPageSize};
     margin: ${PAGE_MARGIN_MM}mm;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
   }
   body {
     font-family: "Iowan Old Style", Palatino, Georgia, serif;
@@ -478,9 +489,9 @@ async function buildExportHtml(
     background: #fff;
     line-height: 1.55;
     font-size: 12pt;
+    width: ${layout.contentWidthPx}px;
     max-width: ${layout.contentWidthPx}px;
-    margin: 0 auto;
-    padding: 24px;
+    box-sizing: border-box;
   }
   h1,h2,h3 { font-family: "Segoe UI", Helvetica, sans-serif; }
   img, video { max-width: 100%; height: auto; }
@@ -495,6 +506,7 @@ async function buildExportHtml(
   .export-embed {
     margin: 12pt 0;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
   .export-embed-img {
     display: block;
@@ -511,15 +523,11 @@ async function buildExportHtml(
     color: #555;
   }
   .spell-error { text-decoration: none; }
-  @media print {
-    body { padding: 0; max-width: none; }
-  }
 </style>
 </head>
 <body>
 <header><h1>${escapeHtml(title)}</h1></header>
 <article>${bodyHtml}</article>
-<script>window.addEventListener('load',()=>{setTimeout(()=>window.print(),200)});<\/script>
 </body>
 </html>`;
 }
@@ -532,55 +540,153 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Safe default PDF filename from the document title. */
+export function suggestPdfFilename(title: string): string {
+  const cleaned = title
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "");
+  const base = (cleaned || "document").slice(0, 80);
+  return base.toLowerCase().endsWith(".pdf") ? base : `${base}.pdf`;
+}
+
+function joinPath(dir: string, file: string): string {
+  const trimmed = dir.replace(/[/\\]+$/, "");
+  const sep = trimmed.includes("\\") ? "\\" : "/";
+  return `${trimmed}${sep}${file}`;
+}
+
+async function waitForExportDocument(doc: Document): Promise<void> {
+  const fonts = (
+    doc as Document & { fonts?: { ready?: Promise<unknown> } }
+  ).fonts?.ready;
+  if (fonts) {
+    try {
+      await fonts;
+    } catch {
+      /* ignore */
+    }
+  }
+  const images = Array.from(doc.images ?? []);
+  await Promise.all(
+    images.map((img) =>
+      img.decode().catch(() => {
+        /* broken/missing image — continue */
+      }),
+    ),
+  );
+}
+
 /**
- * Export current editor doc via print dialog (Save as PDF on most desktops).
- * Also persists a snapshot HTML under app data when running in Tauri.
- * `paperSize` should match Options → Paper size (same as Print view).
+ * Render export HTML into an offscreen iframe and convert to PDF bytes with
+ * the same paper size / margins as Print view.
+ */
+async function htmlToPdfBytes(
+  html: string,
+  paperSize: PaperSizeId,
+): Promise<Uint8Array> {
+  const size = getPaperSize(paperSize);
+  const layout = paperLayoutPx(paperSize);
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute("tabindex", "-1");
+  iframe.style.cssText = [
+    "position:fixed",
+    "left:-12000px",
+    "top:0",
+    `width:${layout.contentWidthPx}px`,
+    "height:200px",
+    "border:0",
+    "opacity:0",
+    "pointer-events:none",
+  ].join(";");
+  document.body.appendChild(iframe);
+
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc) {
+      throw new Error("Could not create export document for PDF");
+    }
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    await new Promise<void>((resolve) => {
+      if (doc.readyState === "complete") {
+        resolve();
+        return;
+      }
+      iframe.addEventListener("load", () => resolve(), { once: true });
+      // Safety: some WebViews never fire load after document.write.
+      setTimeout(() => resolve(), 250);
+    });
+    await waitForExportDocument(doc);
+
+    const pdf = new jsPDF({
+      unit: "mm",
+      format: [size.widthMm, size.heightMm],
+      orientation: size.widthMm > size.heightMm ? "landscape" : "portrait",
+      compress: true,
+    });
+
+    const margin = PAGE_MARGIN_MM;
+    const contentWidthMm = Math.max(1, size.widthMm - margin * 2);
+
+    await pdf.html(doc.body, {
+      margin: [margin, margin, margin, margin],
+      width: contentWidthMm,
+      windowWidth: layout.contentWidthPx,
+      autoPaging: "text",
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      },
+    });
+
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    iframe.remove();
+  }
+}
+
+export type ExportPdfResult =
+  | { mode: "file"; path: string }
+  | { mode: "cancelled" };
+
+export type ExportPdfOptions = {
+  /** Active project id — used to create/default `<project>/exports`. */
+  projectId: string;
+};
+
+/**
+ * Export the current editor doc as a real PDF file via the Tauri save dialog.
+ * Defaults to `<project>/exports/<doc-title>.pdf` (creates `exports/` if needed).
+ * Reuses Options paper size / Print-view layout. No HTML or print-dialog UX.
  */
 export async function exportDocumentPdf(
   title: string,
   editor: Editor,
   paperSize: PaperSizeId | string = "letter",
-): Promise<{ mode: "print"; path?: string }> {
-  const html = await buildExportHtml(
-    title,
-    editor,
-    normalizePaperSizeId(paperSize),
-  );
-  let path: string | undefined;
-  try {
-    path = await writeExportHtml(html);
-  } catch {
-    /* browser preview: skip disk write */
+  options: ExportPdfOptions,
+): Promise<ExportPdfResult> {
+  const normalized = normalizePaperSizeId(paperSize);
+  const filename = suggestPdfFilename(title);
+
+  const exportsDir = await ensureProjectExportsDir(options.projectId);
+  const defaultPath = joinPath(exportsDir, filename);
+  let path = await pickPdfSavePath(defaultPath);
+  if (!path) {
+    return { mode: "cancelled" };
+  }
+  if (!path.toLowerCase().endsWith(".pdf")) {
+    path = `${path}.pdf`;
   }
 
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank", "noopener,noreferrer,width=900,height=700");
-  if (!win) {
-    // Popup blocked — fall back to iframe print
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.src = url;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } finally {
-        setTimeout(() => {
-          iframe.remove();
-          URL.revokeObjectURL(url);
-        }, 1000);
-      }
-    };
-  } else {
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  }
-  return { mode: "print", path };
+  const html = await buildExportHtml(title, editor, normalized);
+  const bytes = await htmlToPdfBytes(html, normalized);
+  const written = await writeExportPdf(path, bytes);
+  return { mode: "file", path: written };
 }

@@ -109,7 +109,7 @@ export const HELP_APP: HelpArticleContent = {
         "Media — paste or Insert media (images, gifs, video, audio). Embeds are resizable and follow text alignment. SVG files are not imported.",
         "Templates — save the active body as an app- or project-scoped template; apply replaces the current body (confirm).",
         "Spellcheck — offline underlines. Right-click or Alt+Click for suggestions, Add to dictionary, or Look up. Toolbar Look up opens definitions.",
-        "Export PDF — print dialog (Save as PDF) using the Options paper size (Letter, A4, Legal, …). Flowchart, RGD, Mood Board, Graph, and Whiteboard embeds are captured as screenshots in place (width + text alignment match the editor); images export normally; video may show a single frame.",
+        "Export PDF — saves a real .pdf via a file dialog (defaults to the project’s exports/ folder, filename from the document title; creates exports/ if missing). Uses the Options paper size (Letter, A4, Legal, …). Flowchart, RGD, Mood Board, Graph, and Whiteboard embeds are captured as screenshots in place (width + text alignment match the editor); images export normally; video may show a single frame.",
       ],
     },
   ],
