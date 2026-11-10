@@ -123,16 +123,23 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
   return { ...DEFAULT_NODE_SIZE };
 }
 
+/**
+ * Closed-arrow marker size (SVG user units) for start and/or end.
+ * Shared by the Flowcharts editor, live preview, and document embeds via
+ * `migrateEdge` / `markerForArrow` so all surfaces stay in sync.
+ *
+ * History: 12 → 18 (v0.1.8) was still too small in practice; 28 reads
+ * clearly under the 9px anchors without relying on zoom.
+ */
+export const FLOW_ARROW_MARKER_SIZE = 28;
+
 /** Closed arrow marker used for start and/or end of a connector. */
 export function markerForArrow(enabled: boolean): Edge["markerEnd"] {
   if (!enabled) return undefined;
-  // 150% of prior 12px so arrowheads read clearly under node anchors.
-  // Still smaller than the perpendicular stub (~22px) so the stub shaft
-  // stays visible (see desired-anchor-stubs.jpg).
   return {
     type: MarkerType.ArrowClosed,
-    width: 18,
-    height: 18,
+    width: FLOW_ARROW_MARKER_SIZE,
+    height: FLOW_ARROW_MARKER_SIZE,
     color: "#c8c8c8",
   };
 }
