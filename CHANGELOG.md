@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-11-10
+
+Print view and paper size; flowchart embed resize; PDF embed parity and Graph badge.
+
 ### Added
 
 - Document toolbar **Continuous / Print view** toggle: Print view shows editable paper sheets with margins and gaps, using the same paper size as PDF export.
@@ -17,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PDF export: flowchart / RGD / Mood Board / Graph screenshot figures keep the embed’s width and text alignment (parity with media embeds). Title/open chrome is omitted from those screenshots consistently; export waits briefly for all live embed types to settle before capture.
 - Document Graph embeds show a **Graph** badge (not Chart).
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.15] - 2026-11-09
 
