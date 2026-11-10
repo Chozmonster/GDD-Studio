@@ -1,3 +1,12 @@
+import {
+  Circle,
+  Eraser,
+  Minus,
+  MousePointer2,
+  Pencil,
+  Square,
+  type LucideIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listWhiteboards,
@@ -24,6 +33,7 @@ import type {
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
+import { ToolbarIconButton } from "../editor/ToolbarIconButton";
 import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 import { SplitPane } from "../SplitPane";
 import { WhiteboardSidebar } from "./WhiteboardSidebar";
@@ -43,13 +53,13 @@ type WhiteboardEditorProps = {
   focusWhiteboardId?: string | null;
 };
 
-const TOOLS: { id: WhiteboardTool; label: string }[] = [
-  { id: "select", label: "Select" },
-  { id: "pen", label: "Pen" },
-  { id: "eraser", label: "Eraser" },
-  { id: "line", label: "Line" },
-  { id: "rect", label: "Rect" },
-  { id: "ellipse", label: "Ellipse" },
+const TOOLS: { id: WhiteboardTool; label: string; icon: LucideIcon }[] = [
+  { id: "select", label: "Select", icon: MousePointer2 },
+  { id: "pen", label: "Pen", icon: Pencil },
+  { id: "eraser", label: "Eraser", icon: Eraser },
+  { id: "line", label: "Line", icon: Minus },
+  { id: "rect", label: "Rectangle", icon: Square },
+  { id: "ellipse", label: "Ellipse", icon: Circle },
 ];
 
 export function WhiteboardEditor({
@@ -403,32 +413,52 @@ export function WhiteboardEditor({
           <div className="whiteboard-tools" role="toolbar" aria-label="Drawing tools">
             <div className="whiteboard-tool-group">
               {TOOLS.map((t) => (
-                <button
+                <ToolbarIconButton
                   key={t.id}
-                  type="button"
+                  label={t.label}
+                  icon={t.icon}
+                  pressed={tool === t.id}
                   className={
                     tool === t.id
                       ? "whiteboard-tool-btn is-active"
                       : "whiteboard-tool-btn"
                   }
-                  aria-pressed={tool === t.id}
                   onClick={() => setTool(t.id)}
-                >
-                  {t.label}
-                </button>
+                />
               ))}
             </div>
-            <label className="whiteboard-inline-field">
+            <label className="whiteboard-inline-field whiteboard-width-field">
               <span className="muted tiny">Width</span>
-              <input
-                type="range"
-                min={1}
-                max={24}
-                step={1}
-                value={strokeWidth}
-                onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                aria-label="Stroke width"
-              />
+              <div className="whiteboard-width-controls">
+                <input
+                  type="range"
+                  min={1}
+                  max={24}
+                  step={1}
+                  value={strokeWidth}
+                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                  aria-label="Stroke width"
+                />
+                <span
+                  className="whiteboard-brush-preview"
+                  title={`Brush size ${strokeWidth}px`}
+                  aria-hidden
+                >
+                  <span
+                    className="whiteboard-brush-preview-dot"
+                    style={{
+                      width: strokeWidth,
+                      height: strokeWidth,
+                      background: /^#[0-9A-Fa-f]{6}$/.test(color)
+                        ? color
+                        : "#1A1A1A",
+                    }}
+                  />
+                </span>
+                <span className="muted tiny whiteboard-brush-preview-label">
+                  {strokeWidth}px
+                </span>
+              </div>
             </label>
             <label className="whiteboard-inline-field">
               <span className="muted tiny">Stroke</span>

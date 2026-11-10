@@ -168,7 +168,8 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
     {
       title: "Drawing",
       steps: [
-        "Tools: Select, Pen, Eraser, Line, Rect, Ellipse. Adjust stroke width and stroke/fill colour.",
+        "Toolbar icons (hover for name): Select, Pen, Eraser, Line, Rectangle, Ellipse. Adjust stroke width and stroke/fill colour — the live brush preview next to Width shows the current size.",
+        "Pen tablet / stylus: freehand strokes use Pointer Events pressure around the brush size (mouse stays a constant width). Variable-width ink persists into document embeds and PDF.",
         "Select moves or deletes strokes and shapes (Delete / Backspace). Eraser removes objects the brush touches.",
         "Pan with Space+drag, Alt+drag, or middle mouse. Wheel zooms. Chrome stays dark; the paper is light.",
       ],
@@ -188,7 +189,7 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
         "Edits on the Whiteboard tab update every embed automatically. Embeds are resizable and respect text alignment; PDF/print captures them as images (like Mood Board).",
         "Open in Whiteboard jumps to the referenced board.",
       ],
-      note: "Boards persist under project/whiteboards/*.json so the module can be removed cleanly if needed. Out of scope for this MVP: multiplayer, pressure/tilt, OCR, infinite-canvas polish, importing Mood Board images as layers.",
+      note: "Boards persist under project/whiteboards/*.json so the module can be removed cleanly if needed. Out of scope for this MVP: multiplayer, tilt, OCR, infinite-canvas polish, importing Mood Board images as layers.",
     },
   ],
 };

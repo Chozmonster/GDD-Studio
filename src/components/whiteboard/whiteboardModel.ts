@@ -78,12 +78,63 @@ function sanitizeWidth(raw: unknown, fallback = DEFAULT_STROKE_WIDTH): number {
   return Math.min(48, Math.max(1, Math.round(n * 10) / 10));
 }
 
+/** Clamp Pointer Events pressure; missing/invalid → 0.5 (mouse/fallback). */
+export function sanitizePressure(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return 0.5;
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Map pressure → width factor around the brush size.
+ * Pointer Events mouse reports 0.5 → factor 1 (constant brush width).
+ * Pen varies ~0.5×–1.5× of the current brush — natural, not extreme.
+ */
+export function pressureWidthFactor(pressure: number | undefined): number {
+  return 0.5 + sanitizePressure(pressure);
+}
+
+export function pointStrokeWidth(
+  baseWidth: number,
+  pressure: number | undefined,
+): number {
+  return Math.max(0.5, baseWidth * pressureWidthFactor(pressure));
+}
+
+/** True when any point stores pressure that would vary stroke width. */
+export function pathHasVariableWidth(points: WhiteboardPoint[]): boolean {
+  let seen: number | null = null;
+  for (const p of points) {
+    if (p.pressure === undefined) continue;
+    const f = pressureWidthFactor(p.pressure);
+    if (seen === null) seen = f;
+    else if (Math.abs(f - seen) > 0.02) return true;
+  }
+  return false;
+}
+
+export function pathMaxStrokeWidth(
+  points: WhiteboardPoint[],
+  baseWidth: number,
+): number {
+  let max = baseWidth;
+  for (const p of points) {
+    if (p.pressure === undefined) continue;
+    max = Math.max(max, pointStrokeWidth(baseWidth, p.pressure));
+  }
+  return max;
+}
+
 function sanitizePoint(p: unknown): WhiteboardPoint | null {
   if (!p || typeof p !== "object") return null;
   const x = Number((p as WhiteboardPoint).x);
   const y = Number((p as WhiteboardPoint).y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return { x, y };
+  const out: WhiteboardPoint = { x, y };
+  if ((p as WhiteboardPoint).pressure !== undefined) {
+    out.pressure = sanitizePressure((p as WhiteboardPoint).pressure);
+  }
+  return out;
 }
 
 function sanitizePath(obj: Partial<WhiteboardPathObject>, index: number): WhiteboardPathObject | null {
@@ -203,6 +254,67 @@ export function pathToSvgD(points: WhiteboardPoint[]): string {
   return d;
 }
 
+/**
+ * Filled outline for a freehand stroke with per-point width from pressure.
+ * Round caps via end circles; joints via averaged segment normals.
+ */
+export function pathToVariableWidthOutline(
+  points: WhiteboardPoint[],
+  baseWidth: number,
+): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) {
+    const r = pointStrokeWidth(baseWidth, points[0].pressure) / 2;
+    const { x, y } = points[0];
+    return circlePath(x, y, r);
+  }
+
+  const left: WhiteboardPoint[] = [];
+  const right: WhiteboardPoint[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const curr = points[i];
+    const prev = points[i - 1] ?? curr;
+    const next = points[i + 1] ?? curr;
+    let dx = next.x - prev.x;
+    let dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) {
+      dx = 1;
+      dy = 0;
+    } else {
+      dx /= len;
+      dy /= len;
+    }
+    const nx = -dy;
+    const ny = dx;
+    const hw = pointStrokeWidth(baseWidth, curr.pressure) / 2;
+    left.push({ x: curr.x + nx * hw, y: curr.y + ny * hw });
+    right.push({ x: curr.x - nx * hw, y: curr.y - ny * hw });
+  }
+
+  let d = `M ${left[0].x} ${left[0].y}`;
+  for (let i = 1; i < left.length; i++) {
+    d += ` L ${left[i].x} ${left[i].y}`;
+  }
+  for (let i = right.length - 1; i >= 0; i--) {
+    d += ` L ${right[i].x} ${right[i].y}`;
+  }
+  d += " Z";
+
+  // Round caps at ends (and soft joints) so thin→thick transitions stay ink-like.
+  const startR = pointStrokeWidth(baseWidth, points[0].pressure) / 2;
+  const endR =
+    pointStrokeWidth(baseWidth, points[points.length - 1].pressure) / 2;
+  d += ` ${circlePath(points[0].x, points[0].y, startR)}`;
+  d += ` ${circlePath(points[points.length - 1].x, points[points.length - 1].y, endR)}`;
+  return d;
+}
+
+function circlePath(x: number, y: number, r: number): string {
+  const rr = Math.max(0.25, r);
+  return `M ${x - rr} ${y} a ${rr} ${rr} 0 1 0 ${rr * 2} 0 a ${rr} ${rr} 0 1 0 ${-rr * 2} 0 Z`;
+}
+
 export function shapeBounds(obj: WhiteboardShapeObject): {
   x: number;
   y: number;
@@ -233,7 +345,7 @@ export function objectBounds(obj: WhiteboardObject): {
       maxX = Math.max(maxX, p.x);
       maxY = Math.max(maxY, p.y);
     }
-    const pad = obj.width / 2;
+    const pad = pathMaxStrokeWidth(obj.points, obj.width) / 2;
     return {
       x: minX - pad,
       y: minY - pad,
@@ -308,9 +420,13 @@ export function hitTestObject(
   threshold = 6,
 ): boolean {
   if (obj.kind === "path") {
-    const tol = Math.max(threshold, obj.width / 2 + 2);
     const pts = obj.points;
     for (let i = 1; i < pts.length; i++) {
+      const w =
+        (pointStrokeWidth(obj.width, pts[i - 1].pressure) +
+          pointStrokeWidth(obj.width, pts[i].pressure)) /
+        2;
+      const tol = Math.max(threshold, w / 2 + 2);
       if (
         distToSegment(x, y, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) <=
         tol
@@ -319,6 +435,10 @@ export function hitTestObject(
       }
     }
     if (pts.length === 1) {
+      const tol = Math.max(
+        threshold,
+        pointStrokeWidth(obj.width, pts[0].pressure) / 2 + 2,
+      );
       return Math.sqrt(dist2(x, y, pts[0].x, pts[0].y)) <= tol;
     }
     return false;
@@ -378,7 +498,11 @@ export function translateObject(
   if (obj.kind === "path") {
     return {
       ...obj,
-      points: obj.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+      points: obj.points.map((p) => ({
+        x: p.x + dx,
+        y: p.y + dy,
+        ...(p.pressure !== undefined ? { pressure: p.pressure } : {}),
+      })),
     };
   }
   return {
