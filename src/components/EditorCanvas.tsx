@@ -260,9 +260,9 @@ export function EditorCanvas({
         FontFamily,
         FontSize,
         TextAlign.configure({
-          // Atom embeds (RGD / media / mood board) keep their own textAlign
-          // attr + toolbar branch below; including them here doubles the
-          // attribute and breaks JSON round-trip.
+          // Atom embeds (RGD / media / mood board / chart / flowchart) keep
+          // their own textAlign attr + toolbar branch below; including them
+          // here doubles the attribute and breaks JSON round-trip.
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
@@ -688,7 +688,9 @@ export function EditorCanvas({
         ? "moodBoardEmbed"
         : editor?.isActive("chartEmbed")
           ? "chartEmbed"
-          : null;
+          : editor?.isActive("flowchartEmbed")
+            ? "flowchartEmbed"
+            : null;
 
   const atomEmbedAlign = atomEmbedAlignType
     ? String(
