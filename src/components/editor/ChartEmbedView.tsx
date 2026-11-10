@@ -172,7 +172,7 @@ export function ChartEmbedView(props: NodeViewProps) {
       onMouseDown={selectEmbed}
     >
       <div className="chart-embed-chrome" data-drag-handle>
-        <span className="chart-embed-badge">Chart</span>
+        <span className="chart-embed-badge">Graph</span>
         <div className="chart-embed-text">
           <span className="chart-embed-title">
             {missing
