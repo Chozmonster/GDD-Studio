@@ -64,6 +64,13 @@ pub struct AppSettings {
     /// When true, document variable chips show the name with the value.
     #[serde(default)]
     pub display_variable_names: bool,
+    /// Paper size id for Print view + PDF (`letter`, `a4`, `legal`, …).
+    #[serde(default = "default_paper_size")]
+    pub paper_size: String,
+}
+
+fn default_paper_size() -> String {
+    "letter".to_string()
 }
 
 impl Default for AppSettings {
@@ -72,6 +79,7 @@ impl Default for AppSettings {
             automatic_updates: true,
             last_update_check_at: None,
             display_variable_names: false,
+            paper_size: default_paper_size(),
         }
     }
 }

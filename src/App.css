@@ -755,6 +755,107 @@ code {
   min-height: 0;
 }
 
+/* Print view: desk + white sheets; continuous keeps the dark paper pane. */
+.editor-canvas.is-print-view {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 1.25rem 1rem 2.5rem;
+  background: #3d3d3d;
+}
+
+.editor-canvas.is-print-view .gdd-prose.rm-with-pagination {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  border-radius: 1px;
+  min-height: auto;
+}
+
+.editor-canvas.is-print-view .gdd-prose h1,
+.editor-canvas.is-print-view .gdd-prose h2,
+.editor-canvas.is-print-view .gdd-prose h3 {
+  color: #111;
+}
+
+.editor-canvas.is-print-view .gdd-prose a {
+  color: #0b5cab;
+}
+
+.editor-canvas.is-print-view .gdd-prose p.is-editor-empty:first-child::before {
+  color: #888;
+}
+
+/* Continuous mode: neutralize PaginationPlus chrome while still mounted. */
+.editor-canvas:not(.is-print-view) .gdd-prose.rm-with-pagination,
+.editor-canvas:not(.is-print-view) .gdd-prose.rm-with-pagination[rm-pagination-disabled] {
+  width: auto !important;
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: 100% !important;
+  background: transparent;
+  color: inherit;
+}
+
+.document-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.toolbar-view-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.28rem 0.55rem;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.toolbar-view-btn + .toolbar-view-btn {
+  border-left: 1px solid var(--line);
+}
+
+.toolbar-view-btn:hover {
+  color: var(--ink);
+  background: var(--bg-panel);
+}
+
+.toolbar-view-btn.is-active {
+  color: var(--ink-strong);
+  background: #3a4540;
+}
+
+.options-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.options-select-row select {
+  max-width: 22rem;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
 .editor-empty {
   margin: 1rem;
   padding: 2.5rem 1.5rem;

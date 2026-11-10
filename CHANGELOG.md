@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Document toolbar **Continuous / Print view** toggle: Print view shows editable paper sheets with margins and gaps, using the same paper size as PDF export.
+- Options → Document **Paper size** dropdown (Letter, A4, Legal, Tabloid, A3, A5); persists with other settings and drives Print view + PDF `@page` size.
+
 ## [0.1.15] - 2026-11-09
 
 Help RGD consolidated to one scrollable page; Graph formula pane always open with Type in-pane.

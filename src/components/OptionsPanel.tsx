@@ -8,7 +8,13 @@ import {
   revealProjectFolder,
   setAutomaticUpdates,
   setDisplayVariableNames,
+  setPaperSize,
 } from "../api";
+import {
+  PAPER_SIZES,
+  normalizePaperSizeId,
+  type PaperSizeId,
+} from "../lib/paperSize";
 import { emitSettingsChanged } from "../lib/settingsEvents";
 import type { AppSettings, ProjectRecord, UpdateStatus } from "../types";
 
@@ -93,6 +99,21 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
           ? "Variable chips show name and value in the document."
           : "Variable chips show the value; hover for the name.",
       );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changePaperSize = async (paperSize: PaperSizeId) => {
+    setBusy(true);
+    try {
+      const next = await setPaperSize(paperSize);
+      applySettings(next);
+      const label =
+        PAPER_SIZES.find((s) => s.id === paperSize)?.shortLabel ?? paperSize;
+      setStatus(`Paper size set to ${label} (Print view + PDF).`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -223,6 +244,30 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
               hover. When on, chips show both the name and the value.
             </span>
           </span>
+        </label>
+
+        <label className="options-select-row">
+          <span>
+            <strong>Paper size</strong>
+            <span className="muted block">
+              Used by Document Print view and PDF export so on-screen pages
+              match print. Switch to Print view from the Document toolbar.
+            </span>
+          </span>
+          <select
+            value={normalizePaperSizeId(settings?.paperSize)}
+            disabled={!settings || busy}
+            onChange={(e) =>
+              void changePaperSize(e.target.value as PaperSizeId)
+            }
+            aria-label="Paper size"
+          >
+            {PAPER_SIZES.map((size) => (
+              <option key={size.id} value={size.id}>
+                {size.label}
+              </option>
+            ))}
+          </select>
         </label>
       </section>
 

@@ -30,12 +30,14 @@ import {
   Workflow,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PaginationPlus } from "tiptap-pagination-plus";
 import { SplitPane } from "./SplitPane";
 import {
   chartExists,
   createChart,
   createRgdSheet,
   ensureVariable,
+  fetchSettings,
   flowchartExists,
   listCharts,
   listFlowcharts,
@@ -53,6 +55,17 @@ import {
 import { emitChartSaved } from "../lib/chartEvents";
 import { exportDocumentPdf } from "../lib/exportPdf";
 import { isAllowedMediaFile } from "../lib/mediaFile";
+import {
+  DEFAULT_DOCUMENT_VIEW_MODE,
+  DEFAULT_PAPER_SIZE_ID,
+  PAGE_GAP_PX,
+  getPaperSize,
+  normalizePaperSizeId,
+  paperLayoutPx,
+  type DocumentViewMode,
+  type PaperSizeId,
+} from "../lib/paperSize";
+import { onSettingsChanged } from "../lib/settingsEvents";
 import {
   clearDocSelection,
   getDocSelection,
@@ -154,6 +167,17 @@ export function EditorCanvas({
   const [lookupDef, setLookupDef] = useState<WordDefinition | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  /**
+   * Session Document layout mode. Continuous remains the default.
+   * Paper size comes from Options; a future preference can seed this from
+   * DEFAULT_DOCUMENT_VIEW_MODE / settings without restructuring the toggle.
+   */
+  const [viewMode, setViewMode] = useState<DocumentViewMode>(
+    DEFAULT_DOCUMENT_VIEW_MODE,
+  );
+  const [paperSize, setPaperSizeState] = useState<PaperSizeId>(
+    DEFAULT_PAPER_SIZE_ID,
+  );
   const saveTimer = useRef<number | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const migratedRef = useRef(false);
@@ -279,6 +303,22 @@ export function EditorCanvas({
           projectId: project.id,
           onOpenFlowchart,
         }),
+        PaginationPlus.configure({
+          // Continuous editor by default; Print view enables this at runtime.
+          enabled: false,
+          ...paperLayoutPx(DEFAULT_PAPER_SIZE_ID).paginationSize,
+          pageGap: PAGE_GAP_PX,
+          pageGapBorderSize: 1,
+          pageGapBorderColor: "#2a2a2a",
+          // Desk color between sheets (matches .editor-canvas.is-print-view).
+          pageBreakBackground: "#3d3d3d",
+          contentMarginTop: 0,
+          contentMarginBottom: 0,
+          headerLeft: "",
+          headerRight: "",
+          footerLeft: "",
+          footerRight: "{page}",
+        }),
       ],
       content: "",
       editorProps: {
@@ -339,6 +379,37 @@ export function EditorCanvas({
   );
 
   editorRef.current = editor;
+
+  // Options → paper size (Print view + PDF share this).
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSettings()
+      .then((s) => {
+        if (!cancelled) setPaperSizeState(normalizePaperSizeId(s.paperSize));
+      })
+      .catch(() => {
+        /* keep default */
+      });
+    const off = onSettingsChanged((detail) => {
+      setPaperSizeState(normalizePaperSizeId(detail.settings.paperSize));
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  // Sync pagination extension with view mode + paper size.
+  useEffect(() => {
+    if (!editor) return;
+    const layout = paperLayoutPx(paperSize);
+    editor.chain().updatePageSize(layout.paginationSize).run();
+    if (viewMode === "print") {
+      editor.chain().enablePagination().run();
+    } else {
+      editor.chain().disablePagination().run();
+    }
+  }, [editor, viewMode, paperSize]);
 
   // Drive Undo/Redo button disabled state from TipTap History plugin.
   useEffect(() => {
@@ -739,7 +810,7 @@ export function EditorCanvas({
     const meta = docMetaRef.current;
     if (!ed || !meta) return;
     try {
-      const result = await exportDocumentPdf(meta.title, ed);
+      const result = await exportDocumentPdf(meta.title, ed, paperSize);
       setStatus(
         result.path
           ? `Print dialog opened (HTML snapshot: ${result.path})`
@@ -1035,9 +1106,45 @@ export function EditorCanvas({
           >
             PDF
           </ToolbarIconButton>
+          <ToolbarDivider />
+          <div
+            className="toolbar-group document-view-toggle"
+            role="group"
+            aria-label="Document view"
+          >
+            <button
+              type="button"
+              className={
+                viewMode === "continuous"
+                  ? "toolbar-view-btn is-active"
+                  : "toolbar-view-btn"
+              }
+              aria-pressed={viewMode === "continuous"}
+              title="Continuous scroll editor"
+              onClick={() => setViewMode("continuous")}
+            >
+              Continuous
+            </button>
+            <button
+              type="button"
+              className={
+                viewMode === "print"
+                  ? "toolbar-view-btn is-active"
+                  : "toolbar-view-btn"
+              }
+              aria-pressed={viewMode === "print"}
+              title={`Print view (${getPaperSize(paperSize).shortLabel}) — editable pages`}
+              onClick={() => setViewMode("print")}
+            >
+              Print view
+            </button>
+          </div>
         </div>
         <span className="muted tiny toolbar-status" role="status">
           {docMeta ? `${docMeta.title} · ` : ""}
+          {viewMode === "print"
+            ? `Print view · ${getPaperSize(paperSize).shortLabel} · `
+            : ""}
           {status}
         </span>
         <input
@@ -1195,7 +1302,14 @@ export function EditorCanvas({
             minSecondary={280}
             stackBelow={640}
           >
-            <EditorContent editor={editor} className="editor-canvas" />
+            <EditorContent
+              editor={editor}
+              className={
+                viewMode === "print"
+                  ? "editor-canvas is-print-view"
+                  : "editor-canvas"
+              }
+            />
             <div className="editor-right-rail">
               <VariablesPanel projectId={project.id} onInsert={insertVariable} />
               {lookupWordText && (

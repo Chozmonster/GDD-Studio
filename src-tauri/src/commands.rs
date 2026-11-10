@@ -145,6 +145,23 @@ pub fn set_display_variable_names(app: AppHandle, enabled: bool) -> Result<AppSe
     Ok(settings)
 }
 
+/// Persist paper size for Print view + PDF export (`letter`, `a4`, `legal`, …).
+#[tauri::command]
+pub fn set_paper_size(app: AppHandle, paper_size: String) -> Result<AppSettings, String> {
+    let id = paper_size.trim().to_ascii_lowercase();
+    let allowed = ["letter", "a4", "legal", "tabloid", "a3", "a5"];
+    if !allowed.contains(&id.as_str()) {
+        return Err(format!(
+            "Unknown paper size “{paper_size}”. Use one of: {}.",
+            allowed.join(", ")
+        ));
+    }
+    let mut settings = store::load_settings(&app)?;
+    settings.paper_size = id;
+    store::save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
 /// Check for updates. Persists last-check timestamp.
 /// When `force` is false and a check already ran today, returns cached status.
 /// Pass `auto_install: true` only for the daily/background path; Options Check
