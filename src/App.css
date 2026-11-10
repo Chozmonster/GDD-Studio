@@ -4346,14 +4346,16 @@ input.charts-formula-var-value {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+  align-items: center;
 }
 
+.whiteboard-tool-btn.toolbar-icon-btn,
 .whiteboard-tool-btn {
   background: var(--bg-panel);
   border: 1px solid var(--line);
   color: var(--ink);
   border-radius: 6px;
-  padding: 0.3rem 0.55rem;
+  padding: 0.3rem 0.4rem;
   font: inherit;
   font-size: 0.82rem;
 }
@@ -4362,6 +4364,41 @@ input.charts-formula-var-value {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--ink-strong);
+}
+
+.whiteboard-width-field {
+  min-width: 11rem;
+}
+
+.whiteboard-width-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.whiteboard-brush-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7f4ec;
+}
+
+.whiteboard-brush-preview-dot {
+  display: block;
+  border-radius: 50%;
+  max-width: 1.35rem;
+  max-height: 1.35rem;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.whiteboard-brush-preview-label {
+  min-width: 2.1rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .whiteboard-palette-row {

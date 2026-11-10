@@ -2009,6 +2009,9 @@ pub struct WhiteboardSummary {
 pub struct WhiteboardPoint {
     pub x: f64,
     pub y: f64,
+    /// Pointer Events `pressure` (0–1). Mouse/fallback is typically 0.5.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

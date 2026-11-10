@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboard freehand **pen pressure**: stylus Pointer Events `pressure` maps to stroke width around the brush size (~0.5×–1.5×; mouse/fallback stays constant). Per-point pressure persists so embeds and PDF match the editor.
+- Whiteboard tool bar uses **Lucide icons** (Select, Pen, Eraser, Line, Rectangle, Ellipse) with hover tooltips, matching document toolbar conventions.
+- Whiteboard **brush size preview**: live circle next to the Width slider updates with size and stroke colour.
+
 ## [0.1.18] - 2026-11-10
 
 Whiteboard doodle tab MVP with Mood Board colour-palette swatches and live doc embeds.

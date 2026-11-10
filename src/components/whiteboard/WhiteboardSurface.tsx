@@ -12,11 +12,13 @@ import type {
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
+import { renderWhiteboardObject } from "./whiteboardInk";
 import {
   hitTestTop,
   newEntityId,
   objectsIntersectBrush,
-  pathToSvgD,
+  objectBounds,
+  sanitizePressure,
   shapeBounds,
   translateObject,
 } from "./whiteboardModel";
@@ -75,67 +77,17 @@ function clientToWorld(
   };
 }
 
-function renderLive(
-  obj: WhiteboardObject,
-  key: string,
-) {
-  if (obj.kind === "path") {
-    if (obj.mode === "eraser") return null;
-    const d = pathToSvgD(obj.points);
-    if (!d) return null;
-    return (
-      <path
-        key={key}
-        d={d}
-        fill="none"
-        stroke={obj.color}
-        strokeWidth={obj.width}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    );
-  }
-  if (obj.kind === "line") {
-    return (
-      <line
-        key={key}
-        x1={obj.x1}
-        y1={obj.y1}
-        x2={obj.x2}
-        y2={obj.y2}
-        stroke={obj.color}
-        strokeWidth={obj.width}
-        strokeLinecap="round"
-      />
-    );
-  }
-  const b = shapeBounds(obj);
-  if (obj.kind === "rect") {
-    return (
-      <rect
-        key={key}
-        x={b.x}
-        y={b.y}
-        width={Math.max(0.1, b.w)}
-        height={Math.max(0.1, b.h)}
-        fill={obj.fill || "none"}
-        stroke={obj.color}
-        strokeWidth={obj.width}
-      />
-    );
-  }
-  return (
-    <ellipse
-      key={key}
-      cx={b.x + b.w / 2}
-      cy={b.y + b.h / 2}
-      rx={Math.max(0.1, b.w / 2)}
-      ry={Math.max(0.1, b.h / 2)}
-      fill={obj.fill || "none"}
-      stroke={obj.color}
-      strokeWidth={obj.width}
-    />
-  );
+/** Sample Pointer Events pressure into a whiteboard point (world space). */
+function pointerWorldPoint(
+  e: ReactPointerEvent<HTMLDivElement>,
+  el: HTMLElement,
+  viewport: WhiteboardViewport,
+): WhiteboardPoint {
+  const world = clientToWorld(e.clientX, e.clientY, el, viewport);
+  return {
+    ...world,
+    pressure: sanitizePressure(e.pressure),
+  };
 }
 
 /**
@@ -220,7 +172,7 @@ export function WhiteboardSurface({
     if (e.button !== 0) return;
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
-    const world = clientToWorld(e.clientX, e.clientY, el, viewport);
+    const world = pointerWorldPoint(e, el, viewport);
 
     if (tool === "select") {
       const hit = hitTestTop(objects, world.x, world.y);
@@ -324,13 +276,28 @@ export function WhiteboardSurface({
       });
       return;
     }
-    const world = clientToWorld(e.clientX, e.clientY, el, viewport);
+    const world = pointerWorldPoint(e, el, viewport);
     if (drag.type === "draw-path") {
       const last = drag.points[drag.points.length - 1];
       if (
         last &&
         Math.hypot(world.x - last.x, world.y - last.y) < 1.2 / viewport.zoom
       ) {
+        // Still refresh pressure on a near-stationary hover if it changed a lot.
+        if (
+          last.pressure !== undefined &&
+          Math.abs((world.pressure ?? 0.5) - last.pressure) > 0.08
+        ) {
+          last.pressure = world.pressure;
+          setDraft({
+            id: drag.id,
+            kind: "path",
+            mode: drag.mode,
+            points: [...drag.points],
+            color,
+            width: strokeWidth,
+          });
+        }
         return;
       }
       drag.points.push(world);
@@ -519,8 +486,10 @@ export function WhiteboardSurface({
           />
           <g style={{ isolation: "isolate" }}>
             <rect x={0} y={0} width={4000} height={3000} fill="#F7F4EC" />
-            {displayObjects.map((obj) => renderLive(obj, obj.id))}
-            {draft ? renderLive(draft, `draft-${draft.id}`) : null}
+            {displayObjects.map((obj) =>
+              renderWhiteboardObject(obj, obj.id),
+            )}
+            {draft ? renderWhiteboardObject(draft, `draft-${draft.id}`) : null}
           </g>
           {[...selectedIds].map((id) => {
             const obj = displayObjects.find((o) => o.id === id);
@@ -528,22 +497,13 @@ export function WhiteboardSurface({
             const b =
               obj.kind === "path"
                 ? (() => {
-                    let minX = Infinity;
-                    let minY = Infinity;
-                    let maxX = -Infinity;
-                    let maxY = -Infinity;
-                    for (const p of obj.points) {
-                      minX = Math.min(minX, p.x);
-                      minY = Math.min(minY, p.y);
-                      maxX = Math.max(maxX, p.x);
-                      maxY = Math.max(maxY, p.y);
-                    }
-                    const pad = obj.width / 2 + 2;
+                    const bounds = objectBounds(obj);
+                    const pad = 2;
                     return {
-                      x: minX - pad,
-                      y: minY - pad,
-                      w: maxX - minX + pad * 2,
-                      h: maxY - minY + pad * 2,
+                      x: bounds.x - pad,
+                      y: bounds.y - pad,
+                      w: bounds.w + pad * 2,
+                      h: bounds.h + pad * 2,
                     };
                   })()
                 : (() => {

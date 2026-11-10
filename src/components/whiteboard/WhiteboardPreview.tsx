@@ -1,11 +1,7 @@
 import type { CSSProperties } from "react";
 import type { WhiteboardDocument, WhiteboardObject } from "../../types";
-import {
-  contentBounds,
-  objectBounds,
-  pathToSvgD,
-  shapeBounds,
-} from "./whiteboardModel";
+import { renderWhiteboardObject } from "./whiteboardInk";
+import { contentBounds, objectBounds } from "./whiteboardModel";
 
 type WhiteboardPreviewProps = {
   document: WhiteboardDocument;
@@ -16,79 +12,6 @@ type WhiteboardPreviewProps = {
   /** Draft object while drawing (not yet committed). */
   draft?: WhiteboardObject | null;
 };
-
-function renderObject(
-  obj: WhiteboardObject,
-  selected: boolean,
-  key: string,
-) {
-  const selClass = selected ? " whiteboard-obj is-selected" : " whiteboard-obj";
-  if (obj.kind === "path") {
-    // Eraser strokes are not stored as paths in the MVP (tool deletes hits).
-    if (obj.mode === "eraser") return null;
-    const d = pathToSvgD(obj.points);
-    if (!d) return null;
-    return (
-      <path
-        key={key}
-        className={`whiteboard-path${selClass}`}
-        d={d}
-        fill="none"
-        stroke={obj.color}
-        strokeWidth={obj.width}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    );
-  }
-
-  if (obj.kind === "line") {
-    return (
-      <line
-        key={key}
-        className={`whiteboard-shape${selClass}`}
-        x1={obj.x1}
-        y1={obj.y1}
-        x2={obj.x2}
-        y2={obj.y2}
-        stroke={obj.color}
-        strokeWidth={obj.width}
-        strokeLinecap="round"
-      />
-    );
-  }
-
-  const b = shapeBounds(obj);
-  if (obj.kind === "rect") {
-    return (
-      <rect
-        key={key}
-        className={`whiteboard-shape${selClass}`}
-        x={b.x}
-        y={b.y}
-        width={Math.max(0.1, b.w)}
-        height={Math.max(0.1, b.h)}
-        fill={obj.fill || "none"}
-        stroke={obj.color}
-        strokeWidth={obj.width}
-      />
-    );
-  }
-
-  return (
-    <ellipse
-      key={key}
-      className={`whiteboard-shape${selClass}`}
-      cx={b.x + b.w / 2}
-      cy={b.y + b.h / 2}
-      rx={Math.max(0.1, b.w / 2)}
-      ry={Math.max(0.1, b.h / 2)}
-      fill={obj.fill || "none"}
-      stroke={obj.color}
-      strokeWidth={obj.width}
-    />
-  );
-}
 
 function selectionOutline(obj: WhiteboardObject) {
   const b = objectBounds(obj);
@@ -162,11 +85,9 @@ export function WhiteboardPreview({
             height={bounds.h}
             fill="#F7F4EC"
           />
-          {objects.map((obj) =>
-            renderObject(obj, Boolean(selectedIds?.has(obj.id)), obj.id),
-          )}
+          {objects.map((obj) => renderWhiteboardObject(obj, obj.id))}
           {draft
-            ? renderObject(draft, false, `draft-${draft.id}`)
+            ? renderWhiteboardObject(draft, `draft-${draft.id}`)
             : null}
         </g>
         {selectedIds && selectedIds.size > 0

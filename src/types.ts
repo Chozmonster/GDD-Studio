@@ -95,6 +95,12 @@ export type WhiteboardTool =
 export type WhiteboardPoint = {
   x: number;
   y: number;
+  /**
+   * Pointer Events `pressure` (0–1) sampled while drawing.
+   * Mouse / hardware without force typically reports 0.5 → constant brush width.
+   * Omitted on legacy boards; treat as 0.5 when rendering.
+   */
+  pressure?: number;
 };
 
 /** Freehand stroke (pen ink or eraser brush that punches holes). */
