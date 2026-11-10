@@ -1230,6 +1230,21 @@ code {
   background: #1a1a1a;
 }
 
+/*
+ * Flowchart graph text must use the UI stack in both the editor canvas and
+ * document embeds. Embeds live inside `.gdd-prose` (doc serif); without an
+ * explicit family, node labels + edge labels inherit that serif and diverge
+ * from the Flowcharts tab.
+ */
+.flowchart-canvas .react-flow,
+.flowchart-preview .react-flow,
+.flow-node-wrap,
+.flow-node-label,
+.flow-node-input,
+.flow-edge-label {
+  font-family: var(--font-ui);
+}
+
 /* Marquee + multi-select outline readable on the dark canvas. */
 .flowchart-canvas .react-flow__selection,
 .flowchart-canvas .react-flow__nodesselection-rect {
@@ -1388,7 +1403,7 @@ code {
   background: transparent;
   border: none;
   color: inherit;
-  font: inherit;
+  font-family: var(--font-ui);
   font-weight: 650;
   font-size: 0.85rem;
   line-height: 1.25;
@@ -1399,8 +1414,9 @@ code {
 
 .flow-node-input {
   width: 100%;
-  font: inherit;
+  font-family: var(--font-ui);
   font-weight: 600;
+  font-size: 0.85rem;
   text-align: center;
   color: #1c1a17;
   background: #f4f1ea;
@@ -1453,6 +1469,7 @@ code {
   border: 1px solid #555;
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   color: #ddd;
 }

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Flowchart connector arrowheads enlarged again (18 → 28) so Start/End arrows read clearly in the editor and in document embeds (shared `markerForArrow` size).
+- Flowchart node and edge-label fonts match between the Flowcharts editor and live document embeds (both use the UI sans stack; embeds no longer inherit the document serif).
+
 ## [0.1.16] - 2026-11-10
 
 Print view and paper size; flowchart embed resize; PDF embed parity and Graph badge.
