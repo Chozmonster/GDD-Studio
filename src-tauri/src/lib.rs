@@ -2,7 +2,7 @@
 //!
 //! Launcher + local project library + settings + updater + flowcharts +
 //! RGD sheets + mood boards + charts + whiteboards + documentation variables +
-//! multi-doc projects / wiki links + media assets + templates + export HTML.
+//! multi-doc projects / wiki links + media assets + templates + PDF export.
 //! Spellcheck runs in the webview (nspell).
 
 mod commands;
@@ -14,16 +14,16 @@ use commands::{
     app_health, chart_exists, check_for_updates, create_project, create_project_document,
     default_projects_dir, delete_asset, delete_chart, delete_flowchart, delete_mood_board,
     delete_project, delete_project_document, delete_rgd_sheet, delete_template, delete_whiteboard,
-    flowchart_exists, get_active_project, get_asset_data_url, get_asset_path, get_patch_notes,
-    get_settings, install_update, list_assets, list_backlinks, list_charts, list_documents,
-    list_flowcharts, list_mood_boards, list_projects, list_rgd_sheets, list_templates,
-    list_whiteboards, load_chart, load_document, load_flowchart, load_mood_board,
+    ensure_project_exports_dir, flowchart_exists, get_active_project, get_asset_data_url,
+    get_asset_path, get_patch_notes, get_settings, install_update, list_assets, list_backlinks,
+    list_charts, list_documents, list_flowcharts, list_mood_boards, list_projects, list_rgd_sheets,
+    list_templates, list_whiteboards, load_chart, load_document, load_flowchart, load_mood_board,
     load_project_document, load_rgd_sheet, load_template, load_variables, load_whiteboard,
     mood_board_exists, open_options_window, open_project, resolve_wiki_slug, reveal_project_folder,
     rgd_sheet_exists, save_asset, save_chart, save_document, save_flowchart, save_mood_board,
     save_project_document, save_rgd_sheet, save_template, save_variables, save_whiteboard,
     set_automatic_updates, set_display_variable_names, set_paper_size, whiteboard_exists,
-    write_export_html, ActiveSession,
+    write_export_pdf, ActiveSession,
 };
 use tauri::Manager;
 use window_geom::{get_window_geometry, set_window_role, WindowGeomState};
@@ -110,7 +110,8 @@ pub fn run() {
             save_template,
             load_template,
             delete_template,
-            write_export_html,
+            ensure_project_exports_dir,
+            write_export_pdf,
             set_window_role,
             get_window_geometry,
         ])

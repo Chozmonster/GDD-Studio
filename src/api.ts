@@ -1551,9 +1551,55 @@ export async function deleteTemplate(
   });
 }
 
-export async function writeExportHtml(html: string): Promise<string> {
+/** Create `<project>/exports` if needed and return its absolute path. */
+export async function ensureProjectExportsDir(projectId: string): Promise<string> {
   if (!isTauriRuntime()) {
-    return `browser-export://${nowSecs()}`;
+    const project = (await fetchActiveProject()) ?? (await fetchProjects()).find((p) => p.id === projectId);
+    const root = project?.path?.replace(/[/\\]+$/, "") || `/tmp/gdd-studio/${projectId}`;
+    const sep = root.includes("\\") ? "\\" : "/";
+    return `${root}${sep}exports`;
   }
-  return invoke<string>("write_export_html", { html });
+  return invoke<string>("ensure_project_exports_dir", { projectId });
+}
+
+/** Native save dialog for a PDF; `defaultPath` should include filename. */
+export async function pickPdfSavePath(defaultPath: string): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return defaultPath;
+  }
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const selected = await save({
+    defaultPath,
+    title: "Export PDF",
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  return typeof selected === "string" && selected.trim() ? selected : null;
+}
+
+/** Write PDF bytes to a user-chosen absolute path (must end with `.pdf`). */
+export async function writeExportPdf(
+  path: string,
+  data: Uint8Array,
+): Promise<string> {
+  const dataBase64 = bytesToBase64(data);
+  if (!isTauriRuntime()) {
+    const blob = new Blob([data], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = path.split(/[/\\]/).pop() || "document.pdf";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2_000);
+    return path;
+  }
+  return invoke<string>("write_export_pdf", { path, dataBase64 });
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }

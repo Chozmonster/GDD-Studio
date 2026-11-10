@@ -939,12 +939,15 @@ export function EditorCanvas({
     const meta = docMetaRef.current;
     if (!ed || !meta) return;
     try {
-      const result = await exportDocumentPdf(meta.title, ed, paperSize);
-      setStatus(
-        result.path
-          ? `Print dialog opened (HTML snapshot: ${result.path})`
-          : "Print dialog opened — choose Save as PDF",
-      );
+      setStatus("Exporting PDF…");
+      const result = await exportDocumentPdf(meta.title, ed, paperSize, {
+        projectId: project.id,
+      });
+      if (result.mode === "cancelled") {
+        setStatus("PDF export cancelled");
+        return;
+      }
+      setStatus(`Saved PDF: ${result.path}`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     }
