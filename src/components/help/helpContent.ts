@@ -70,7 +70,7 @@ export const HELP_APP: HelpArticleContent = {
         "Link across docs with [[Doc Title]] (or toolbar Link). There is no section-link picker; use the map for in-doc jumps.",
         "Drag pane handles to resize (map|docs, editor|variables, tool lists). Sizes persist; narrow windows stack instead of dragging.",
         "Undo / Redo on the formatting toolbar reverse rich-text edits on this tab only (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y). Other tabs keep their own history stacks.",
-        "Toolbar Continuous / Print view: Continuous is the default scroll editor; Print view shows editable paper sheets (same paper size as Options / PDF). Editing works in both modes.",
+        "Toolbar Continuous / Print view: Continuous is the default scroll editor; Print view shows editable paper sheets (same paper size as Options / PDF). In Print view, use the magnification control (10%–100%, Fit width, Fit page); the choice persists on this machine. Editing works in both modes.",
       ],
     },
     {

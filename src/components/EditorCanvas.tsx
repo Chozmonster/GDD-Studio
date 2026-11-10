@@ -72,6 +72,16 @@ import {
   type DocumentViewMode,
   type PaperSizeId,
 } from "../lib/paperSize";
+import {
+  PRINT_VIEW_ZOOM_PERCENTS,
+  computeFitZoom,
+  parsePrintViewZoom,
+  readPrintViewZoom,
+  serializePrintViewZoom,
+  writePrintViewZoom,
+  zoomFactorForMode,
+  type PrintViewZoomMode,
+} from "../lib/printViewZoom";
 import { onSettingsChanged } from "../lib/settingsEvents";
 import {
   clearDocSelection,
@@ -192,6 +202,12 @@ export function EditorCanvas({
   const [paperSize, setPaperSizeState] = useState<PaperSizeId>(
     DEFAULT_PAPER_SIZE_ID,
   );
+  /** Print view magnification — localStorage chrome pref (not PDF). */
+  const [printZoomMode, setPrintZoomMode] = useState<PrintViewZoomMode>(
+    () => readPrintViewZoom(),
+  );
+  /** Live fit scale (0.1–1) when mode is Fit width / Fit page. */
+  const [printFitScale, setPrintFitScale] = useState(1);
   const saveTimer = useRef<number | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const migratedRef = useRef(false);
@@ -435,6 +451,57 @@ export function EditorCanvas({
       editor.chain().disablePagination().run();
     }
   }, [editor, viewMode, paperSize]);
+
+  // Fit width / Fit page: recompute when the canvas or paper size changes.
+  useEffect(() => {
+    if (!editor || viewMode !== "print") return;
+    if (printZoomMode.kind === "percent") {
+      setPrintFitScale(1);
+      return;
+    }
+    const canvas = editor.view.dom.closest(".editor-canvas");
+    if (!(canvas instanceof HTMLElement)) return;
+
+    const measure = () => {
+      const layout = paperLayoutPx(paperSize);
+      const style = getComputedStyle(canvas);
+      const padX =
+        (Number.parseFloat(style.paddingLeft) || 0) +
+        (Number.parseFloat(style.paddingRight) || 0);
+      const padY =
+        (Number.parseFloat(style.paddingTop) || 0) +
+        (Number.parseFloat(style.paddingBottom) || 0);
+      setPrintFitScale(
+        computeFitZoom({
+          mode: printZoomMode.kind,
+          pageWidthPx: layout.widthPx,
+          pageHeightPx: layout.heightPx,
+          viewportWidthPx: canvas.clientWidth - padX,
+          viewportHeightPx: canvas.clientHeight - padY,
+        }),
+      );
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [editor, viewMode, printZoomMode, paperSize]);
+
+  // Apply CSS zoom on the ProseMirror root (layout + hit-testing scale).
+  useEffect(() => {
+    if (!editor) return;
+    const el = editor.view.dom as HTMLElement;
+    if (viewMode !== "print") {
+      el.style.removeProperty("zoom");
+      return;
+    }
+    const factor = zoomFactorForMode(printZoomMode, printFitScale);
+    el.style.zoom = String(factor);
+    return () => {
+      el.style.removeProperty("zoom");
+    };
+  }, [editor, viewMode, printZoomMode, printFitScale]);
 
   // Drive Undo/Redo button disabled state from TipTap History plugin.
   useEffect(() => {
@@ -1191,43 +1258,74 @@ export function EditorCanvas({
             PDF
           </ToolbarIconButton>
           <ToolbarDivider />
-          <div
-            className="toolbar-group document-view-toggle"
-            role="group"
-            aria-label="Document view"
-          >
-            <button
-              type="button"
-              className={
-                viewMode === "continuous"
-                  ? "toolbar-view-btn is-active"
-                  : "toolbar-view-btn"
-              }
-              aria-pressed={viewMode === "continuous"}
-              title="Continuous scroll editor"
-              onClick={() => setViewMode("continuous")}
+          <div className="print-view-controls">
+            <div
+              className="document-view-toggle"
+              role="group"
+              aria-label="Document view"
             >
-              Continuous
-            </button>
-            <button
-              type="button"
-              className={
-                viewMode === "print"
-                  ? "toolbar-view-btn is-active"
-                  : "toolbar-view-btn"
-              }
-              aria-pressed={viewMode === "print"}
-              title={`Print view (${getPaperSize(paperSize).shortLabel}) — editable pages`}
-              onClick={() => setViewMode("print")}
-            >
-              Print view
-            </button>
+              <button
+                type="button"
+                className={
+                  viewMode === "continuous"
+                    ? "toolbar-view-btn is-active"
+                    : "toolbar-view-btn"
+                }
+                aria-pressed={viewMode === "continuous"}
+                title="Continuous scroll editor"
+                onClick={() => setViewMode("continuous")}
+              >
+                Continuous
+              </button>
+              <button
+                type="button"
+                className={
+                  viewMode === "print"
+                    ? "toolbar-view-btn is-active"
+                    : "toolbar-view-btn"
+                }
+                aria-pressed={viewMode === "print"}
+                title={`Print view (${getPaperSize(paperSize).shortLabel}) — editable pages`}
+                onClick={() => setViewMode("print")}
+              >
+                Print view
+              </button>
+            </div>
+            {viewMode === "print" && (
+              <label className="toolbar-select print-view-zoom">
+                <span className="visually-hidden">Print view zoom</span>
+                <select
+                  aria-label="Print view magnification"
+                  title="Print view magnification"
+                  value={serializePrintViewZoom(printZoomMode)}
+                  onChange={(e) => {
+                    const next = parsePrintViewZoom(e.target.value);
+                    setPrintZoomMode(next);
+                    writePrintViewZoom(next);
+                  }}
+                >
+                  <option value="fit-width">Fit width</option>
+                  <option value="fit-page">Fit page</option>
+                  {PRINT_VIEW_ZOOM_PERCENTS.map((p) => (
+                    <option key={p} value={String(p)}>
+                      {p}%
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
         <span className="muted tiny toolbar-status" role="status">
           {docMeta ? `${docMeta.title} · ` : ""}
           {viewMode === "print"
-            ? `Print view · ${getPaperSize(paperSize).shortLabel} · `
+            ? `Print view · ${getPaperSize(paperSize).shortLabel} · ${
+                printZoomMode.kind === "percent"
+                  ? `${printZoomMode.value}%`
+                  : printZoomMode.kind === "fit-width"
+                    ? `Fit width (${Math.round(printFitScale * 100)}%)`
+                    : `Fit page (${Math.round(printFitScale * 100)}%)`
+              } · `
             : ""}
           {status}
         </span>
