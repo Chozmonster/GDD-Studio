@@ -26,6 +26,7 @@ import {
   List,
   ListOrdered,
   Outdent,
+  Pencil,
   Underline as UnderlineIcon,
   Workflow,
 } from "lucide-react";
@@ -36,23 +37,29 @@ import {
   chartExists,
   createChart,
   createRgdSheet,
+  createWhiteboard,
   ensureVariable,
   fetchSettings,
   flowchartExists,
   listCharts,
   listFlowcharts,
   listRgdSheets,
+  listWhiteboards,
   loadChart,
   loadFlowchart,
   loadProjectDocument,
   loadRgdSheet,
+  loadWhiteboard,
   saveAssetFromFile,
   saveChart,
   saveFlowchart,
   saveProjectDocument,
   saveRgdSheet,
+  saveWhiteboard,
+  whiteboardExists,
 } from "../api";
 import { emitChartSaved } from "../lib/chartEvents";
+import { emitWhiteboardSaved } from "../lib/whiteboardEvents";
 import { exportDocumentPdf } from "../lib/exportPdf";
 import { isAllowedMediaFile } from "../lib/mediaFile";
 import {
@@ -84,6 +91,7 @@ import type {
   ProjectDocument,
   ProjectRecord,
   RgdSheetSummary,
+  WhiteboardSummary,
   WordDefinition,
 } from "../types";
 import { emptyChartDocument } from "./charts/chartModel";
@@ -111,8 +119,10 @@ import { ToolbarIconButton } from "./editor/ToolbarIconButton";
 import { UndoRedoButtons } from "./editor/UndoRedoButtons";
 import { VariableEmbed } from "./editor/variableEmbedExtension";
 import { VariablesPanel } from "./editor/VariablesPanel";
+import { WhiteboardEmbed } from "./editor/whiteboardEmbedExtension";
 import { WikiLink } from "./editor/wikiLinkExtension";
 import { WordLookupPanel } from "./editor/WordLookupPanel";
+import { emptyWhiteboardDocument } from "./whiteboard/whiteboardModel";
 import {
   isEditableKeyboardTarget,
   undoRedoFromKeyboard,
@@ -126,6 +136,7 @@ type EditorCanvasProps = {
   onOpenRgdSheet?: (sheetId: string) => void;
   onOpenMoodBoard?: (boardId?: string) => void;
   onOpenChart?: (chartId?: string) => void;
+  onOpenWhiteboard?: (whiteboardId?: string) => void;
 };
 
 type SpellMenuState = {
@@ -148,6 +159,7 @@ export function EditorCanvas({
   onOpenRgdSheet,
   onOpenMoodBoard,
   onOpenChart,
+  onOpenWhiteboard,
 }: EditorCanvasProps) {
   const [status, setStatus] = useState("Loading…");
   /** TipTap History canUndo/canRedo — refreshed on every transaction. */
@@ -155,9 +167,11 @@ export function EditorCanvas({
   const [flowcharts, setFlowcharts] = useState<FlowchartSummary[]>([]);
   const [rgdSheets, setRgdSheets] = useState<RgdSheetSummary[]>([]);
   const [charts, setCharts] = useState<ChartSummary[]>([]);
+  const [whiteboards, setWhiteboards] = useState<WhiteboardSummary[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rgdPickerOpen, setRgdPickerOpen] = useState(false);
   const [chartPickerOpen, setChartPickerOpen] = useState(false);
+  const [whiteboardPickerOpen, setWhiteboardPickerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [activeDocId, setActiveDocId] = useState("main");
   const [docMeta, setDocMeta] = useState<ProjectDocument | null>(null);
@@ -260,9 +274,9 @@ export function EditorCanvas({
         FontFamily,
         FontSize,
         TextAlign.configure({
-          // Atom embeds (RGD / media / mood board / chart / flowchart) keep
-          // their own textAlign attr + toolbar branch below; including them
-          // here doubles the attribute and breaks JSON round-trip.
+          // Atom embeds (RGD / media / mood board / chart / whiteboard /
+          // flowchart) keep their own textAlign attr + toolbar branch below;
+          // including them here doubles the attribute and breaks JSON round-trip.
           types: ["heading", "paragraph"],
         }),
         Placeholder.configure({
@@ -287,6 +301,10 @@ export function EditorCanvas({
         ChartEmbed.configure({
           projectId: project.id,
           onOpenChart,
+        }),
+        WhiteboardEmbed.configure({
+          projectId: project.id,
+          onOpenWhiteboard,
         }),
         WikiLink.configure({
           projectId: project.id,
@@ -375,7 +393,14 @@ export function EditorCanvas({
         }, 500);
       },
     },
-    [project.id, onOpenFlowchart, onOpenRgdSheet, onOpenMoodBoard, onOpenChart],
+    [
+      project.id,
+      onOpenFlowchart,
+      onOpenRgdSheet,
+      onOpenMoodBoard,
+      onOpenChart,
+      onOpenWhiteboard,
+    ],
   );
 
   editorRef.current = editor;
@@ -508,16 +533,19 @@ export function EditorCanvas({
     let cancelled = false;
     void (async () => {
       try {
-        const [doc, list, sheets, chartList] = await Promise.all([
-          loadProjectDocument(project.id, activeDocId),
-          listFlowcharts(project.id),
-          listRgdSheets(project.id),
-          listCharts(project.id),
-        ]);
+        const [doc, list, sheets, chartList, whiteboardList] =
+          await Promise.all([
+            loadProjectDocument(project.id, activeDocId),
+            listFlowcharts(project.id),
+            listRgdSheets(project.id),
+            listCharts(project.id),
+            listWhiteboards(project.id),
+          ]);
         if (cancelled || !editor) return;
         setFlowcharts(list);
         setRgdSheets(sheets);
         setCharts(chartList);
+        setWhiteboards(whiteboardList);
 
         let content = doc.body;
         let nextMeta = doc;
@@ -625,6 +653,10 @@ export function EditorCanvas({
     setCharts(await listCharts(project.id));
   }, [project.id]);
 
+  const refreshWhiteboards = useCallback(async () => {
+    setWhiteboards(await listWhiteboards(project.id));
+  }, [project.id]);
+
   const insertFlowchart = async (flowchartId: string) => {
     if (!(await flowchartExists(project.id, flowchartId))) {
       const doc = await loadFlowchart(project.id, flowchartId);
@@ -680,6 +712,32 @@ export function EditorCanvas({
     await insertChart(created.id);
   };
 
+  const insertWhiteboard = async (whiteboardId: string) => {
+    if (!(await whiteboardExists(project.id, whiteboardId))) {
+      const doc = emptyWhiteboardDocument(whiteboardId);
+      await saveWhiteboard(project.id, whiteboardId, doc);
+      emitWhiteboardSaved(project.id, whiteboardId, doc);
+    } else {
+      await loadWhiteboard(project.id, whiteboardId);
+    }
+    editor?.chain().focus().insertWhiteboardEmbed(whiteboardId).run();
+    setWhiteboardPickerOpen(false);
+    const named =
+      whiteboards.find((w) => w.id === whiteboardId)?.name ?? whiteboardId;
+    setStatus(`Embedded whiteboard “${named}”`);
+  };
+
+  const createAndInsertWhiteboard = async () => {
+    const name = window.prompt("New whiteboard name", "Untitled board");
+    if (name === null) return;
+    const created = await createWhiteboard(project.id, name);
+    const board = emptyWhiteboardDocument(created.id, created.name);
+    await saveWhiteboard(project.id, created.id, board);
+    emitWhiteboardSaved(project.id, created.id, board);
+    await refreshWhiteboards();
+    await insertWhiteboard(created.id);
+  };
+
   const atomEmbedAlignType = editor?.isActive("rgdSheetEmbed")
     ? "rgdSheetEmbed"
     : editor?.isActive("mediaEmbed")
@@ -688,9 +746,11 @@ export function EditorCanvas({
         ? "moodBoardEmbed"
         : editor?.isActive("chartEmbed")
           ? "chartEmbed"
-          : editor?.isActive("flowchartEmbed")
-            ? "flowchartEmbed"
-            : null;
+          : editor?.isActive("whiteboardEmbed")
+            ? "whiteboardEmbed"
+            : editor?.isActive("flowchartEmbed")
+              ? "flowchartEmbed"
+              : null;
 
   const atomEmbedAlign = atomEmbedAlignType
     ? String(
@@ -1028,6 +1088,7 @@ export function EditorCanvas({
             onClick={() => {
               setRgdPickerOpen(false);
               setChartPickerOpen(false);
+              setWhiteboardPickerOpen(false);
               setTemplatesOpen(false);
               void refreshFlowcharts().then(() => setPickerOpen(true));
             }}
@@ -1042,6 +1103,7 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setChartPickerOpen(false);
+              setWhiteboardPickerOpen(false);
               setTemplatesOpen(false);
               void refreshRgdSheets().then(() => setRgdPickerOpen((o) => !o));
             }}
@@ -1056,11 +1118,29 @@ export function EditorCanvas({
             onClick={() => {
               setPickerOpen(false);
               setRgdPickerOpen(false);
+              setWhiteboardPickerOpen(false);
               setTemplatesOpen(false);
               void refreshCharts().then(() => setChartPickerOpen((o) => !o));
             }}
           >
             Graph
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Insert whiteboard"
+            icon={Pencil}
+            aria-expanded={whiteboardPickerOpen}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setPickerOpen(false);
+              setRgdPickerOpen(false);
+              setChartPickerOpen(false);
+              setTemplatesOpen(false);
+              void refreshWhiteboards().then(() =>
+                setWhiteboardPickerOpen((o) => !o),
+              );
+            }}
+          >
+            Whiteboard
           </ToolbarIconButton>
           <ToolbarIconButton
             label="Insert media"
@@ -1069,6 +1149,7 @@ export function EditorCanvas({
               setPickerOpen(false);
               setRgdPickerOpen(false);
               setChartPickerOpen(false);
+              setWhiteboardPickerOpen(false);
               fileInputRef.current?.click();
             }}
           >
@@ -1089,6 +1170,7 @@ export function EditorCanvas({
               setPickerOpen(false);
               setRgdPickerOpen(false);
               setChartPickerOpen(false);
+              setWhiteboardPickerOpen(false);
               setTemplatesOpen((o) => !o);
             }}
           >
@@ -1248,6 +1330,45 @@ export function EditorCanvas({
             type="button"
             className="ghost"
             onClick={() => setChartPickerOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {whiteboardPickerOpen && (
+        <div
+          className="embed-picker whiteboard-insert-menu"
+          role="dialog"
+          aria-label="Insert whiteboard"
+        >
+          <p className="muted tiny">
+            Embed a live whiteboard that references the Whiteboard library
+            (edits update every embed).
+          </p>
+          <ul>
+            {whiteboards.map((w) => (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  onClick={() => void insertWhiteboard(w.id)}
+                >
+                  {w.name} <span className="muted tiny">({w.id})</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void createAndInsertWhiteboard()}
+          >
+            New board + insert
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setWhiteboardPickerOpen(false)}
           >
             Cancel
           </button>

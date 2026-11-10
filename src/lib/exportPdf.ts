@@ -11,7 +11,7 @@ import {
 /** Soft cap — very tall embeds are cropped so print pages stay usable. */
 const MAX_CAPTURE_HEIGHT_PX = 1800;
 const EMBED_SELECTOR =
-  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed';
+  '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed, [data-type="whiteboard-embed"], .whiteboard-embed';
 
 /** Title / open-editor bars — strip from PNG capture like media chrome. */
 const EMBED_CHROME_SELECTOR = [
@@ -20,6 +20,7 @@ const EMBED_CHROME_SELECTOR = [
   ".rgd-sheet-card-chrome",
   ".chart-embed-chrome",
   ".mood-board-embed-chrome",
+  ".whiteboard-embed-chrome",
 ].join(", ");
 
 type ExportEmbedAlign = "left" | "center" | "right" | "justify";
@@ -78,6 +79,13 @@ function isSettledEmbed(el: HTMLElement): boolean {
     return Boolean(
       el.querySelector(
         ".mood-board-embed-body, .mood-board-embed-palette, .mood-media-frame",
+      ),
+    );
+  }
+  if (el.matches(".whiteboard-embed, [data-type='whiteboard-embed']")) {
+    return Boolean(
+      el.querySelector(
+        ".whiteboard-preview-svg, .whiteboard-preview-empty, .error.embed-status",
       ),
     );
   }
@@ -165,7 +173,8 @@ function shouldSkipExportNode(node: HTMLElement): boolean {
     node.classList.contains("flowchart-embed-chrome") ||
     node.classList.contains("rgd-sheet-card-chrome") ||
     node.classList.contains("chart-embed-chrome") ||
-    node.classList.contains("mood-board-embed-chrome")
+    node.classList.contains("mood-board-embed-chrome") ||
+    node.classList.contains("whiteboard-embed-chrome")
   ) {
     return true;
   }
@@ -233,13 +242,14 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
 function embedLabel(el: HTMLElement): string {
   const title =
     el.querySelector(
-      ".flowchart-embed-title, .rgd-live-table-title, .rgd-sheet-card-title, .rgd-block-title, .media-embed-name, .chart-embed-title",
+      ".flowchart-embed-title, .rgd-live-table-title, .rgd-sheet-card-title, .rgd-block-title, .media-embed-name, .chart-embed-title, .whiteboard-embed-title",
     )
       ?.textContent?.trim() ||
     el.getAttribute("data-flowchart-id") ||
     el.getAttribute("data-sheet-id") ||
     el.getAttribute("data-mood-board-item-id") ||
     el.getAttribute("data-chart-id") ||
+    el.getAttribute("data-whiteboard-id") ||
     "";
   if (el.matches(".flowchart-embed, [data-type='flowchart-embed']")) {
     return title || "Flowchart";
@@ -256,6 +266,9 @@ function embedLabel(el: HTMLElement): string {
   }
   if (el.matches(".chart-embed, [data-type='chart-embed']")) {
     return title || "Graph";
+  }
+  if (el.matches(".whiteboard-embed, [data-type='whiteboard-embed']")) {
+    return title || "Whiteboard";
   }
   return title || "Embed";
 }
@@ -430,9 +443,11 @@ async function buildExportHtml(
         ? "Flowchart embed"
         : el.matches(".chart-embed, [data-type='chart-embed']")
           ? "Graph embed"
-          : el.matches(".mood-board-embed, [data-type='mood-board-embed']")
-            ? "Mood Board embed"
-            : "RGD embed";
+          : el.matches(".whiteboard-embed, [data-type='whiteboard-embed']")
+            ? "Whiteboard embed"
+            : el.matches(".mood-board-embed, [data-type='mood-board-embed']")
+              ? "Mood Board embed"
+              : "RGD embed";
       el.replaceWith(placeholder(kind));
     }
   });

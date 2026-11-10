@@ -2316,6 +2316,9 @@ code {
 .chart-embed:hover .rgd-embed-resize-handle::after,
 .chart-embed.ProseMirror-selectednode .rgd-embed-resize-handle::after,
 .ProseMirror-selectednode .chart-embed .rgd-embed-resize-handle::after,
+.whiteboard-embed:hover .rgd-embed-resize-handle::after,
+.whiteboard-embed.ProseMirror-selectednode .rgd-embed-resize-handle::after,
+.ProseMirror-selectednode .whiteboard-embed .rgd-embed-resize-handle::after,
 .flowchart-embed:hover .rgd-embed-resize-handle::after,
 .flowchart-embed.ProseMirror-selectednode .rgd-embed-resize-handle::after,
 .ProseMirror-selectednode .flowchart-embed .rgd-embed-resize-handle::after {
@@ -4269,6 +4272,271 @@ input.charts-formula-var-value {
 }
 
 .chart-embed-preview {
+  border: none;
+}
+
+/* ── Whiteboard MVP (lean doodle; guttable module) ────────────────────────── */
+
+.whiteboard-shell {
+  min-height: 0;
+}
+
+.whiteboard-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.65rem 0.85rem 0.85rem;
+}
+
+.whiteboard-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.whiteboard-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: flex-end;
+}
+
+.whiteboard-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 6.5rem;
+}
+
+.whiteboard-inline-field.grow {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.whiteboard-inline-field input,
+.whiteboard-inline-field select {
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+}
+
+.whiteboard-inline-field input[type="color"] {
+  padding: 0.15rem;
+  min-height: 2rem;
+  width: 3.2rem;
+}
+
+.whiteboard-inline-field input[type="range"] {
+  width: 7rem;
+  padding: 0;
+}
+
+.whiteboard-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: flex-end;
+}
+
+.whiteboard-tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.whiteboard-tool-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.whiteboard-tool-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink-strong);
+}
+
+.whiteboard-palette-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-end;
+}
+
+.whiteboard-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.whiteboard-swatch {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  padding: 0;
+  cursor: pointer;
+}
+
+.whiteboard-swatch.is-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.whiteboard-swatch-hint {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+
+.whiteboard-surface {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 18rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #2a2a2a;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.whiteboard-surface-world {
+  width: 4000px;
+  height: 3000px;
+  will-change: transform;
+}
+
+.whiteboard-surface-svg {
+  display: block;
+  background: transparent;
+}
+
+.whiteboard-surface-hint {
+  position: absolute;
+  left: 0.55rem;
+  bottom: 0.4rem;
+  margin: 0;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
+.whiteboard-preview {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #2a2a2a;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.whiteboard-preview.is-compact {
+  height: auto;
+  background: transparent;
+  border: none;
+}
+
+.whiteboard-preview-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 10rem;
+}
+
+.whiteboard-preview.is-compact .whiteboard-preview-svg {
+  min-height: 8rem;
+  height: auto;
+  aspect-ratio: 16 / 10;
+}
+
+.whiteboard-preview-empty {
+  position: absolute;
+  inset: auto 0 0.6rem 0;
+  text-align: center;
+  margin: 0;
+  pointer-events: none;
+}
+
+.whiteboard-embed {
+  position: relative;
+  display: block;
+  margin: 0.65rem 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  padding: 0.45rem 0.55rem 0.6rem;
+}
+
+.whiteboard-embed.is-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.whiteboard-embed.is-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.whiteboard-embed.is-align-left,
+.whiteboard-embed.is-align-justify {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.whiteboard-embed.broken {
+  border-color: var(--danger);
+}
+
+.whiteboard-embed-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.whiteboard-embed-badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0.12rem 0.35rem;
+}
+
+.whiteboard-embed-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.whiteboard-embed-title {
+  font-weight: 600;
+  color: var(--ink-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whiteboard-embed-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whiteboard-embed-preview {
   border: none;
 }
 

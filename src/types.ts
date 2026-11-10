@@ -42,7 +42,8 @@ export type ProjectTab =
   | "flowchart"
   | "rgd"
   | "moodboard"
-  | "charts";
+  | "charts"
+  | "whiteboard";
 
 /** Charts MVP — line/bar progression graphs (guttable module). */
 export type ChartKind = "line" | "bar";
@@ -80,6 +81,80 @@ export type ChartDocument = {
   yLabel: string;
   series: ChartSeries[];
   rows: ChartRow[];
+};
+
+/** Whiteboard doodle tools (lean MVP — not mini-Miro). */
+export type WhiteboardTool =
+  | "select"
+  | "pen"
+  | "eraser"
+  | "line"
+  | "rect"
+  | "ellipse";
+
+export type WhiteboardPoint = {
+  x: number;
+  y: number;
+};
+
+/** Freehand stroke (pen ink or eraser brush that punches holes). */
+export type WhiteboardPathObject = {
+  id: string;
+  kind: "path";
+  mode: "pen" | "eraser";
+  points: WhiteboardPoint[];
+  color: string;
+  width: number;
+};
+
+/** Basic shape stroke on the doodle board. */
+export type WhiteboardShapeObject = {
+  id: string;
+  kind: "line" | "rect" | "ellipse";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  width: number;
+  /** Optional fill (null/undefined = none). */
+  fill?: string | null;
+};
+
+export type WhiteboardObject = WhiteboardPathObject | WhiteboardShapeObject;
+
+export type WhiteboardViewport = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+/**
+ * Which Mood Board colour-palette tile feeds Whiteboard stroke/fill swatches.
+ * Hex SoT remains the Mood Board item `Palette:` comment — this is a pointer only.
+ */
+export type WhiteboardPaletteRef = {
+  moodBoardId: string;
+  itemId: string;
+};
+
+export type WhiteboardSummary = {
+  id: string;
+  name: string;
+};
+
+/** Project-persisted whiteboard (named library entry). */
+export type WhiteboardDocument = {
+  format: "gdd-studio-whiteboard";
+  version: 1;
+  id: string;
+  name: string;
+  /** Designer note — shown under live document embeds. */
+  description: string;
+  objects: WhiteboardObject[];
+  viewport: WhiteboardViewport;
+  /** Optional Mood Board palette tile used for stroke/fill swatches. */
+  paletteRef?: WhiteboardPaletteRef | null;
 };
 
 /** Normalized crop rect over the source image (fractions of natural size). */

@@ -28,8 +28,14 @@ import type {
   RgdSheetSummary,
   TemplateRecord,
   UpdateStatus,
+  WhiteboardDocument,
+  WhiteboardSummary,
 } from "./types";
 import { emptyChartDocument, normalizeChart } from "./components/charts/chartModel";
+import {
+  emptyWhiteboardDocument,
+  normalizeWhiteboard,
+} from "./components/whiteboard/whiteboardModel";
 
 const BROWSER_KEY = "gdd-studio.browser-store";
 
@@ -64,6 +70,8 @@ type BrowserStore = {
   >;
   /** projectId → chartId → document */
   charts?: Record<string, Record<string, ChartDocument>>;
+  /** projectId → whiteboardId → document */
+  whiteboards?: Record<string, Record<string, WhiteboardDocument>>;
   /** app-level templates */
   appTemplates?: TemplateRecord[];
   /** projectId → templates */
@@ -1293,6 +1301,118 @@ export async function createChart(
   }
   const doc = emptyChartDocument(id, trimmed);
   await saveChart(projectId, id, doc);
+  return { id, name: trimmed };
+}
+
+export async function listWhiteboards(
+  projectId: string,
+): Promise<WhiteboardSummary[]> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const map = store.whiteboards?.[projectId] ?? {};
+    const items = Object.values(map).map((doc) => ({
+      id: doc.id,
+      name: doc.name?.trim() || doc.id,
+    }));
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    if (items.length === 0) return [{ id: "main", name: "Main" }];
+    return items;
+  }
+  return invoke<WhiteboardSummary[]>("list_whiteboards", { projectId });
+}
+
+export async function loadWhiteboard(
+  projectId: string,
+  whiteboardId: string,
+): Promise<WhiteboardDocument> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const doc = store.whiteboards?.[projectId]?.[whiteboardId];
+    return normalizeWhiteboard(doc ?? emptyWhiteboardDocument(whiteboardId));
+  }
+  return normalizeWhiteboard(
+    await invoke<WhiteboardDocument>("load_whiteboard", {
+      projectId,
+      whiteboardId,
+    }),
+  );
+}
+
+export async function saveWhiteboard(
+  projectId: string,
+  whiteboardId: string,
+  document: WhiteboardDocument,
+): Promise<WhiteboardDocument> {
+  const next = normalizeWhiteboard({
+    ...document,
+    id: whiteboardId,
+    format: "gdd-studio-whiteboard",
+    version: 1,
+  });
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (!store.whiteboards) store.whiteboards = {};
+    if (!store.whiteboards[projectId]) store.whiteboards[projectId] = {};
+    store.whiteboards[projectId][whiteboardId] = next;
+    saveBrowser(store);
+    return next;
+  }
+  return normalizeWhiteboard(
+    await invoke<WhiteboardDocument>("save_whiteboard", {
+      projectId,
+      whiteboardId,
+      document: next,
+    }),
+  );
+}
+
+export async function whiteboardExists(
+  projectId: string,
+  whiteboardId: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    return Boolean(store.whiteboards?.[projectId]?.[whiteboardId]);
+  }
+  return invoke<boolean>("whiteboard_exists", { projectId, whiteboardId });
+}
+
+export async function deleteWhiteboard(
+  projectId: string,
+  whiteboardId: string,
+): Promise<void> {
+  if (whiteboardId.trim() === "main") {
+    throw new Error("Main whiteboard cannot be deleted");
+  }
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    if (store.whiteboards?.[projectId]) {
+      delete store.whiteboards[projectId][whiteboardId];
+      saveBrowser(store);
+    }
+    return;
+  }
+  await invoke("delete_whiteboard", { projectId, whiteboardId });
+}
+
+/** Create an empty named whiteboard and persist it. */
+export async function createWhiteboard(
+  projectId: string,
+  name: string,
+): Promise<WhiteboardSummary> {
+  const trimmed = name.trim() || "Untitled";
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "whiteboard";
+  let id = base;
+  let n = 2;
+  while (await whiteboardExists(projectId, id)) {
+    id = `${base}-${n++}`;
+  }
+  const doc = emptyWhiteboardDocument(id, trimmed);
+  await saveWhiteboard(projectId, id, doc);
   return { id, name: trimmed };
 }
 
