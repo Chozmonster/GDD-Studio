@@ -802,6 +802,14 @@ code {
   color: inherit;
 }
 
+/* Keep Continuous/Print + zoom on one cluster when the toolbar wraps. */
+.print-view-controls {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .document-view-toggle {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -836,6 +844,10 @@ code {
 .toolbar-view-btn.is-active {
   color: var(--ink-strong);
   background: #3a4540;
+}
+
+.print-view-zoom select {
+  min-width: 6.5rem;
 }
 
 .options-select-row {
