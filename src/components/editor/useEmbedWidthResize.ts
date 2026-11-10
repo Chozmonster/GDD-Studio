@@ -1,7 +1,8 @@
 /**
  * Shared pointer-driven width resize for live document embeds
- * (media, Mood Board, RGD table). Live width is held in React state during
- * the drag; attrs are written once on pointer-up so TipTap history stays tidy.
+ * (media, Mood Board, RGD table, Graph, flowchart). Live width is held in
+ * React state during the drag; attrs are written once on pointer-up so TipTap
+ * history stays tidy.
  */
 import {
   useCallback,

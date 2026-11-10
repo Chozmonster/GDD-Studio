@@ -1477,13 +1477,36 @@ code {
   border: 1px solid #444;
 }
 
+/* Doc embed — live flowchart preview (resizable; honors TipTap textAlign) */
+.ProseMirror .react-renderer.node-flowchartEmbed {
+  width: 100%;
+}
+
 .flowchart-embed {
+  position: relative;
+  box-sizing: border-box;
   margin: 0.85rem 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--bg-panel);
   color: var(--ink);
   overflow: hidden;
+}
+
+.flowchart-embed.is-align-left,
+.flowchart-embed.is-align-justify {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.flowchart-embed.is-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.flowchart-embed.is-align-right {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .flowchart-embed.broken {
@@ -2275,7 +2298,10 @@ code {
 .ProseMirror-selectednode .media-embed .rgd-embed-resize-handle::after,
 .chart-embed:hover .rgd-embed-resize-handle::after,
 .chart-embed.ProseMirror-selectednode .rgd-embed-resize-handle::after,
-.ProseMirror-selectednode .chart-embed .rgd-embed-resize-handle::after {
+.ProseMirror-selectednode .chart-embed .rgd-embed-resize-handle::after,
+.flowchart-embed:hover .rgd-embed-resize-handle::after,
+.flowchart-embed.ProseMirror-selectednode .rgd-embed-resize-handle::after,
+.ProseMirror-selectednode .flowchart-embed .rgd-embed-resize-handle::after {
   opacity: 0.85;
 }
 

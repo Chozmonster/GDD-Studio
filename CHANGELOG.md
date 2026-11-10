@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Document toolbar **Continuous / Print view** toggle: Print view shows editable paper sheets with margins and gaps, using the same paper size as PDF export.
 - Options → Document **Paper size** dropdown (Letter, A4, Legal, Tabloid, A3, A5); persists with other settings and drives Print view + PDF `@page` size.
+- Document flowchart embeds are user-resizable and respect text alignment (same east/west handles and toolbar align as media, RGD tables, and Graph embeds). Width persists in the document; live-by-reference updates and centered-in-frame preview are unchanged.
 
 ## [0.1.15] - 2026-11-09
 
