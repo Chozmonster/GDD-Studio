@@ -520,6 +520,51 @@ pub fn delete_chart(
 }
 
 #[tauri::command]
+pub fn list_whiteboards(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<store::WhiteboardSummary>, String> {
+    store::list_whiteboards(&app, project_id)
+}
+
+#[tauri::command]
+pub fn load_whiteboard(
+    app: AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<store::WhiteboardDocument, String> {
+    store::load_whiteboard(&app, project_id, whiteboard_id)
+}
+
+#[tauri::command]
+pub fn save_whiteboard(
+    app: AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+    document: store::WhiteboardDocument,
+) -> Result<store::WhiteboardDocument, String> {
+    store::save_whiteboard(&app, project_id, whiteboard_id, document)
+}
+
+#[tauri::command]
+pub fn whiteboard_exists(
+    app: AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<bool, String> {
+    store::whiteboard_exists(&app, project_id, whiteboard_id)
+}
+
+#[tauri::command]
+pub fn delete_whiteboard(
+    app: AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<(), String> {
+    store::delete_whiteboard(&app, project_id, whiteboard_id)
+}
+
+#[tauri::command]
 pub fn list_templates(
     app: AppHandle,
     project_id: Option<String>,

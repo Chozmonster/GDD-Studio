@@ -195,6 +195,9 @@ const MAX_CHART_SERIES: usize = 24;
 const MAX_CHART_ROWS: usize = 2_000;
 const MAX_CHART_LABEL_CHARS: usize = 120;
 const MAX_CHART_DESCRIPTION_CHARS: usize = 2_000;
+const MAX_WHITEBOARD_OBJECTS: usize = 2_000;
+const MAX_WHITEBOARD_PATH_POINTS: usize = 4_000;
+const MAX_WHITEBOARD_DESCRIPTION_CHARS: usize = 2_000;
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<T, String> {
     if !path.exists() {
@@ -1986,6 +1989,399 @@ pub fn delete_chart(
     let path = chart_path(&project, id)?;
     if path.is_file() {
         fs::remove_file(&path).map_err(|e| format!("delete chart: {e}"))?;
+    }
+    Ok(())
+}
+
+// ── Whiteboards (named doodle library; lean MVP) ───────────────────────────
+
+const WHITEBOARDS_DIR: &str = "whiteboards";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardSummary {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardPaletteRef {
+    pub mood_board_id: String,
+    pub item_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardViewport {
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_whiteboard_zoom")]
+    pub zoom: f64,
+}
+
+fn default_whiteboard_zoom() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardObject {
+    pub id: String,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub points: Option<Vec<WhiteboardPoint>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x1: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y1: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x2: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y2: Option<f64>,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default = "default_whiteboard_width")]
+    pub width: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<String>,
+}
+
+fn default_whiteboard_width() -> f64 {
+    3.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteboardDocument {
+    pub format: String,
+    pub version: u32,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub objects: Vec<WhiteboardObject>,
+    #[serde(default)]
+    pub viewport: WhiteboardViewport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub palette_ref: Option<WhiteboardPaletteRef>,
+}
+
+impl Default for WhiteboardViewport {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            zoom: 1.0,
+        }
+    }
+}
+
+fn whiteboards_dir(project: &ProjectRecord) -> PathBuf {
+    PathBuf::from(&project.path).join(WHITEBOARDS_DIR)
+}
+
+fn whiteboard_path(project: &ProjectRecord, whiteboard_id: &str) -> Result<PathBuf, String> {
+    validate_entity_id(whiteboard_id, "whiteboard")?;
+    let id = whiteboard_id.trim();
+    let dir = whiteboards_dir(project);
+    let path = dir.join(format!("{id}.json"));
+    ensure_path_within(&dir, &path)?;
+    Ok(path)
+}
+
+fn empty_whiteboard(id: &str) -> WhiteboardDocument {
+    WhiteboardDocument {
+        format: "gdd-studio-whiteboard".into(),
+        version: 1,
+        id: id.into(),
+        name: if id == "main" {
+            "Main".into()
+        } else {
+            id.into()
+        },
+        description: String::new(),
+        objects: Vec::new(),
+        viewport: WhiteboardViewport::default(),
+        palette_ref: None,
+    }
+}
+
+fn sanitize_whiteboard_color(raw: &str, fallback: &str) -> String {
+    let t = raw.trim();
+    if t.is_empty() || t.len() > 32 {
+        return fallback.into();
+    }
+    if t.starts_with('#')
+        || t.starts_with("rgb(")
+        || t.starts_with("rgba(")
+        || t.chars().all(|c| c.is_ascii_alphabetic() || c == '-')
+    {
+        t.to_string()
+    } else {
+        fallback.into()
+    }
+}
+
+fn sanitize_whiteboard_width(width: f64) -> f64 {
+    if !width.is_finite() {
+        return 3.0;
+    }
+    width.clamp(1.0, 48.0)
+}
+
+fn sanitize_finite(n: Option<f64>) -> Option<f64> {
+    n.filter(|v| v.is_finite())
+}
+
+fn sanitize_whiteboard_object(obj: &mut WhiteboardObject) -> bool {
+    if validate_entity_id(&obj.id, "whiteboard object").is_err() {
+        return false;
+    }
+    let kind = obj.kind.trim().to_ascii_lowercase();
+    match kind.as_str() {
+        "path" => {
+            obj.kind = "path".into();
+            let mode = obj
+                .mode
+                .as_deref()
+                .unwrap_or("pen")
+                .trim()
+                .to_ascii_lowercase();
+            obj.mode = Some(if mode == "eraser" {
+                "eraser".into()
+            } else {
+                "pen".into()
+            });
+            let mut points = obj.points.take().unwrap_or_default();
+            points.retain(|p| p.x.is_finite() && p.y.is_finite());
+            if points.len() > MAX_WHITEBOARD_PATH_POINTS {
+                points.truncate(MAX_WHITEBOARD_PATH_POINTS);
+            }
+            if points.is_empty() {
+                return false;
+            }
+            obj.points = Some(points);
+            obj.x1 = None;
+            obj.y1 = None;
+            obj.x2 = None;
+            obj.y2 = None;
+            obj.fill = None;
+        }
+        "line" | "rect" | "ellipse" => {
+            obj.kind = kind;
+            obj.mode = None;
+            obj.points = None;
+            let x1 = sanitize_finite(obj.x1);
+            let y1 = sanitize_finite(obj.y1);
+            let x2 = sanitize_finite(obj.x2);
+            let y2 = sanitize_finite(obj.y2);
+            if x1.is_none() || y1.is_none() || x2.is_none() || y2.is_none() {
+                return false;
+            }
+            obj.x1 = x1;
+            obj.y1 = y1;
+            obj.x2 = x2;
+            obj.y2 = y2;
+            if let Some(fill) = obj.fill.take() {
+                let t = fill.trim();
+                obj.fill = if t.is_empty() {
+                    None
+                } else {
+                    Some(sanitize_whiteboard_color(t, "#1A1A1A"))
+                };
+            }
+        }
+        _ => return false,
+    }
+    obj.color = sanitize_whiteboard_color(&obj.color, "#1A1A1A");
+    obj.width = sanitize_whiteboard_width(obj.width);
+    true
+}
+
+fn sanitize_whiteboard_doc(doc: &mut WhiteboardDocument) {
+    doc.format = "gdd-studio-whiteboard".into();
+    doc.version = 1;
+    doc.description = doc
+        .description
+        .trim()
+        .chars()
+        .take(MAX_WHITEBOARD_DESCRIPTION_CHARS)
+        .collect();
+    doc.objects
+        .retain_mut(|obj| sanitize_whiteboard_object(obj));
+    if doc.objects.len() > MAX_WHITEBOARD_OBJECTS {
+        doc.objects.truncate(MAX_WHITEBOARD_OBJECTS);
+    }
+    if !doc.viewport.zoom.is_finite() || doc.viewport.zoom <= 0.0 {
+        doc.viewport.zoom = 1.0;
+    } else {
+        doc.viewport.zoom = doc.viewport.zoom.clamp(0.25, 4.0);
+    }
+    if !doc.viewport.x.is_finite() {
+        doc.viewport.x = 0.0;
+    }
+    if !doc.viewport.y.is_finite() {
+        doc.viewport.y = 0.0;
+    }
+    if let Some(pref) = doc.palette_ref.as_mut() {
+        pref.mood_board_id = pref.mood_board_id.trim().to_string();
+        pref.item_id = pref.item_id.trim().to_string();
+        if pref.mood_board_id.is_empty()
+            || pref.item_id.is_empty()
+            || validate_entity_id(&pref.mood_board_id, "mood board").is_err()
+            || validate_entity_id(&pref.item_id, "mood board item").is_err()
+        {
+            doc.palette_ref = None;
+        }
+    }
+}
+
+pub fn list_whiteboards(
+    app: &AppHandle,
+    project_id: String,
+) -> Result<Vec<WhiteboardSummary>, String> {
+    let project = project_by_id(app, &project_id)?;
+    let dir = whiteboards_dir(&project);
+    let mut items = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| format!("read whiteboards: {e}"))? {
+            let entry = entry.map_err(|e| format!("read whiteboards entry: {e}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("untitled")
+                .to_string();
+            if validate_entity_id(&id, "whiteboard").is_err() {
+                continue;
+            }
+            let name = fs::read_to_string(&path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<WhiteboardDocument>(&raw).ok())
+                .map(|doc| {
+                    if doc.name.trim().is_empty() {
+                        if id == "main" {
+                            "Main".into()
+                        } else {
+                            id.clone()
+                        }
+                    } else {
+                        doc.name
+                    }
+                })
+                .unwrap_or_else(|| {
+                    if id == "main" {
+                        "Main".into()
+                    } else {
+                        id.clone()
+                    }
+                });
+            items.push(WhiteboardSummary { id, name });
+        }
+    }
+    items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    if items.is_empty() {
+        items.push(WhiteboardSummary {
+            id: "main".into(),
+            name: "Main".into(),
+        });
+    }
+    Ok(items)
+}
+
+pub fn load_whiteboard(
+    app: &AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<WhiteboardDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = whiteboard_path(&project, &whiteboard_id)?;
+    if !path.exists() {
+        return Ok(empty_whiteboard(&whiteboard_id));
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("read whiteboard: {e}"))?;
+    let mut doc: WhiteboardDocument =
+        serde_json::from_str(&raw).map_err(|e| format!("parse whiteboard: {e}"))?;
+    sanitize_whiteboard_doc(&mut doc);
+    if doc.id.trim().is_empty() {
+        doc.id = whiteboard_id.trim().to_string();
+    }
+    if doc.name.trim().is_empty() {
+        doc.name = if whiteboard_id.trim() == "main" {
+            "Main".into()
+        } else {
+            whiteboard_id.trim().to_string()
+        };
+    }
+    Ok(doc)
+}
+
+pub fn save_whiteboard(
+    app: &AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+    document: WhiteboardDocument,
+) -> Result<WhiteboardDocument, String> {
+    let project = project_by_id(app, &project_id)?;
+    let mut document = document;
+    document.id = whiteboard_id.trim().to_string();
+    if document.name.trim().is_empty() {
+        document.name = if document.id == "main" {
+            "Main".into()
+        } else {
+            document.id.clone()
+        };
+    }
+    sanitize_whiteboard_doc(&mut document);
+    let path = whiteboard_path(&project, &whiteboard_id)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create whiteboards dir: {e}"))?;
+    }
+    write_json(&path, &document)?;
+    Ok(document)
+}
+
+pub fn whiteboard_exists(
+    app: &AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<bool, String> {
+    let project = project_by_id(app, &project_id)?;
+    let path = whiteboard_path(&project, &whiteboard_id)?;
+    Ok(path.is_file())
+}
+
+pub fn delete_whiteboard(
+    app: &AppHandle,
+    project_id: String,
+    whiteboard_id: String,
+) -> Result<(), String> {
+    let id = whiteboard_id.trim();
+    if id == "main" {
+        return Err("Main whiteboard cannot be deleted".into());
+    }
+    let project = project_by_id(app, &project_id)?;
+    let path = whiteboard_path(&project, id)?;
+    if path.is_file() {
+        fs::remove_file(&path).map_err(|e| format!("delete whiteboard: {e}"))?;
     }
     Ok(())
 }

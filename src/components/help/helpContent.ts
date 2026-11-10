@@ -10,7 +10,12 @@ import {
   type SkillCategory,
 } from "../editor/rgd/rgdPresets";
 
-export type HelpSectionId = "app" | "moodboard" | "charts" | "rgd";
+export type HelpSectionId =
+  | "app"
+  | "moodboard"
+  | "charts"
+  | "whiteboard"
+  | "rgd";
 
 export type HelpNavItem = {
   id: HelpSectionId;
@@ -21,6 +26,7 @@ export const HELP_NAV: HelpNavItem[] = [
   { id: "app", label: "How GDD Studio works" },
   { id: "moodboard", label: "Mood Board" },
   { id: "charts", label: "Graph" },
+  { id: "whiteboard", label: "Whiteboard" },
   { id: "rgd", label: "Rational Game Design" },
 ];
 
@@ -90,11 +96,11 @@ export const HELP_APP: HelpArticleContent = {
     },
     {
       title: "Live tool → document embeds",
-      lead: "Flowcharts, RGD tables, Mood Board, and Graph inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
+      lead: "Flowcharts, RGD tables, Mood Board, Graph, and Whiteboard inserts are references, not snapshots. Edits in those tabs update every open document embed automatically.",
       tips: [
         "Flowchart embeds are user-resizable and respect text alignment; they re-fit when the chart or embed size changes so the graph stays centered — they do not free-pan.",
         "Flowchart descriptions edit from the Flowcharts list and appear under every embed of that chart.",
-        "RGD, Mood Board, and Graph details: see their Help sections.",
+        "RGD, Mood Board, Graph, and Whiteboard details: see their Help sections.",
       ],
     },
     {
@@ -103,7 +109,7 @@ export const HELP_APP: HelpArticleContent = {
         "Media — paste or Insert media (images, gifs, video, audio). Embeds are resizable and follow text alignment. SVG files are not imported.",
         "Templates — save the active body as an app- or project-scoped template; apply replaces the current body (confirm).",
         "Spellcheck — offline underlines. Right-click or Alt+Click for suggestions, Add to dictionary, or Look up. Toolbar Look up opens definitions.",
-        "Export PDF — print dialog (Save as PDF) using the Options paper size (Letter, A4, Legal, …). Flowchart, RGD, Mood Board, and Graph embeds are captured as screenshots in place (width + text alignment match the editor); images export normally; video may show a single frame.",
+        "Export PDF — print dialog (Save as PDF) using the Options paper size (Letter, A4, Legal, …). Flowchart, RGD, Mood Board, Graph, and Whiteboard embeds are captured as screenshots in place (width + text alignment match the editor); images export normally; video may show a single frame.",
       ],
     },
   ],
@@ -148,6 +154,45 @@ export const HELP_CHARTS: HelpArticleContent = {
   ],
 };
 
+export const HELP_WHITEBOARD: HelpArticleContent = {
+  title: "Whiteboard",
+  lead: "Lean doodle boards for sketches and callouts — not mini-Miro. Named library like Flowcharts / Mood Board / Graph.",
+  topics: [
+    {
+      title: "Library",
+      steps: [
+        "Open the Whiteboard tab — left list to create, rename, delete, or switch boards (Main cannot be deleted).",
+        "Undo / Redo on the toolbar reverse drawing edits on this tab only. Shortcuts: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y).",
+      ],
+    },
+    {
+      title: "Drawing",
+      steps: [
+        "Tools: Select, Pen, Eraser, Line, Rect, Ellipse. Adjust stroke width and stroke/fill colour.",
+        "Select moves or deletes strokes and shapes (Delete / Backspace). Eraser removes objects the brush touches.",
+        "Pan with Space+drag, Alt+drag, or middle mouse. Wheel zooms. Chrome stays dark; the paper is light.",
+      ],
+    },
+    {
+      title: "Colour palettes from Mood Board",
+      steps: [
+        "Create a colour palette on the Mood Board (multi-select tiles → Create colour palette).",
+        "On Whiteboard, pick which Mood Board palette feeds the swatches when several exist (defaults to the newest).",
+        "Click a swatch for stroke colour; Shift+click for fill. Hex source of truth stays on the Mood Board palette tile — Whiteboard does not regenerate palettes.",
+      ],
+    },
+    {
+      title: "Document embeds",
+      steps: [
+        "Document toolbar → Whiteboard inserts a live reference by board id.",
+        "Edits on the Whiteboard tab update every embed automatically. Embeds are resizable and respect text alignment; PDF/print captures them as images (like Mood Board).",
+        "Open in Whiteboard jumps to the referenced board.",
+      ],
+      note: "Boards persist under project/whiteboards/*.json so the module can be removed cleanly if needed. Out of scope for this MVP: multiplayer, pressure/tilt, OCR, infinite-canvas polish, importing Mood Board images as layers.",
+    },
+  ],
+};
+
 export const HELP_MOOD_BOARD: HelpArticleContent = {
   title: "Mood Board",
   lead: "Named library of reference-media boards (like Flowcharts). Tile edits (crop, border, comment) live on the board item and refresh every document embed of that tile.",
@@ -182,6 +227,7 @@ export const HELP_MOOD_BOARD: HelpArticleContent = {
         "Right-click → Create colour palette… and enter k (number of colours; default 5).",
         "GDD Studio downscales selections off-board (~200×200), runs k-means, drops pure white/black extremes, ranks by dominance, and adds a new palette tile to the current board.",
         "Palette tiles show the full set of colour blocks with hex labels on the board (not cropped like photo tiles). Click a colour block to copy its hex.",
+        "Whiteboard reuses these palette tiles as stroke/fill swatches (pick which palette when several exist).",
       ],
     },
     {

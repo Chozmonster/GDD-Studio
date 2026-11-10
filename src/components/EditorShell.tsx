@@ -8,6 +8,7 @@ import { HelpPanel } from "./help/HelpPanel";
 import { MoodBoard } from "./moodboard/MoodBoard";
 import { OptionsPanel } from "./OptionsPanel";
 import { RgdEditor } from "./rgd/RgdEditor";
+import { WhiteboardEditor } from "./whiteboard/WhiteboardEditor";
 
 type EditorShellProps = {
   project: ProjectRecord;
@@ -18,6 +19,7 @@ function helpSectionForTab(tab: ProjectTab) {
   if (tab === "rgd") return "rgd" as const;
   if (tab === "moodboard") return "moodboard" as const;
   if (tab === "charts") return "charts" as const;
+  if (tab === "whiteboard") return "whiteboard" as const;
   return "app" as const;
 }
 
@@ -29,6 +31,9 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
   const [focusSheetId, setFocusSheetId] = useState<string | null>(null);
   const [focusMoodBoardId, setFocusMoodBoardId] = useState<string | null>(null);
   const [focusChartId, setFocusChartId] = useState<string | null>(null);
+  const [focusWhiteboardId, setFocusWhiteboardId] = useState<string | null>(
+    null,
+  );
 
   const openFlowchart = useCallback((flowchartId: string) => {
     setFocusFlowchartId(flowchartId);
@@ -48,6 +53,11 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
   const openChart = useCallback((chartId?: string) => {
     setFocusChartId(chartId ?? null);
     setTab("charts");
+  }, []);
+
+  const openWhiteboard = useCallback((whiteboardId?: string) => {
+    setFocusWhiteboardId(whiteboardId ?? null);
+    setTab("whiteboard");
   }, []);
 
   const handleOptions = async () => {
@@ -106,6 +116,14 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
           >
             Graph
           </button>
+          <button
+            type="button"
+            className={tab === "whiteboard" ? "tab active" : "tab"}
+            onClick={() => setTab("whiteboard")}
+            aria-current={tab === "whiteboard" ? "page" : undefined}
+          >
+            Whiteboard
+          </button>
         </nav>
         <div className="chrome-right">
           <p className="chrome-meta muted path-line" title={project.path}>
@@ -146,6 +164,7 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             onOpenRgdSheet={openRgdSheet}
             onOpenMoodBoard={openMoodBoard}
             onOpenChart={openChart}
+            onOpenWhiteboard={openWhiteboard}
           />
         </div>
 
@@ -204,6 +223,22 @@ export function EditorShell({ project, onBack }: EditorShellProps) {
             project={project}
             active={tab === "charts"}
             focusChartId={focusChartId}
+          />
+        </div>
+
+        <div
+          className={
+            tab === "whiteboard"
+              ? "editor-tab-panel"
+              : "editor-tab-panel is-hidden"
+          }
+          hidden={tab !== "whiteboard"}
+          aria-hidden={tab !== "whiteboard"}
+        >
+          <WhiteboardEditor
+            project={project}
+            active={tab === "whiteboard"}
+            focusWhiteboardId={focusWhiteboardId}
           />
         </div>
       </main>

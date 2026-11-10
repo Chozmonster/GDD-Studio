@@ -8,6 +8,7 @@ import {
   HELP_RGD_OVERVIEW,
   HELP_RGD_SKILLS_LEAD,
   HELP_RGD_STEPS_LEAD,
+  HELP_WHITEBOARD,
   RGD_SKILL_HELP,
   RGD_STEP_HELP,
   type HelpArticleContent,
@@ -90,6 +91,7 @@ export function HelpPanel({
             {section === "app" && <Article article={HELP_APP} />}
             {section === "moodboard" && <Article article={HELP_MOOD_BOARD} />}
             {section === "charts" && <Article article={HELP_CHARTS} />}
+            {section === "whiteboard" && <Article article={HELP_WHITEBOARD} />}
             {section === "rgd" && <RgdPage />}
           </div>
         </div>

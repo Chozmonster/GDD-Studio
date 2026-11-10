@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-11-10
+
+Whiteboard doodle tab MVP with Mood Board colour-palette swatches and live doc embeds.
+
+### Added
+
+- **Whiteboard** top-level tab: named board library (create/rename/delete/switch), freehand pen + eraser, stroke width/colour, line/rect/ellipse, select/move/delete, pan/zoom, dark chrome with light paper, and tab-scoped Undo/Redo.
+- Whiteboard stroke/fill swatches reuse Mood Board “Create colour palette” tiles (`Palette:` comment hexes). When several palettes exist, pick which one feeds the swatches (defaults to the newest).
+- Document toolbar **Whiteboard** inserts a live embed-by-reference (resizable + text align); PDF/print captures the board as an image like Mood Board / Graph.
+- Help: Whiteboard brief; Mood Board palette tip notes Whiteboard reuse.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
+
 ## [0.1.17] - 2026-11-10
 
 Larger flowchart arrowheads; embed/editor font match.
