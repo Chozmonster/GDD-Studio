@@ -13,10 +13,29 @@ const MAX_CAPTURE_HEIGHT_PX = 1800;
 const EMBED_SELECTOR =
   '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed';
 
+/** Title / open-editor bars — strip from PNG capture like media chrome. */
+const EMBED_CHROME_SELECTOR = [
+  ".media-embed-chrome",
+  ".flowchart-embed-chrome",
+  ".rgd-sheet-card-chrome",
+  ".chart-embed-chrome",
+  ".mood-board-embed-chrome",
+].join(", ");
+
+type ExportEmbedAlign = "left" | "center" | "right" | "justify";
+
+function normalizeExportAlign(raw: string | null): ExportEmbedAlign {
+  if (raw === "center" || raw === "right" || raw === "justify") return raw;
+  return "left";
+}
+
 type CapturedEmbed = {
   dataUrl: string;
   label: string;
   cropped: boolean;
+  /** Live editor card width — keeps PDF layout in sync with user resize. */
+  widthPx: number;
+  textAlign: ExportEmbedAlign;
 };
 
 const SVG_COLOR_ATTRS = [
@@ -38,34 +57,60 @@ function collectEmbedElements(root: HTMLElement): HTMLElement[] {
   );
 }
 
-function isChartEmbed(el: HTMLElement): boolean {
-  return el.matches(".chart-embed, [data-type='chart-embed']");
+function isSettledEmbed(el: HTMLElement): boolean {
+  if (el.querySelector(".error.embed-status, .broken")) return true;
+  if (el.matches(".chart-embed, [data-type='chart-embed']")) {
+    return Boolean(
+      el.querySelector(".chart-preview-svg, .chart-preview-empty"),
+    );
+  }
+  if (el.matches(".flowchart-embed, [data-type='flowchart-embed']")) {
+    return Boolean(el.querySelector(".flowchart-preview, .react-flow"));
+  }
+  if (
+    el.matches(
+      ".rgd-sheet-card, .rgd-table-embed, [data-type='rgd-sheet-embed'], .rgd-block",
+    )
+  ) {
+    return Boolean(el.querySelector(".rgd-live-table, .rgd-embed-table"));
+  }
+  if (el.matches(".mood-board-embed, [data-type='mood-board-embed']")) {
+    return Boolean(
+      el.querySelector(
+        ".mood-board-embed-body, .mood-board-embed-palette, .mood-media-frame",
+      ),
+    );
+  }
+  return true;
 }
 
 /**
- * Chart embeds load async — wait briefly so the SVG (or a settled empty/error
- * state) is in the live DOM before we rasterize.
+ * Live embeds load async — wait briefly so preview content (or a settled
+ * empty/error state) is in the DOM before we rasterize.
  */
-async function waitForChartEmbedReady(el: HTMLElement): Promise<void> {
-  if (!isChartEmbed(el)) return;
-  if (
-    el.querySelector(
-      ".chart-preview-svg, .chart-preview-empty, .error.embed-status",
-    )
-  ) {
-    return;
-  }
+async function waitForEmbedReady(el: HTMLElement): Promise<void> {
+  if (isSettledEmbed(el)) return;
   const deadline = Date.now() + 2500;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 50));
-    if (
-      el.querySelector(
-        ".chart-preview-svg, .chart-preview-empty, .error.embed-status",
-      )
-    ) {
-      return;
-    }
+    if (isSettledEmbed(el)) return;
   }
+}
+
+function readEmbedLayout(el: HTMLElement): {
+  widthPx: number;
+  textAlign: ExportEmbedAlign;
+} {
+  const fromData = Number.parseInt(el.getAttribute("data-width") ?? "", 10);
+  const measured = Math.max(el.offsetWidth, el.scrollWidth, 1);
+  const widthPx =
+    Number.isFinite(fromData) && fromData > 0
+      ? Math.min(fromData, measured > 1 ? measured : fromData)
+      : measured;
+  return {
+    widthPx,
+    textAlign: normalizeExportAlign(el.getAttribute("data-text-align")),
+  };
 }
 
 /**
@@ -114,8 +159,16 @@ function prepareSvgsForCapture(root: HTMLElement): () => void {
 function shouldSkipExportNode(node: HTMLElement): boolean {
   if (node.tagName === "BUTTON") return true;
   if (node.hasAttribute("data-export-ignore")) return true;
-  if (node.classList.contains("media-embed-chrome")) return true;
   if (node.classList.contains("rgd-embed-resize-handle")) return true;
+  if (
+    node.classList.contains("media-embed-chrome") ||
+    node.classList.contains("flowchart-embed-chrome") ||
+    node.classList.contains("rgd-sheet-card-chrome") ||
+    node.classList.contains("chart-embed-chrome") ||
+    node.classList.contains("mood-board-embed-chrome")
+  ) {
+    return true;
+  }
   // Skip attribution / selection chrome from React Flow if present
   if (node.classList.contains("react-flow__panel")) return true;
   if (node.classList.contains("react-flow__attribution")) return true;
@@ -127,9 +180,10 @@ function shouldSkipExportNode(node: HTMLElement): boolean {
  * Buttons / interactive chrome / ephemeral tips are filtered out of the raster.
  */
 async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> {
-  await waitForChartEmbedReady(el);
+  await waitForEmbedReady(el);
 
   const label = embedLabel(el);
+  const layout = readEmbedLayout(el);
   const fullHeight = Math.max(el.scrollHeight, el.offsetHeight, 1);
   const cropped = fullHeight > MAX_CAPTURE_HEIGHT_PX;
   const height = Math.min(fullHeight, MAX_CAPTURE_HEIGHT_PX);
@@ -162,7 +216,13 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
       },
     });
     if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
-    return { dataUrl, label, cropped };
+    return {
+      dataUrl,
+      label,
+      cropped,
+      widthPx: layout.widthPx,
+      textAlign: layout.textAlign,
+    };
   } catch {
     return null;
   } finally {
@@ -218,7 +278,7 @@ function scrubExportRoot(root: HTMLElement): void {
   root.querySelectorAll("[contenteditable]").forEach((el) => {
     el.removeAttribute("contenteditable");
   });
-  root.querySelectorAll(".media-embed-chrome").forEach((el) => el.remove());
+  root.querySelectorAll(EMBED_CHROME_SELECTOR).forEach((el) => el.remove());
   root.querySelectorAll(".rgd-embed-resize-handle").forEach((el) => el.remove());
   // Ephemeral UI (e.g. chart hover tooltips) must not appear in export HTML.
   root.querySelectorAll("[data-export-ignore]").forEach((el) => el.remove());
@@ -261,6 +321,21 @@ function replaceVariablesAndWiki(root: HTMLElement): void {
 function figureFromCapture(captured: CapturedEmbed): HTMLElement {
   const figure = document.createElement("figure");
   figure.className = "export-embed";
+  // Match editor card width + text alignment (media embeds already keep
+  // inline width/align on their wrappers; screenshot embeds need this).
+  figure.style.width = "100%";
+  figure.style.maxWidth = `${Math.max(1, Math.round(captured.widthPx))}px`;
+  if (captured.textAlign === "center") {
+    figure.style.marginLeft = "auto";
+    figure.style.marginRight = "auto";
+  } else if (captured.textAlign === "right") {
+    figure.style.marginLeft = "auto";
+    figure.style.marginRight = "0";
+  } else {
+    figure.style.marginLeft = "0";
+    figure.style.marginRight = "auto";
+  }
+  figure.setAttribute("data-text-align", captured.textAlign);
   const img = document.createElement("img");
   img.src = captured.dataUrl;
   img.alt = captured.label;

@@ -34,8 +34,8 @@ function parseEmbedWidth(raw: string | null): number {
 /**
  * TipTap node that stores a live reference to a project RGD sheet.
  *
- * Schema: { type: "rgdSheetEmbed", attrs: { sheetId, width } }
- * `textAlign` comes from the TextAlign extension (types include this node).
+ * Schema: { type: "rgdSheetEmbed", attrs: { sheetId, width, textAlign } }
+ * Width/align are document-local; sheet content is a live project reference.
  */
 export const RgdSheetEmbed = Node.create<RgdSheetEmbedOptions>({
   name: "rgdSheetEmbed",
