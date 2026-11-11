@@ -13,6 +13,8 @@ export type FlowNodeData = {
   shape: FlowNodeShape;
   fill: string;
   onChangeLabel?: (id: string, label: string) => void;
+  /** Click (not drag) an N/E/S/W handle → create a connected sibling. */
+  onQuickAdd?: (id: string, handleId: string) => void;
 };
 
 export type FlowEdgeData = {

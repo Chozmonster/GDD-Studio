@@ -70,6 +70,13 @@ function FlowNodeComponent({
           position={position}
           className={`flow-anchor nodrag nopan anchor-${anchorId}`}
           isConnectable
+          title="Drag to connect · click to add connected node"
+          onClick={(e) => {
+            // Click (no meaningful drag) → Miro-like quick-add. Drag-to-connect
+            // releases on another handle/pane, so this click does not fire then.
+            e.stopPropagation();
+            data.onQuickAdd?.(id, anchorId);
+          }}
         />
       ))}
 

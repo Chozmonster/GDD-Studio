@@ -62,12 +62,41 @@ import {
   type FlowNodeShape,
 } from "./flowModel";
 import {
+  cloneClipboardPayload,
+  extractClipboardSelection,
+  type FlowClipboardPayload,
+} from "./flowClipboard";
+import {
+  alignNodePositions,
+  distributeNodePositions,
+  type AlignMode,
+  type DistributeAxis,
+} from "./flowAlign";
+import {
+  isFlowAnchorId,
+  oppositeAnchor,
+  quickAddPosition,
+} from "./flowQuickAdd";
+import {
   emitFlowchartSaved,
   onFlowchartSaved,
 } from "../../lib/flowchartEvents";
 import { useHistoryStack } from "../../hooks/useHistoryStack";
-import { undoRedoFromKeyboard } from "../../lib/undoKeyboard";
+import {
+  isEditableKeyboardTarget,
+  undoRedoFromKeyboard,
+} from "../../lib/undoKeyboard";
 import { UndoRedoButtons } from "../editor/UndoRedoButtons";
+
+type FlowClipboard = {
+  mode: "copy" | "cut";
+  payload: FlowClipboardPayload;
+};
+
+type ContextMenuState =
+  | { x: number; y: number; target: "node"; nodeId: string }
+  | { x: number; y: number; target: "edge"; edgeId: string }
+  | { x: number; y: number; target: "pane" };
 
 type FlowchartEditorProps = {
   project: ProjectRecord;
@@ -138,12 +167,15 @@ function toDoc(
   };
 }
 
-function withLabelHandler(
+function withNodeHandlers(
   node: ReturnType<typeof migrateNode>,
   setNodes: Dispatch<SetStateAction<FlowNodeT[]>>,
   queueSaveRef: MutableRefObject<(nodes: Node[], edges: Edge[]) => void>,
   edgesRef: MutableRefObject<FlowEdge[]>,
   recordHistoryRef: MutableRefObject<(() => void) | null>,
+  quickAddRef: MutableRefObject<
+    ((nodeId: string, handleId: string) => void) | null
+  >,
 ): FlowNodeT {
   return {
     ...node,
@@ -158,6 +190,9 @@ function withLabelHandler(
           queueSaveRef.current(next, edgesRef.current);
           return next;
         });
+      },
+      onQuickAdd: (nodeId: string, handleId: string) => {
+        quickAddRef.current?.(nodeId, handleId);
       },
     },
   };
@@ -182,6 +217,7 @@ export function FlowchartEditor({
   const [defaultEdgePath, setDefaultEdgePath] = useState<FlowEdgePath>("step");
   const [defaultStartArrow, setDefaultStartArrow] = useState(false);
   const [defaultEndArrow, setDefaultEndArrow] = useState(true);
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const rfRef = useRef<ReactFlowInstance<FlowNodeT, FlowEdge> | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -195,6 +231,10 @@ export function FlowchartEditor({
   const defaultStartArrowRef = useRef(defaultStartArrow);
   const defaultEndArrowRef = useRef(defaultEndArrow);
   const recordHistoryRef = useRef<(() => void) | null>(null);
+  const quickAddRef = useRef<((nodeId: string, handleId: string) => void) | null>(
+    null,
+  );
+  const clipboardRef = useRef<FlowClipboard | null>(null);
   const dragHistoryCaptured = useRef(false);
   const resizeHistoryCaptured = useRef(false);
   const applyingHistory = useRef(false);
@@ -290,12 +330,13 @@ export function FlowchartEditor({
         descriptionRef.current = doc.description ?? "";
         viewportRef.current = doc.viewport ?? { x: 0, y: 0, zoom: 1 };
         const loaded = (doc.nodes ?? []).map((n) =>
-          withLabelHandler(
+          withNodeHandlers(
             migrateNode(n),
             setNodes,
             queueSaveRef,
             edgesRef,
             recordHistoryRef,
+            quickAddRef,
           ),
         );
         idCounter.current =
@@ -307,6 +348,7 @@ export function FlowchartEditor({
         setEdges((doc.edges ?? []).map((e) => migrateEdge(e)));
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setMenu(null);
         clearHistory();
         dragHistoryCaptured.current = false;
         resizeHistoryCaptured.current = false;
@@ -364,12 +406,13 @@ export function FlowchartEditor({
       nameRef.current = snap.name;
       descriptionRef.current = snap.description;
       const restoredNodes = cloneFlowNodes(snap.nodes).map((n) =>
-        withLabelHandler(
+        withNodeHandlers(
           n,
           setNodes,
           queueSaveRef,
           edgesRef,
           recordHistoryRef,
+          quickAddRef,
         ),
       );
       const restoredEdges = cloneFlowEdges(snap.edges);
@@ -397,28 +440,25 @@ export function FlowchartEditor({
     setStatus("Redid flowchart edit");
   }, [redoHistory, takeSnapshot, applySnapshot]);
 
+  const closeMenu = useCallback(() => setMenu(null), []);
+
   useEffect(() => {
-    if (!active) return;
-    const onKey = (event: KeyboardEvent) => {
-      const action = undoRedoFromKeyboard(event);
-      if (!action) return;
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-      if (action === "undo" && canUndo) {
-        event.preventDefault();
-        handleUndo();
-      } else if (action === "redo" && canRedo) {
-        event.preventDefault();
-        handleRedo();
-      }
+    if (!menu) return;
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.(".flowchart-ctx-menu")) return;
+      closeMenu();
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    window.addEventListener("pointerdown", onPointer, true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, canUndo, canRedo, handleUndo, handleRedo]);
+    return () => {
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu, closeMenu]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<FlowNodeT>[]) => {
@@ -748,12 +788,13 @@ export function FlowchartEditor({
       });
       const next = [
         ...nds,
-        withLabelHandler(
+        withNodeHandlers(
           base,
           setNodes,
           queueSaveRef,
           edgesRef,
           recordHistoryRef,
+          quickAddRef,
         ),
       ];
       queueSave(next, edgesRef.current);
@@ -837,13 +878,206 @@ export function FlowchartEditor({
     setDefaultEndArrow((v) => !v);
   };
 
-  const deleteSelected = () => {
+  const selectedNodeIdSet = useCallback(() => {
+    return new Set(
+      nodesRef.current
+        .filter((n) => n.selected || n.id === selectedNodeId)
+        .map((n) => n.id),
+    );
+  }, [selectedNodeId]);
+
+  const attachHandlers = useCallback(
+    (node: FlowNodeT): FlowNodeT =>
+      withNodeHandlers(
+        node,
+        setNodes,
+        queueSaveRef,
+        edgesRef,
+        recordHistoryRef,
+        quickAddRef,
+      ),
+    [setNodes],
+  );
+
+  const mergePastedSubgraph = useCallback(
+    (payload: FlowClipboardPayload) => {
+      const cloned = cloneClipboardPayload(payload, {
+        nextNodeId: () => `n-${idCounter.current++}`,
+        nextEdgeId: (source, sourceHandle, target, targetHandle) =>
+          `e-${source}-${sourceHandle ?? "h"}-${target}-${targetHandle ?? "h"}-${Date.now()}`,
+      });
+      recordHistory();
+      setNodes((prev) => {
+        const cleared = prev.map((n) => ({ ...n, selected: false }));
+        const added = cloned.nodes.map((n) => attachHandlers(n));
+        const next = [...cleared, ...added];
+        setEdges((eds) => {
+          const nextEdges = [
+            ...eds.map((e) => ({ ...e, selected: false })),
+            ...cloned.edges,
+          ];
+          queueSave(next, nextEdges);
+          return nextEdges;
+        });
+        return next;
+      });
+      setSelectedNodeId(cloned.nodes[0]?.id ?? null);
+      setSelectedEdgeId(null);
+      setStatus(
+        cloned.nodes.length === 1
+          ? "Pasted node"
+          : `Pasted ${cloned.nodes.length} nodes`,
+      );
+    },
+    [attachHandlers, queueSave, recordHistory, setNodes, setEdges],
+  );
+
+  const copySelection = useCallback(
+    (mode: "copy" | "cut") => {
+      const ids = selectedNodeIdSet();
+      const payload = extractClipboardSelection(
+        nodesRef.current,
+        edgesRef.current,
+        ids,
+      );
+      if (!payload) {
+        setStatus("Nothing to copy — select node(s) first");
+        return false;
+      }
+      clipboardRef.current = { mode, payload };
+      if (mode === "cut") {
+        recordHistory();
+        setNodes((prev) => {
+          const next = prev.filter((n) => !ids.has(n.id));
+          setEdges((eds) => {
+            const nextEdges = eds.filter(
+              (e) => !ids.has(e.source) && !ids.has(e.target),
+            );
+            queueSave(next, nextEdges);
+            return nextEdges;
+          });
+          return next;
+        });
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+        setStatus(
+          payload.nodes.length === 1
+            ? "Cut node"
+            : `Cut ${payload.nodes.length} nodes`,
+        );
+      } else {
+        setStatus(
+          payload.nodes.length === 1
+            ? "Copied node"
+            : `Copied ${payload.nodes.length} nodes`,
+        );
+      }
+      closeMenu();
+      return true;
+    },
+    [selectedNodeIdSet, recordHistory, queueSave, setNodes, setEdges, closeMenu],
+  );
+
+  const pasteClipboard = useCallback(() => {
+    const clip = clipboardRef.current;
+    if (!clip) {
+      setStatus("Clipboard is empty");
+      closeMenu();
+      return;
+    }
+    mergePastedSubgraph(clip.payload);
+    if (clip.mode === "cut") clipboardRef.current = null;
+    closeMenu();
+  }, [mergePastedSubgraph, closeMenu]);
+
+  const duplicateSelection = useCallback(() => {
+    const ids = selectedNodeIdSet();
+    const payload = extractClipboardSelection(
+      nodesRef.current,
+      edgesRef.current,
+      ids,
+    );
+    if (!payload) {
+      setStatus("Nothing to duplicate — select node(s) first");
+      return;
+    }
+    mergePastedSubgraph(payload);
+    closeMenu();
+  }, [selectedNodeIdSet, mergePastedSubgraph, closeMenu]);
+
+  const applyNodePositions = useCallback(
+    (positions: Map<string, { x: number; y: number }>, statusText: string) => {
+      if (positions.size === 0) return;
+      recordHistory();
+      setNodes((prev) => {
+        const next = prev.map((n) => {
+          const pos = positions.get(n.id);
+          return pos ? { ...n, position: { ...pos } } : n;
+        });
+        queueSave(next, edgesRef.current);
+        return next;
+      });
+      setStatus(statusText);
+      closeMenu();
+    },
+    [recordHistory, queueSave, setNodes, closeMenu],
+  );
+
+  const alignSelection = useCallback(
+    (mode: AlignMode) => {
+      const targets = nodesRef.current.filter(
+        (n) => n.selected || n.id === selectedNodeId,
+      );
+      if (targets.length < 2) {
+        setStatus("Select 2+ nodes to align");
+        return;
+      }
+      applyNodePositions(
+        alignNodePositions(targets, mode),
+        `Aligned ${targets.length} nodes`,
+      );
+    },
+    [applyNodePositions, selectedNodeId],
+  );
+
+  const distributeSelection = useCallback(
+    (axis: DistributeAxis) => {
+      const targets = nodesRef.current.filter(
+        (n) => n.selected || n.id === selectedNodeId,
+      );
+      if (targets.length < 3) {
+        setStatus("Select 3+ nodes to distribute");
+        return;
+      }
+      applyNodePositions(
+        distributeNodePositions(targets, axis),
+        `Distributed ${targets.length} nodes`,
+      );
+    },
+    [applyNodePositions, selectedNodeId],
+  );
+
+  const deleteSelected = useCallback(() => {
+    const nodeIds = new Set(
+      nodesRef.current
+        .filter((n) => n.selected || n.id === selectedNodeId)
+        .map((n) => n.id),
+    );
+    const edgeIds = new Set(
+      edgesRef.current
+        .filter((e) => e.selected || e.id === selectedEdgeId)
+        .map((e) => e.id),
+    );
+    if (nodeIds.size === 0 && edgeIds.size === 0) return;
     recordHistory();
     setNodes((nds) => {
-      const next = nds.filter((n) => !n.selected && n.id !== selectedNodeId);
+      const next = nds.filter((n) => !nodeIds.has(n.id));
       setEdges((eds) => {
         const nextEdges = eds.filter(
-          (e) => !e.selected && e.id !== selectedEdgeId,
+          (e) =>
+            !edgeIds.has(e.id) &&
+            !nodeIds.has(e.source) &&
+            !nodeIds.has(e.target),
         );
         queueSave(next, nextEdges);
         return nextEdges;
@@ -852,10 +1086,14 @@ export function FlowchartEditor({
     });
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-  };
+    closeMenu();
+  }, [selectedNodeId, selectedEdgeId, recordHistory, queueSave, setNodes, setEdges, closeMenu]);
 
-  const renameSelectedNode = () => {
-    const node = selectedNode ?? nodes[0];
+  const renameSelectedNode = useCallback(() => {
+    const node =
+      selectedNode ??
+      nodesRef.current.find((n) => n.selected) ??
+      nodesRef.current[0];
     if (!node) return;
     const nextLabel = window.prompt("Node label", node.data.label ?? "");
     if (nextLabel === null) return;
@@ -869,23 +1107,177 @@ export function FlowchartEditor({
       queueSave(next, edgesRef.current);
       return next;
     });
+    closeMenu();
+  }, [selectedNode, recordHistory, queueSave, setNodes, closeMenu]);
+
+  const editEdgeLabel = useCallback(
+    (edgeId?: string) => {
+      const edge =
+        (edgeId
+          ? edgesRef.current.find((e) => e.id === edgeId)
+          : null) ?? selectedEdge;
+      if (!edge) return;
+      const nextLabel = window.prompt("Edge label", String(edge.label ?? ""));
+      if (nextLabel === null) return;
+      recordHistory();
+      setEdges((eds) => {
+        const next = eds.map((e) =>
+          e.id === edge.id
+            ? { ...e, label: nextLabel.trim() || undefined }
+            : e,
+        );
+        queueSave(nodesRef.current, next);
+        return next;
+      });
+      closeMenu();
+    },
+    [selectedEdge, recordHistory, queueSave, setEdges, closeMenu],
+  );
+
+  const handleQuickAdd = useCallback(
+    (nodeId: string, handleId: string) => {
+      if (!isFlowAnchorId(handleId)) return;
+      const source = nodesRef.current.find((n) => n.id === nodeId);
+      if (!source) return;
+      const box = nodeBox(source);
+      const kind = source.data.kind;
+      const shape = source.data.shape;
+      const fill = source.data.fill;
+      const size = {
+        width: box.width,
+        height: box.height,
+      };
+      const position = quickAddPosition(box, handleId, size);
+      const defaults = kindDefaults(kind);
+      const id = `n-${idCounter.current++}`;
+      const index = idCounter.current - 1;
+      const targetHandle = oppositeAnchor(handleId);
+      const path = defaultEdgePathRef.current;
+      const startArrow = defaultStartArrowRef.current;
+      const endArrow = defaultEndArrowRef.current;
+
+      recordHistory();
+      setNodes((nds) => {
+        const cleared = nds.map((n) => ({ ...n, selected: false }));
+        const base = migrateNode({
+          id,
+          position,
+          data: {
+            label: `${defaults.defaultLabel}${
+              kind === "process" || kind === "state" ? ` ${index}` : ""
+            }`,
+            kind,
+            shape,
+            fill,
+            width: size.width,
+            height: size.height,
+          },
+        });
+        const created = {
+          ...attachHandlers(base),
+          selected: true,
+        };
+        const next = [...cleared, created];
+        setEdges((eds) => {
+          const nextEdges = [
+            ...eds.map((e) => ({ ...e, selected: false })),
+            {
+              id: `e-${nodeId}-${handleId}-${id}-${targetHandle}-${Date.now()}`,
+              source: nodeId,
+              target: id,
+              sourceHandle: handleId,
+              targetHandle,
+              type: edgeTypeForPath(path),
+              markerStart: markerForArrow(startArrow),
+              markerEnd: markerForArrow(endArrow),
+              data: { path, startArrow, endArrow },
+            } satisfies FlowEdge,
+          ];
+          queueSave(next, nextEdges);
+          return nextEdges;
+        });
+        return next;
+      });
+      setSelectedNodeId(id);
+      setSelectedEdgeId(null);
+      setStatus("Added connected node");
+    },
+    [attachHandlers, queueSave, recordHistory, setNodes, setEdges],
+  );
+
+  quickAddRef.current = handleQuickAdd;
+
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (isEditableKeyboardTarget(event.target)) return;
+
+      const undoAction = undoRedoFromKeyboard(event);
+      if (undoAction === "undo" && canUndo) {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (undoAction === "redo" && canRedo) {
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      const mod = event.metaKey || event.ctrlKey;
+      if (!mod || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "c") {
+        event.preventDefault();
+        copySelection("copy");
+      } else if (key === "x") {
+        event.preventDefault();
+        copySelection("cut");
+      } else if (key === "v") {
+        event.preventDefault();
+        pasteClipboard();
+      } else if (key === "d") {
+        event.preventDefault();
+        duplicateSelection();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    active,
+    canUndo,
+    canRedo,
+    handleUndo,
+    handleRedo,
+    copySelection,
+    pasteClipboard,
+    duplicateSelection,
+  ]);
+
+  const ensureNodeSelected = (nodeId: string) => {
+    const already =
+      nodesRef.current.some((n) => n.id === nodeId && n.selected) ||
+      selectedNodeId === nodeId;
+    if (already) return;
+    setNodes((prev) =>
+      prev.map((n) => ({ ...n, selected: n.id === nodeId })),
+    );
+    setEdges((eds) => eds.map((e) => ({ ...e, selected: false })));
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
   };
 
-  const editEdgeLabel = () => {
-    const edge = selectedEdge;
-    if (!edge) return;
-    const nextLabel = window.prompt("Edge label", String(edge.label ?? ""));
-    if (nextLabel === null) return;
-    recordHistory();
-    setEdges((eds) => {
-      const next = eds.map((e) =>
-        e.id === edge.id
-          ? { ...e, label: nextLabel.trim() || undefined }
-          : e,
-      );
-      queueSave(nodesRef.current, next);
-      return next;
-    });
+  const ensureEdgeSelected = (edgeId: string) => {
+    const already =
+      edgesRef.current.some((e) => e.id === edgeId && e.selected) ||
+      selectedEdgeId === edgeId;
+    if (already) return;
+    setEdges((prev) =>
+      prev.map((e) => ({ ...e, selected: e.id === edgeId })),
+    );
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+    setSelectedEdgeId(edgeId);
+    setSelectedNodeId(null);
   };
 
   return (
@@ -925,8 +1317,20 @@ export function FlowchartEditor({
           >
             Rename node
           </button>
-          <button type="button" onClick={editEdgeLabel} disabled={!selectedEdge}>
+          <button
+            type="button"
+            onClick={() => editEdgeLabel()}
+            disabled={!selectedEdge}
+          >
             Edge label
+          </button>
+          <button
+            type="button"
+            onClick={duplicateSelection}
+            disabled={selectedNodes.length === 0}
+            title="Duplicate selection (Ctrl/Cmd+D)"
+          >
+            Duplicate
           </button>
           <button type="button" onClick={deleteSelected}>
             Delete
@@ -1015,6 +1419,65 @@ export function FlowchartEditor({
               onClick={() => patchSelectedNodes({ fill })}
             />
           ))}
+        </div>
+        <div
+          className="style-group flowchart-arrange-chips"
+          role="group"
+          aria-label="Align and distribute selected nodes"
+        >
+          <span className="muted tiny">Arrange</span>
+          {(
+            [
+              ["left", "L"],
+              ["center", "C"],
+              ["right", "R"],
+              ["top", "T"],
+              ["middle", "M"],
+              ["bottom", "B"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              className="chip"
+              disabled={selectedNodes.length < 2}
+              title={
+                selectedNodes.length < 2
+                  ? "Select 2+ nodes to align"
+                  : `Align ${mode}`
+              }
+              onClick={() => alignSelection(mode)}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="chip-sep" aria-hidden="true" />
+          <button
+            type="button"
+            className="chip"
+            disabled={selectedNodes.length < 3}
+            title={
+              selectedNodes.length < 3
+                ? "Select 3+ nodes to distribute"
+                : "Distribute horizontal gaps"
+            }
+            onClick={() => distributeSelection("horizontal")}
+          >
+            Dist H
+          </button>
+          <button
+            type="button"
+            className="chip"
+            disabled={selectedNodes.length < 3}
+            title={
+              selectedNodes.length < 3
+                ? "Select 3+ nodes to distribute"
+                : "Distribute vertical gaps"
+            }
+            onClick={() => distributeSelection("vertical")}
+          >
+            Dist V
+          </button>
         </div>
         <div
           className="style-group flowchart-connector-chips"
@@ -1123,12 +1586,12 @@ export function FlowchartEditor({
       <p className="muted tiny flowchart-hint">
         Miro-like select: drag empty canvas to marquee-select nodes and
         connectors · click selects · Shift+click adds/toggles · drag selection
-        to move · click empty clears · Space+drag or middle-mouse to pan · Node
-        chips (types + shapes) create when nothing is selected, or change all
-        selected nodes · Color styles the selection · Connector chips change
-        selected edges, or set defaults for new connections (angled + end arrow
-        by default) · drag N/E/S/W anchors to connect · drag a connector end to
-        reattach it · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
+        to move · click empty clears · Space+drag or middle-mouse to pan ·
+        Ctrl/Cmd+C/X/V/D copy cut paste duplicate · Arrange aligns/distributes
+        multi-select · click an N/E/S/W anchor to quick-add a connected node
+        (drag to connect) · right-click for context menu · Node chips create or
+        change selection · Connector chips change edges or set defaults (angled
+        + end arrow) · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
         project.
       </p>
 
@@ -1171,6 +1634,34 @@ export function FlowchartEditor({
               setSelectedNodeId(selNodes[0]?.id ?? null);
               setSelectedEdgeId(selEdges[0]?.id ?? null);
             }}
+            onNodeContextMenu={(event, node) => {
+              event.preventDefault();
+              ensureNodeSelected(node.id);
+              setMenu({
+                x: event.clientX,
+                y: event.clientY,
+                target: "node",
+                nodeId: node.id,
+              });
+            }}
+            onEdgeContextMenu={(event, edge) => {
+              event.preventDefault();
+              ensureEdgeSelected(edge.id);
+              setMenu({
+                x: event.clientX,
+                y: event.clientY,
+                target: "edge",
+                edgeId: edge.id,
+              });
+            }}
+            onPaneContextMenu={(event) => {
+              event.preventDefault();
+              setMenu({
+                x: event.clientX,
+                y: event.clientY,
+                target: "pane",
+              });
+            }}
             /* Miro-like: left-drag selects; Space+drag / middle-mouse pans (not left-drag). */
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
@@ -1186,6 +1677,81 @@ export function FlowchartEditor({
             <Controls />
             <MiniMap pannable zoomable />
           </ReactFlow>
+        </div>
+      )}
+
+      {menu && (
+        <div
+          className="flowchart-ctx-menu"
+          style={{ left: menu.x, top: menu.y }}
+          role="menu"
+        >
+          {menu.target === "node" && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={duplicateSelection}
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copySelection("copy")}
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copySelection("cut")}
+              >
+                Cut
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={renameSelectedNode}
+              >
+                Rename…
+              </button>
+              <hr className="flowchart-ctx-sep" />
+              <button
+                type="button"
+                role="menuitem"
+                className="danger-outline"
+                onClick={deleteSelected}
+              >
+                Delete
+              </button>
+            </>
+          )}
+          {menu.target === "edge" && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => editEdgeLabel(menu.edgeId)}
+              >
+                Edit label…
+              </button>
+              <hr className="flowchart-ctx-sep" />
+              <button
+                type="button"
+                role="menuitem"
+                className="danger-outline"
+                onClick={deleteSelected}
+              >
+                Delete
+              </button>
+            </>
+          )}
+          {menu.target === "pane" && (
+            <button type="button" role="menuitem" onClick={pasteClipboard}>
+              Paste
+            </button>
+          )}
         </div>
       )}
         </div>
