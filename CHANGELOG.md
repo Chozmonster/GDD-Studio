@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-11-11
+
+Expanded in-app Help with product intro, per-tab guides, and indented left map.
+
 ### Changed
 
 - In-app Help expanded: Introduction chapter; per-tab control/button guides (Document, Flowcharts, RGD, Mood Board, Graph, Whiteboard, Options); indented hierarchical left map (chapters → sections → subsections) with click-to-scroll anchors. RGD remains one scrollable page.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.23] - 2026-11-11
 
