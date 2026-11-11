@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-11-11
+
+PDF export paper-fit raster fix and larger flowchart arrowheads.
+
 ### Fixed
 
+- PDF export rasters inside the print iframe and places the bitmap with jsPDF `addImage` at paper millimetres (fixes still-enormous export / host dark CSS leak from `pdf.html()` cloning into the editor document).
 - Flowchart connector arrowheads enlarged again (28 → 48) so Start/End arrows stay visible past the green anchor dots in the editor and in document embeds (shared `FLOW_ARROW_MARKER_SIZE`).
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.22] - 2026-11-10
 
