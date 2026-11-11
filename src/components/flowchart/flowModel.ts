@@ -128,10 +128,10 @@ export function defaultSizeFor(kind: FlowNodeKind, shape: FlowNodeShape) {
  * Shared by the Flowcharts editor, live preview, and document embeds via
  * `migrateEdge` / `markerForArrow` so all surfaces stay in sync.
  *
- * History: 12 → 18 (v0.1.8) was still too small in practice; 28 reads
- * clearly under the 9px anchors without relying on zoom.
+ * History: 12 → 18 (v0.1.8) → 28 still hid under the 9px green anchors;
+ * 48 is large enough that the closed tip reads past the handle dots.
  */
-export const FLOW_ARROW_MARKER_SIZE = 28;
+export const FLOW_ARROW_MARKER_SIZE = 48;
 
 /** Closed arrow marker used for start and/or end of a connector. */
 export function markerForArrow(enabled: boolean): Edge["markerEnd"] {
