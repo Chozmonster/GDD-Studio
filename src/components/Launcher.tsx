@@ -4,15 +4,18 @@ import {
   createProject,
   createRgdSheet,
   deleteProject,
+  exportProjectArchive,
   fetchHealth,
   fetchPatchNotes,
   fetchProjects,
   installUpdate,
   openOptionsWindow,
   openProject,
+  pickArchiveSavePath,
   revealProjectFolder,
   saveDocument,
   saveRgdSheet,
+  suggestProjectArchivePath,
 } from "../api";
 import { emitRgdSheetSaved } from "../lib/rgdEvents";
 import type { HealthStatus, ProjectRecord, UpdateStatus } from "../types";
@@ -144,6 +147,22 @@ export function Launcher({ onOpenProject }: LauncherProps) {
     setError(null);
     try {
       await revealProjectFolder(selected.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleExportArchive = async () => {
+    if (!selected) return;
+    setBusyId(selected.id);
+    setError(null);
+    try {
+      const defaultPath = await suggestProjectArchivePath(selected.id);
+      const chosen = await pickArchiveSavePath(defaultPath);
+      if (!chosen) return;
+      await exportProjectArchive(chosen, selected.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -295,6 +314,19 @@ export function Launcher({ onOpenProject }: LauncherProps) {
             onClick={() => void handleOpenFolder()}
           >
             Open project folder
+          </button>
+          <button
+            type="button"
+            className="wide"
+            disabled={!selected || busyId === selected?.id}
+            title={
+              selected
+                ? "Save a zip archive of this project"
+                : undefined
+            }
+            onClick={() => void handleExportArchive()}
+          >
+            Export project archive
           </button>
           <button
             type="button"

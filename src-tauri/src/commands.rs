@@ -124,6 +124,44 @@ pub fn reveal_project_folder(
         .map_err(|e| format!("Open project folder failed: {e}"))
 }
 
+fn resolve_project_id(
+    session: &State<'_, ActiveSession>,
+    project_id: Option<String>,
+) -> Result<String, String> {
+    match project_id {
+        Some(id) => Ok(id),
+        None => session
+            .active_project_id
+            .lock()
+            .map_err(|_| "session lock poisoned".to_string())?
+            .clone()
+            .ok_or_else(|| "Open a project first.".to_string()),
+    }
+}
+
+/// Default save path for Export project archive (`<parent>/<name>-archive.zip`).
+#[tauri::command]
+pub fn suggest_project_archive_path(
+    app: AppHandle,
+    session: State<'_, ActiveSession>,
+    project_id: Option<String>,
+) -> Result<String, String> {
+    let id = resolve_project_id(&session, project_id)?;
+    store::suggest_project_archive_path(&app, id)
+}
+
+/// Zip the current project folder to a user-chosen `.zip` path (DIY backup).
+#[tauri::command]
+pub fn export_project_archive(
+    app: AppHandle,
+    session: State<'_, ActiveSession>,
+    project_id: Option<String>,
+    dest_path: String,
+) -> Result<String, String> {
+    let id = resolve_project_id(&session, project_id)?;
+    store::export_project_archive(&app, id, dest_path)
+}
+
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     store::load_settings(&app)

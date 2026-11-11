@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Options / launcher **Export project archive** — zip the current project folder via a save dialog (default `<project-name>-archive.zip` beside the project folder). DIY backup path; no cloud OAuth.
+
 ## [0.1.24] - 2026-11-11
 
 Expanded in-app Help with product intro, per-tab guides, and indented left map.

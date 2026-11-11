@@ -428,7 +428,7 @@ export const HELP_INTRO: HelpArticleContent = {
       title: "Launcher vs editor",
       anchor: "intro-launcher",
       tips: [
-        "Launcher (Project Manager) is projects only: New Project, Edit, Open project folder, Remove, Refresh. Help and Options sit in the chrome.",
+        "Launcher (Project Manager) is projects only: New Project, Edit, Open project folder, Export project archive, Remove, Refresh. Help and Options sit in the chrome.",
         "Editor opens one project. Top tabs: Document, Flowcharts, RGD, Mood Board, Graph, Whiteboard. Help / Options / ← Projects stay in the chrome.",
         "Help opened from a tool tab jumps to that chapter; from the launcher it opens Introduction.",
       ],
@@ -447,7 +447,7 @@ export const HELP_INTRO: HelpArticleContent = {
       anchor: "intro-local",
       tips: [
         "No account for day-to-day work. Data stays in the project folder you choose.",
-        "Prefer DIY backup: Options → Open project folder (or the launcher button) and copy the folder yourself (USB, Drive, Dropbox, etc.). There is no in-app cloud sync.",
+        "Prefer DIY backup: Options → Open project folder / Export project archive (or the launcher buttons) — copy the folder or save a zip yourself (USB, Drive, Dropbox, etc.). There is no in-app cloud sync.",
         "Distribution prefers a portable zip (run the exe from a folder). Optional installers exist; signed GitHub Releases power automatic updates.",
       ],
     },
@@ -1027,6 +1027,12 @@ export const HELP_OPTIONS: HelpArticleContent = {
           does: "Reveal the active project folder in your file manager so you can back up or copy it yourself.",
           example:
             "Same action exists on the launcher side panel. There is no in-app cloud sync — DIY backup only.",
+        },
+        {
+          name: "Export project archive",
+          does: "Zip the current project folder via a save dialog (default name `<project>-archive.zip` next to the project folder).",
+          example:
+            "Also on the launcher side panel. Local snapshot only — no OAuth or cloud sync.",
         },
       ],
     },
