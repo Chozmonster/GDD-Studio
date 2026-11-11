@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-11-10
+
+PDF export scale fix so paper-fit width scaling works.
+
+### Fixed
+
+- PDF export no longer renders content ~7.5× too large: dropped `html2canvas.scale: 2` so jsPDF paper-fit width scaling applies correctly.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
+
 ## [0.1.21] - 2026-11-10
 
 Print view magnification and direct PDF export.
