@@ -164,13 +164,14 @@ export function ChartFormulaPanel({
       role="region"
       aria-label="Formula helper"
     >
-      <p className="muted tiny">
-        Type a freeform expression in <code>{CHART_INDEPENDENT_VAR}</code> and
-        constants. Swept domain fills the table and graph. Supports{" "}
-        <code>+ - * / ^</code>, parentheses, and{" "}
-        <code>exp abs sqrt ln log sin cos tan min max pow</code>.
+      <p className="muted tiny charts-formula-lede">
+        Expression in <code>{CHART_INDEPENDENT_VAR}</code> + constants; domain
+        fills table and graph.{" "}
+        <code>+ - * / ^ ( )</code> ·{" "}
+        <code>exp abs sqrt ln log sin cos tan min max pow</code>
       </p>
 
+      {/* Formula left; Preset + Type clustered on the right (prefs). */}
       <div className="charts-formula-top">
         <label className="charts-inline-field charts-formula-expr-field">
           <span className="muted tiny">Formula</span>
@@ -183,34 +184,36 @@ export function ChartFormulaPanel({
             onChange={(e) => setExpression(e.target.value)}
           />
         </label>
-        <label className="charts-inline-field charts-formula-preset-field">
-          <span className="muted tiny">Preset</span>
-          <select
-            value={state.presetId}
-            onChange={(e) => onPreset(e.target.value)}
-            aria-label="Formula preset"
-          >
-            <option value="">Custom</option>
-            {CHART_FORMULA_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="charts-inline-field charts-formula-type-field">
-          <span className="muted tiny">Type</span>
-          <select
-            value={chartType}
-            onChange={(e) =>
-              onChartTypeChange(e.target.value === "bar" ? "bar" : "line")
-            }
-            aria-label="Chart type"
-          >
-            <option value="line">Line</option>
-            <option value="bar">Bar</option>
-          </select>
-        </label>
+        <div className="charts-formula-top-right">
+          <label className="charts-inline-field charts-formula-preset-field">
+            <span className="muted tiny">Preset</span>
+            <select
+              value={state.presetId}
+              onChange={(e) => onPreset(e.target.value)}
+              aria-label="Formula preset"
+            >
+              <option value="">Custom</option>
+              {CHART_FORMULA_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="charts-inline-field charts-formula-type-field">
+            <span className="muted tiny">Type</span>
+            <select
+              value={chartType}
+              onChange={(e) =>
+                onChartTypeChange(e.target.value === "bar" ? "bar" : "line")
+              }
+              aria-label="Chart type"
+            >
+              <option value="line">Line</option>
+              <option value="bar">Bar</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <p
@@ -229,7 +232,9 @@ export function ChartFormulaPanel({
           </span>
         </div>
         {state.variables.length === 0 ? (
-          <p className="muted tiny">No constants yet — add one or pick a preset.</p>
+          <p className="muted tiny charts-formula-vars-empty">
+            No constants yet — add one or pick a preset.
+          </p>
         ) : (
           <ul className="charts-formula-var-list">
             {state.variables.map((v) => (
@@ -304,60 +309,67 @@ export function ChartFormulaPanel({
         </div>
       </div>
 
-      <div className="charts-formula-grid">
-        <label>
-          x start
-          <input
-            value={state.xStart}
-            inputMode="decimal"
-            onChange={(e) =>
-              onChange({ ...state, xStart: e.target.value })
-            }
-          />
-        </label>
-        <label>
-          x end
-          <input
-            value={state.xEnd}
-            inputMode="decimal"
-            onChange={(e) => onChange({ ...state, xEnd: e.target.value })}
-          />
-        </label>
-        <label>
-          step
-          <input
-            value={state.step}
-            inputMode="decimal"
-            onChange={(e) => onChange({ ...state, step: e.target.value })}
-          />
-        </label>
-        <label>
-          Series
-          <select
-            value={state.seriesId}
-            onChange={(e) =>
-              onChange({ ...state, seriesId: e.target.value })
-            }
-          >
-            {series.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <div className="charts-formula-footer">
+        <div className="charts-formula-grid">
+          <label>
+            x start
+            <input
+              value={state.xStart}
+              inputMode="decimal"
+              onChange={(e) =>
+                onChange({ ...state, xStart: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            x end
+            <input
+              value={state.xEnd}
+              inputMode="decimal"
+              onChange={(e) => onChange({ ...state, xEnd: e.target.value })}
+            />
+          </label>
+          <label>
+            step
+            <input
+              value={state.step}
+              inputMode="decimal"
+              onChange={(e) => onChange({ ...state, step: e.target.value })}
+            />
+          </label>
+          <label>
+            Series
+            <select
+              value={state.seriesId}
+              onChange={(e) =>
+                onChange({ ...state, seriesId: e.target.value })
+              }
+            >
+              {series.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-      <label className="charts-formula-replace">
-        <input
-          type="checkbox"
-          checked={state.replaceRows}
-          onChange={(e) =>
-            onChange({ ...state, replaceRows: e.target.checked })
-          }
-        />
-        Replace all rows
-      </label>
+        <div className="charts-formula-actions">
+          <label className="charts-formula-replace">
+            <input
+              type="checkbox"
+              checked={state.replaceRows}
+              onChange={(e) =>
+                onChange({ ...state, replaceRows: e.target.checked })
+              }
+            />
+            Replace all rows
+          </label>
+          <button type="button" className="primary tiny-btn" onClick={onApply}>
+            Apply to table
+          </button>
+        </div>
+      </div>
 
       {error && (
         <p className="charts-formula-error" role="alert">
@@ -369,12 +381,6 @@ export function ChartFormulaPanel({
           {hint}
         </p>
       )}
-
-      <div className="charts-formula-actions">
-        <button type="button" className="primary tiny-btn" onClick={onApply}>
-          Apply to table
-        </button>
-      </div>
     </div>
   );
 }
