@@ -14,13 +14,16 @@ import {
   paperLayoutPx,
   type PaperSizeId,
 } from "./paperSize";
+import {
+  MAX_EMBED_CAPTURE_HEIGHT_PX,
+  PDF_RASTER_SCALE,
+  pdfPaperFitPlacement,
+  planEmbedCapture,
+  tallEmbedWarning,
+} from "./pdfExportLayout";
 
-/** Soft cap — very tall embeds are cropped so print pages stay usable. */
-const MAX_CAPTURE_HEIGHT_PX = 1800;
 /** Avoid oversized canvases on long docs (browser texture limits). */
 const MAX_PDF_CANVAS_EDGE_PX = 8192;
-/** Bitmap sharpness for paper fit — placement uses mm math, not this factor. */
-const PDF_RASTER_SCALE = 2;
 const EMBED_SELECTOR =
   '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed, [data-type="whiteboard-embed"], .whiteboard-embed';
 
@@ -42,9 +45,11 @@ function normalizeExportAlign(raw: string | null): ExportEmbedAlign {
 }
 
 type CapturedEmbed = {
-  dataUrl: string;
+  /** One or more vertical slices (tall embeds are multi-sliced, not cropped). */
+  dataUrls: string[];
   label: string;
-  cropped: boolean;
+  sliced: boolean;
+  sliceCount: number;
   /** Live editor card width — keeps PDF layout in sync with user resize. */
   widthPx: number;
   textAlign: ExportEmbedAlign;
@@ -196,8 +201,9 @@ function shouldSkipExportNode(node: HTMLElement): boolean {
 }
 
 /**
- * Capture a live embed node as a PNG data URL.
- * Buttons / interactive chrome / ephemeral tips are filtered out of the raster.
+ * Capture a live embed node as one or more PNG data URLs.
+ * Tall embeds (> MAX_EMBED_CAPTURE_HEIGHT_PX) are multi-sliced vertically so
+ * PDF export is not silently cropped. Buttons / chrome / tips are filtered out.
  */
 async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> {
   await waitForEmbedReady(el);
@@ -205,41 +211,51 @@ async function captureEmbedNode(el: HTMLElement): Promise<CapturedEmbed | null> 
   const label = embedLabel(el);
   const layout = readEmbedLayout(el);
   const fullHeight = Math.max(el.scrollHeight, el.offsetHeight, 1);
-  const cropped = fullHeight > MAX_CAPTURE_HEIGHT_PX;
-  const height = Math.min(fullHeight, MAX_CAPTURE_HEIGHT_PX);
+  const plan = planEmbedCapture(fullHeight, MAX_EMBED_CAPTURE_HEIGHT_PX);
   const width = Math.max(el.scrollWidth, el.offsetWidth, 1);
   const bg =
     getComputedStyle(el).backgroundColor ||
     getComputedStyle(document.body).backgroundColor ||
     "#1e1e1e";
+  const backgroundColor =
+    bg === "rgba(0, 0, 0, 0)" || bg === "transparent" ? "#1e1e1e" : bg;
 
   const restoreSvgs = prepareSvgsForCapture(el);
   try {
-    const dataUrl = await toPng(el, {
-      cacheBust: true,
-      pixelRatio: cropped || height > 900 ? 1.25 : 2,
-      backgroundColor: bg === "rgba(0, 0, 0, 0)" || bg === "transparent" ? "#1e1e1e" : bg,
-      width,
-      height,
-      style: {
-        // Ensure off-screen / partially scrolled embeds still paint fully
-        transform: "none",
-        overflow: "hidden",
-      },
-      filter: (node) => {
-        // TipTap/HTML tips use data-export-ignore; match Element (not only HTMLElement).
-        if (node instanceof Element && node.hasAttribute("data-export-ignore")) {
-          return false;
-        }
-        if (!(node instanceof HTMLElement)) return true;
-        return !shouldSkipExportNode(node);
-      },
-    });
-    if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
+    const dataUrls: string[] = [];
+    let offsetY = 0;
+    for (let i = 0; i < plan.sliceCount; i++) {
+      const sliceH = plan.sliceHeightsPx[i]!;
+      const dataUrl = await toPng(el, {
+        cacheBust: true,
+        pixelRatio: plan.sliced || sliceH > 900 ? 1.25 : 2,
+        backgroundColor,
+        width,
+        height: sliceH,
+        style: {
+          // Translate the full embed up so this slice's band fills the capture box.
+          height: `${plan.fullHeightPx}px`,
+          transform: offsetY === 0 ? "none" : `translateY(-${offsetY}px)`,
+          overflow: "hidden",
+        },
+        filter: (node) => {
+          // TipTap/HTML tips use data-export-ignore; match Element (not only HTMLElement).
+          if (node instanceof Element && node.hasAttribute("data-export-ignore")) {
+            return false;
+          }
+          if (!(node instanceof HTMLElement)) return true;
+          return !shouldSkipExportNode(node);
+        },
+      });
+      if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
+      dataUrls.push(dataUrl);
+      offsetY += sliceH;
+    }
     return {
-      dataUrl,
+      dataUrls,
       label,
-      cropped,
+      sliced: plan.sliced,
+      sliceCount: plan.sliceCount,
       widthPx: layout.widthPx,
       textAlign: layout.textAlign,
     };
@@ -365,15 +381,26 @@ function figureFromCapture(captured: CapturedEmbed): HTMLElement {
     figure.style.marginRight = "auto";
   }
   figure.setAttribute("data-text-align", captured.textAlign);
-  const img = document.createElement("img");
-  img.src = captured.dataUrl;
-  img.alt = captured.label;
-  img.className = "export-embed-img";
-  figure.appendChild(img);
+  if (captured.sliced) {
+    figure.setAttribute("data-export-sliced", String(captured.sliceCount));
+  }
+  captured.dataUrls.forEach((dataUrl, index) => {
+    const img = document.createElement("img");
+    img.src = dataUrl;
+    img.alt =
+      captured.sliceCount > 1
+        ? `${captured.label} (part ${index + 1} of ${captured.sliceCount})`
+        : captured.label;
+    img.className = "export-embed-img";
+    if (index > 0) {
+      img.style.marginTop = "4pt";
+    }
+    figure.appendChild(img);
+  });
   const cap = document.createElement("figcaption");
   cap.className = "export-embed-caption";
-  cap.textContent = captured.cropped
-    ? `${captured.label} (preview cropped for print)`
+  cap.textContent = captured.sliced
+    ? `${captured.label} (tall embed — split into ${captured.sliceCount} images for print)`
     : captured.label;
   figure.appendChild(cap);
   return figure;
@@ -423,6 +450,11 @@ function enhanceMediaForPrint(root: HTMLElement): void {
     }
   });
 }
+type BuildExportHtmlResult = {
+  html: string;
+  warnings: string[];
+};
+
 /**
  * Build a print-layout HTML snapshot of the current TipTap document.
  * Flowchart / RGD / chart embeds are rasterized in place; media kept when feasible.
@@ -432,7 +464,7 @@ async function buildExportHtml(
   title: string,
   editor: Editor,
   paperSize: PaperSizeId,
-): Promise<string> {
+): Promise<BuildExportHtmlResult> {
   const layout = paperLayoutPx(paperSize);
   const liveRoot = editor.view.dom as HTMLElement;
   const liveEmbeds = collectEmbedElements(liveRoot);
@@ -440,8 +472,13 @@ async function buildExportHtml(
   // Capture from the live DOM (canvas / React Flow / chart SVG do not survive cloneNode)
   // Sequential capture keeps SVG prep mutations from overlapping across embeds.
   const captures: Array<CapturedEmbed | null> = [];
+  const warnings: string[] = [];
   for (const el of liveEmbeds) {
-    captures.push(await captureEmbedNode(el));
+    const captured = await captureEmbedNode(el);
+    captures.push(captured);
+    if (captured?.sliced) {
+      warnings.push(tallEmbedWarning(captured.label, captured.sliceCount));
+    }
   }
 
   const root = liveRoot.cloneNode(true) as HTMLElement;
@@ -473,7 +510,9 @@ async function buildExportHtml(
   const bodyHtml = root.innerHTML;
 
   // Margins are applied by jsPDF (PAGE_MARGIN_MM); body padding stays 0 to avoid doubling.
-  return `<!DOCTYPE html>
+  // Light paper ink is locked here — capture rasters inside this iframe so host App.css
+  // dark theme cannot leak (do not use pdf.html() which clones into the host document).
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -540,6 +579,8 @@ async function buildExportHtml(
 <article>${bodyHtml}</article>
 </body>
 </html>`;
+
+  return { html, warnings };
 }
 
 function escapeHtml(s: string): string {
@@ -601,8 +642,8 @@ async function htmlToPdfBytes(
   html: string,
   paperSize: PaperSizeId,
 ): Promise<Uint8Array> {
-  const size = getPaperSize(paperSize);
-  const layout = paperLayoutPx(paperSize);
+  const fit = pdfPaperFitPlacement(paperSize);
+  const size = getPaperSize(fit.paperSizeId);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.setAttribute("tabindex", "-1");
@@ -610,7 +651,7 @@ async function htmlToPdfBytes(
     "position:fixed",
     "left:-12000px",
     "top:0",
-    `width:${layout.contentWidthPx}px`,
+    `width:${fit.contentWidthPx}px`,
     "height:200px",
     "border:0",
     "opacity:0",
@@ -650,18 +691,20 @@ async function htmlToPdfBytes(
     // Bitmap scale is sharpness only; PDF page placement uses mm math below.
     // May drop below 1 for very long docs so the canvas stays within browser limits.
     let rasterScale = PDF_RASTER_SCALE;
-    const tallestEdgePx = Math.max(layout.contentWidthPx, contentHeightPx);
+    const tallestEdgePx = Math.max(fit.contentWidthPx, contentHeightPx);
     if (tallestEdgePx * rasterScale > MAX_PDF_CANVAS_EDGE_PX) {
       rasterScale = MAX_PDF_CANVAS_EDGE_PX / tallestEdgePx;
     }
 
+    // Rasterize inside the iframe so print CSS (light paper ink) stays applied.
+    // Never use pdf.html() — it clones into the host document and picks up App dark theme.
     const canvas = await html2canvas(body, {
       scale: rasterScale,
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
-      width: layout.contentWidthPx,
-      windowWidth: layout.contentWidthPx,
+      width: fit.contentWidthPx,
+      windowWidth: fit.contentWidthPx,
       height: contentHeightPx,
       windowHeight: contentHeightPx,
     });
@@ -673,9 +716,10 @@ async function htmlToPdfBytes(
       compress: true,
     });
 
-    const margin = PAGE_MARGIN_MM;
-    const contentWidthMm = Math.max(1, size.widthMm - margin * 2);
-    const contentHeightMm = Math.max(1, size.heightMm - margin * 2);
+    const margin = fit.marginMm;
+    const contentWidthMm = fit.contentWidthMm;
+    const contentHeightMm = fit.contentHeightMm;
+    // Paper-fit width is explicit mm — independent of html2canvas.scale.
     const imgWidthMm = contentWidthMm;
     const imgHeightMm = (canvas.height * imgWidthMm) / Math.max(1, canvas.width);
     const imgData = canvas.toDataURL("image/jpeg", 0.92);
@@ -698,7 +742,7 @@ async function htmlToPdfBytes(
 }
 
 export type ExportPdfResult =
-  | { mode: "file"; path: string }
+  | { mode: "file"; path: string; warnings: string[] }
   | { mode: "cancelled" };
 
 export type ExportPdfOptions = {
@@ -730,8 +774,8 @@ export async function exportDocumentPdf(
     path = `${path}.pdf`;
   }
 
-  const html = await buildExportHtml(title, editor, normalized);
+  const { html, warnings } = await buildExportHtml(title, editor, normalized);
   const bytes = await htmlToPdfBytes(html, normalized);
   const written = await writeExportPdf(path, bytes);
-  return { mode: "file", path: written };
+  return { mode: "file", path: written, warnings };
 }

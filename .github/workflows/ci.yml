@@ -24,6 +24,17 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Setup Chrome (PDF smoke headless fixture)
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          install-dependencies: true
+
+      - name: PDF export smoke
+        run: npm run test:pdf-smoke
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+
       - name: Build frontend
         run: npm run build
 
