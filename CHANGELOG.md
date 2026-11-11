@@ -7,11 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-11-11
+
+Recommendation pack: docs honesty, wiki backlinks, PDF trust, project archive, flowchart edit-speed + inline edge labels, Graph layout polish.
+
 ### Added
 
+- Document left-rail **Backlinks** under Documents — lists other docs that `[[wiki-link]]` here; click opens the linking doc.
 - Options / launcher **Export project archive** — zip the current project folder via a save dialog (default `<project-name>-archive.zip` beside the project folder). DIY backup path; no cloud OAuth.
 - PDF export CI smoke (`npm run test:pdf-smoke`) locks paper-fit width + light print theme so v0.1.22/23-class regressions cannot return silently.
 - Tall document embeds (above ~1800px) split into multiple print images with a status warning instead of a silent crop.
+- Flowchart **edit-speed** pack: clipboard copy/cut/paste, Duplicate (Ctrl/Cmd+D), align/distribute arrange chips, quick-add sibling from handle click, node/edge/pane context menus.
+- Flowchart **inline edge labels** — double-click a connector (or Label placeholder) to edit on-canvas; toolbar/context Edit label uses the same field (no `window.prompt`).
+
+### Changed
+
+- README / Scope notes honesty pass: Current cut and Shipped vs Not shipped match v0.1.24+ (multi-doc wiki, plain-text variables, PDF → `exports/`, Graph/Whiteboard/Help; OAuth sync canceled → Open project folder / archive DIY).
+- Graph tab layout polish: formula left / Preset+Type right, compact variable chips with clearer gaps, content-sized formula pane with scroll cap, preview slightly dominant and still pane-fit.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.24] - 2026-11-11
 
