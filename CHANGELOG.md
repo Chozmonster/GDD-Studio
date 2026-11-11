@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- In-app Help expanded: Introduction chapter; per-tab control/button guides (Document, Flowcharts, RGD, Mood Board, Graph, Whiteboard, Options); indented hierarchical left map (chapters → sections → subsections) with click-to-scroll anchors. RGD remains one scrollable page.
+
 ## [0.1.23] - 2026-11-11
 
 PDF export paper-fit raster fix and larger flowchart arrowheads.

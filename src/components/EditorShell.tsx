@@ -16,11 +16,13 @@ type EditorShellProps = {
 };
 
 function helpSectionForTab(tab: ProjectTab) {
+  if (tab === "document") return "document" as const;
+  if (tab === "flowchart") return "flowcharts" as const;
   if (tab === "rgd") return "rgd" as const;
   if (tab === "moodboard") return "moodboard" as const;
   if (tab === "charts") return "charts" as const;
   if (tab === "whiteboard") return "whiteboard" as const;
-  return "app" as const;
+  return "intro" as const;
 }
 
 export function EditorShell({ project, onBack }: EditorShellProps) {
