@@ -1070,6 +1070,48 @@ export async function resolveWikiSlug(
   });
 }
 
+function bodyLinksTo(value: unknown, target: DocSummary): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((v) => bodyLinksTo(v, target));
+  const obj = value as Record<string, unknown>;
+  if (obj.type === "wikiLink") {
+    const attrs = (obj.attrs ?? {}) as Record<string, unknown>;
+    const docId = String(attrs.docId ?? "");
+    const slug = String(attrs.slug ?? "");
+    const title = String(attrs.title ?? "");
+    if (
+      (docId && docId === target.id) ||
+      (slug &&
+        (slug.toLowerCase() === target.slug.toLowerCase() ||
+          slug.toLowerCase() === target.id.toLowerCase())) ||
+      (title && title.toLowerCase() === target.title.toLowerCase())
+    ) {
+      return true;
+    }
+  }
+  return Object.values(obj).some((v) => bodyLinksTo(v, target));
+}
+
+/** Documents whose bodies contain a wikiLink targeting `targetDocId`. */
+export async function listBacklinks(
+  projectId: string,
+  targetDocId: string,
+): Promise<DocSummary[]> {
+  if (!isTauriRuntime()) {
+    const docs = await listDocuments(projectId);
+    const target = docs.find((d) => d.id === targetDocId);
+    if (!target) throw new Error(`Unknown document id: ${targetDocId}`);
+    const out: DocSummary[] = [];
+    for (const summary of docs) {
+      if (summary.id === target.id) continue;
+      const full = await loadProjectDocument(projectId, summary.id);
+      if (bodyLinksTo(full.body, target)) out.push(summary);
+    }
+    return out;
+  }
+  return invoke<DocSummary[]>("list_backlinks", { projectId, targetDocId });
+}
+
 function kindFromMime(mime: string, filename: string): string {
   const m = mime.toLowerCase();
   const lower = filename.toLowerCase();

@@ -438,7 +438,7 @@ export const HELP_INTRO: HelpArticleContent = {
       anchor: "intro-projects",
       tips: [
         "A project is a folder on disk with documents plus tool libraries (flowcharts/, rgd/, moodboards/, charts/, whiteboards/, …).",
-        "One project can hold many documents. Left rail bottom: Documents list (+ to create, × to delete; the main document cannot be deleted).",
+        "One project can hold many documents. Left rail bottom: Documents list (+ to create, × to delete; the main document cannot be deleted) plus Backlinks for the active doc.",
         "Cross-doc links use [[Doc Title]] or Document toolbar → Link. In-doc jumps use the nested heading map (left rail top).",
       ],
     },
@@ -591,7 +591,7 @@ export const HELP_DOCUMENT: HelpArticleContent = {
     {
       title: "Map & documents pane",
       anchor: "document-rail",
-      lead: "Left rail: heading map on top, project documents list on bottom. Drag the split handles to resize; sizes persist.",
+      lead: "Left rail: heading map on top, project documents list + backlinks on bottom. Drag the split handles to resize; sizes persist.",
       controls: [
         {
           name: "Document map",
@@ -609,9 +609,14 @@ export const HELP_DOCUMENT: HelpArticleContent = {
           name: "Documents → ×",
           does: "Delete that document (main document cannot be deleted).",
         },
+        {
+          name: "Backlinks",
+          does: "Lists other documents that [[wiki-link]] to the active document. Click a row to open it.",
+        },
       ],
       tips: [
         "There is no section-link picker across docs — use [[Doc Title]] for cross-doc links and the map for in-doc jumps.",
+        "Backlinks refresh when you switch docs or save; they scan wikiLink nodes only (not heading map jumps).",
         "On narrow windows, panes stack instead of dragging.",
       ],
     },
