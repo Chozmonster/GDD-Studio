@@ -2,7 +2,7 @@
 
 Standalone desktop app for writing and maintaining game design documents. Local-first; built with **Tauri 2**, **Rust**, **Vite**, **React**, **TypeScript**, and **TipTap**.
 
-Current cut: **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **wiki links**, variables, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export**), flowchart editor, Mood Board, Graph (progression graphs MVP; internal `charts/`), Whiteboard (lean doodle; internal `whiteboards/`), and RGD workspace. Cloud sync / share links remain v1.5+.
+Current cut (as of **v0.1.24+**): **Godot-style project launcher**, TipTap rich editor (**multi-document projects**, **cross-doc wiki links** `[[Doc Title]]`, **project-wide plain-text variables** `{{name}}`, **media embeds**, **spellcheck/lookup**, **templates**, **PDF export** via save dialog to `exports/`), **Flowcharts**, **RGD**, **Mood Board**, **Graph** (UI name; disk `charts/`), **Whiteboard** (disk `whiteboards/`), Print view zoom, and expanded in-app Help. **In-app cloud OAuth sync is canceled** — use Options → **Open project folder** for DIY backup instead.
 
 ## Prerequisites
 
@@ -50,9 +50,9 @@ Prefer an installer-free zip over MSI/NSIS. On a Windows build machine:
 npm run build:portable
 ```
 
-Artifact to distribute:
+Artifact to distribute (version matches `package.json` / release tag):
 
-`src-tauri/target/release/bundle/portable/gdd-studio-v0.1.1-windows-x64-portable.zip`
+`src-tauri/target/release/bundle/portable/gdd-studio-v*-windows-x64-portable.zip`
 
 Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from `npm run tauri build` remain optional extras under `src-tauri/target/release/bundle/`. Details: Project doc `docs/portable-packaging.md`.
 
@@ -63,7 +63,7 @@ Users unzip anywhere and run `gdd-studio.exe`. NSIS (current-user) and MSI from 
 │   ├── components/
 │   │   ├── Launcher.tsx      # Godot-like project manager
 │   │   ├── OptionsPanel.tsx  # Options window / modal
-│   │   ├── EditorShell.tsx   # Document / Flowcharts / RGD / Mood Board / Graph
+│   │   ├── EditorShell.tsx   # Document / Flowcharts / RGD / Mood Board / Graph / Whiteboard
 │   │   ├── EditorCanvas.tsx  # TipTap
 │   │   ├── flowchart/        # @xyflow: typed shapes, colors, resize, edge styles
 │   │   ├── charts/           # Graph MVP (table + line/bar + formula; disk: charts/)
@@ -99,11 +99,32 @@ Until releases exist, update checks fail softly (UI stays usable). Use `GDD_STUD
 
 - **Auto on:** about once per day (`lastUpdateCheckAt`); if an update exists, download/install automatically.
 - **Auto off:** same daily check; launcher shows a banner with **Install** + **View patch notes**.
-- Manual **Check for updates** in Options always forces a network check.
+- Manual **Check for updates** in Options always forces a network check (does **not** auto-download).
+- Separate **Download / Install** is enabled only when an update is available.
 - **View patch notes** shows the updater body / cached notes, and falls back to `latest.json` notes from GitHub.
 
 ## Scope notes
 
-**In:** launcher (create / open / remove), local project metadata persistence, Options window, updater wiring, TipTap editor shell, back-to-launcher navigation.
+Honest cut vs early scaffolding claims — matches shipped **v0.1.24+** (no version bump in this docs pass).
 
-**Not yet:** cloud sync, share links, PDF export, variables, wiki links, asset pipeline, spellcheck, deleting project files on disk.
+**Shipped:**
+
+- Launcher: create / open / remove from the project library (disk folder is not wiped on remove)
+- Multi-document projects; nested heading map (H1→H2→H3); project documents list; cross-doc wiki links `[[Doc Title]]` (section links deprioritized — doc map covers in-doc jump)
+- Project-wide **plain-text** variables `{{name}}` (no type dropdown)
+- TipTap rich editor, media embeds (image/gif/video/audio), spellcheck/lookup, templates
+- **PDF export**: real `.pdf` via native save dialog; default `<project>/exports/<document-title>.pdf` (creates `exports/` if missing); tool embeds captured as screenshots
+- Design libraries with live doc embeds: Flowcharts, RGD sheets, Mood Board, **Graph** (UI; files under `charts/`), Whiteboard
+- Print view magnification: Fit width / Fit page / 10%–100%
+- Expanded Help: product intro, per-tab control guides, indented left map (RGD stays one scrollable page)
+- Options: paper size, variable-name display, updater controls, **Open project folder** (DIY backup)
+- Portable Windows zip primary distribution + GitHub Releases updater
+
+**Not shipped / canceled / deferred:**
+
+- **In-app cloud OAuth sync** (Drive / OneDrive / Dropbox) — **canceled**; DIY via **Open project folder**
+- Hosted share links (view/edit) — deferred while free/portable/local-first stays primary
+- Machinations-style economy simulation — out of scope
+- Wiki **backlinks** UI (list API leftover only; no panel)
+- Deleting the on-disk project folder when removing a library entry
+- Full flowchart edit-speed kit (clipboard / align-distribute / quick-add / context menu) — polish still open
