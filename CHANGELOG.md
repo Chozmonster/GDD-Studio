@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Flowchart connector arrowheads enlarged again (28 → 48) so Start/End arrows stay visible past the green anchor dots in the editor and in document embeds (shared `FLOW_ARROW_MARKER_SIZE`).
+
 ## [0.1.22] - 2026-11-10
 
 PDF export scale fix so paper-fit width scaling works.
