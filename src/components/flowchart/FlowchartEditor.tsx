@@ -198,6 +198,27 @@ function withNodeHandlers(
   };
 }
 
+/** Attach inline label handler (and keep startEditToken) on an edge. */
+function withEdgeHandlers(
+  edge: FlowEdge,
+  onChangeLabelRef: MutableRefObject<
+    ((edgeId: string, label: string) => void) | null
+  >,
+): FlowEdge {
+  return {
+    ...edge,
+    data: {
+      path: edge.data?.path ?? "step",
+      startArrow: edge.data?.startArrow ?? false,
+      endArrow: edge.data?.endArrow !== false,
+      startEditToken: edge.data?.startEditToken,
+      onChangeLabel: (edgeId: string, label: string) => {
+        onChangeLabelRef.current?.(edgeId, label);
+      },
+    },
+  };
+}
+
 export function FlowchartEditor({
   project,
   active = true,
@@ -234,6 +255,9 @@ export function FlowchartEditor({
   const quickAddRef = useRef<((nodeId: string, handleId: string) => void) | null>(
     null,
   );
+  const edgeLabelChangeRef = useRef<
+    ((edgeId: string, label: string) => void) | null
+  >(null);
   const clipboardRef = useRef<FlowClipboard | null>(null);
   const dragHistoryCaptured = useRef(false);
   const resizeHistoryCaptured = useRef(false);
@@ -345,7 +369,11 @@ export function FlowchartEditor({
             return m ? Math.max(max, Number(m[1])) : max;
           }, 0) + 1;
         setNodes(loaded);
-        setEdges((doc.edges ?? []).map((e) => migrateEdge(e)));
+        setEdges(
+          (doc.edges ?? []).map((e) =>
+            withEdgeHandlers(migrateEdge(e), edgeLabelChangeRef),
+          ),
+        );
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
         setMenu(null);
@@ -415,7 +443,9 @@ export function FlowchartEditor({
           quickAddRef,
         ),
       );
-      const restoredEdges = cloneFlowEdges(snap.edges);
+      const restoredEdges = cloneFlowEdges(snap.edges).map((e) =>
+        withEdgeHandlers(e, edgeLabelChangeRef),
+      );
       setNodes(restoredNodes);
       setEdges(restoredEdges);
       setSelectedNodeId(null);
@@ -608,7 +638,7 @@ export function FlowchartEditor({
       const endArrow = defaultEndArrowRef.current;
       recordHistory();
       setEdges((eds) => {
-        const next = addEdge(
+        const created = withEdgeHandlers(
           {
             ...connection,
             source: connection.source,
@@ -621,8 +651,9 @@ export function FlowchartEditor({
             markerEnd: markerForArrow(endArrow),
             data: { path, startArrow, endArrow },
           },
-          eds,
+          edgeLabelChangeRef,
         );
+        const next = addEdge(created, eds);
         queueSave(nodesRef.current, next);
         return next;
       });
@@ -743,13 +774,21 @@ export function FlowchartEditor({
         const nextPath = patch.path ?? e.data?.path ?? "step";
         const startArrow = patch.startArrow ?? e.data?.startArrow ?? false;
         const endArrow = patch.endArrow ?? e.data?.endArrow ?? true;
-        return {
-          ...e,
-          type: edgeTypeForPath(nextPath),
-          markerStart: markerForArrow(startArrow),
-          markerEnd: markerForArrow(endArrow),
-          data: { path: nextPath, startArrow, endArrow },
-        };
+        return withEdgeHandlers(
+          {
+            ...e,
+            type: edgeTypeForPath(nextPath),
+            markerStart: markerForArrow(startArrow),
+            markerEnd: markerForArrow(endArrow),
+            data: {
+              path: nextPath,
+              startArrow,
+              endArrow,
+              startEditToken: e.data?.startEditToken,
+            },
+          },
+          edgeLabelChangeRef,
+        );
       });
       queueSave(nodesRef.current, next);
       return next;
@@ -914,7 +953,9 @@ export function FlowchartEditor({
         setEdges((eds) => {
           const nextEdges = [
             ...eds.map((e) => ({ ...e, selected: false })),
-            ...cloned.edges,
+            ...cloned.edges.map((e) =>
+              withEdgeHandlers(e, edgeLabelChangeRef),
+            ),
           ];
           queueSave(next, nextEdges);
           return nextEdges;
@@ -1110,6 +1151,7 @@ export function FlowchartEditor({
     closeMenu();
   }, [selectedNode, recordHistory, queueSave, setNodes, closeMenu]);
 
+  /** Open inline label editor on the canvas (no window.prompt). */
   const editEdgeLabel = useCallback(
     (edgeId?: string) => {
       const edge =
@@ -1117,22 +1159,63 @@ export function FlowchartEditor({
           ? edgesRef.current.find((e) => e.id === edgeId)
           : null) ?? selectedEdge;
       if (!edge) return;
-      const nextLabel = window.prompt("Edge label", String(edge.label ?? ""));
-      if (nextLabel === null) return;
+      const token = Date.now();
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === edge.id
+            ? withEdgeHandlers(
+                {
+                  ...e,
+                  selected: true,
+                  data: {
+                    path: e.data?.path ?? "step",
+                    startArrow: e.data?.startArrow ?? false,
+                    endArrow: e.data?.endArrow !== false,
+                    startEditToken: token,
+                  },
+                },
+                edgeLabelChangeRef,
+              )
+            : e,
+        ),
+      );
+      setSelectedEdgeId(edge.id);
+      closeMenu();
+    },
+    [selectedEdge, setEdges, closeMenu],
+  );
+
+  const commitEdgeLabel = useCallback(
+    (edgeId: string, label: string) => {
       recordHistory();
       setEdges((eds) => {
         const next = eds.map((e) =>
-          e.id === edge.id
-            ? { ...e, label: nextLabel.trim() || undefined }
+          e.id === edgeId
+            ? withEdgeHandlers(
+                {
+                  ...e,
+                  label: label.trim() || undefined,
+                  data: {
+                    path: e.data?.path ?? "step",
+                    startArrow: e.data?.startArrow ?? false,
+                    endArrow: e.data?.endArrow !== false,
+                    // Clear token so a later toolbar click can re-open edit.
+                    startEditToken: undefined,
+                  },
+                },
+                edgeLabelChangeRef,
+              )
             : e,
         );
         queueSave(nodesRef.current, next);
         return next;
       });
-      closeMenu();
+      setStatus(label.trim() ? "Edge label updated" : "Edge label cleared");
     },
-    [selectedEdge, recordHistory, queueSave, setEdges, closeMenu],
+    [recordHistory, queueSave, setEdges],
   );
+
+  edgeLabelChangeRef.current = commitEdgeLabel;
 
   const handleQuickAdd = useCallback(
     (nodeId: string, handleId: string) => {
@@ -1181,17 +1264,20 @@ export function FlowchartEditor({
         setEdges((eds) => {
           const nextEdges = [
             ...eds.map((e) => ({ ...e, selected: false })),
-            {
-              id: `e-${nodeId}-${handleId}-${id}-${targetHandle}-${Date.now()}`,
-              source: nodeId,
-              target: id,
-              sourceHandle: handleId,
-              targetHandle,
-              type: edgeTypeForPath(path),
-              markerStart: markerForArrow(startArrow),
-              markerEnd: markerForArrow(endArrow),
-              data: { path, startArrow, endArrow },
-            } satisfies FlowEdge,
+            withEdgeHandlers(
+              {
+                id: `e-${nodeId}-${handleId}-${id}-${targetHandle}-${Date.now()}`,
+                source: nodeId,
+                target: id,
+                sourceHandle: handleId,
+                targetHandle,
+                type: edgeTypeForPath(path),
+                markerStart: markerForArrow(startArrow),
+                markerEnd: markerForArrow(endArrow),
+                data: { path, startArrow, endArrow },
+              } satisfies FlowEdge,
+              edgeLabelChangeRef,
+            ),
           ];
           queueSave(next, nextEdges);
           return nextEdges;
@@ -1321,6 +1407,7 @@ export function FlowchartEditor({
             type="button"
             onClick={() => editEdgeLabel()}
             disabled={!selectedEdge}
+            title="Edit selected connector label inline (or double-click the connector)"
           >
             Edge label
           </button>
@@ -1589,10 +1676,10 @@ export function FlowchartEditor({
         to move · click empty clears · Space+drag or middle-mouse to pan ·
         Ctrl/Cmd+C/X/V/D copy cut paste duplicate · Arrange aligns/distributes
         multi-select · click an N/E/S/W anchor to quick-add a connected node
-        (drag to connect) · right-click for context menu · Node chips create or
-        change selection · Connector chips change edges or set defaults (angled
-        + end arrow) · nodes snap to a {GRID_SIZE}px grid. Autosaves into this
-        project.
+        (drag to connect) · double-click a connector to edit its label inline ·
+        right-click for context menu · Node chips create or change selection ·
+        Connector chips change edges or set defaults (angled + end arrow) ·
+        nodes snap to a {GRID_SIZE}px grid. Autosaves into this project.
       </p>
 
       {!ready ? (
@@ -1653,6 +1740,11 @@ export function FlowchartEditor({
                 target: "edge",
                 edgeId: edge.id,
               });
+            }}
+            onEdgeDoubleClick={(event, edge) => {
+              event.preventDefault();
+              ensureEdgeSelected(edge.id);
+              editEdgeLabel(edge.id);
             }}
             onPaneContextMenu={(event) => {
               event.preventDefault();

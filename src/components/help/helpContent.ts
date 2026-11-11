@@ -687,7 +687,8 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
         },
         {
           name: "Edge label",
-          does: "Edit the label on the selected connector (prompt). Right-click a connector for the same action.",
+          does: "Edit the selected connector’s label inline on the canvas (Enter commits, Escape cancels, empty clears).",
+          example: "Also: double-click the connector, or right-click → Edit label…",
         },
         {
           name: "Duplicate",
@@ -744,6 +745,7 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
       ],
       tips: [
         "Drag from a node’s N/E/S/W anchors to connect. Click an anchor to quick-add a connected sibling of the same type.",
+        "Double-click a connector (or its label) to edit the branch label inline — useful for hit/miss, success/fail, etc.",
         "Drag a connector end onto another node to reconnect.",
         "Nodes snap to a grid so orthogonal connectors stay clean.",
       ],
