@@ -273,6 +273,94 @@ export async function revealProjectFolder(projectId?: string): Promise<void> {
   });
 }
 
+/** Safe default archive filename from the project name. */
+export function suggestArchiveFilename(projectName: string): string {
+  const cleaned = projectName
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "");
+  const base = (cleaned || "project").slice(0, 80);
+  const stem = base.toLowerCase().endsWith(".zip")
+    ? base.slice(0, -4)
+    : base;
+  const withSuffix = /[-_\s]?archive$/i.test(stem) ? stem : `${stem}-archive`;
+  return `${withSuffix}.zip`;
+}
+
+function parentDir(path: string): string {
+  const trimmed = path.replace(/[/\\]+$/, "");
+  const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (idx <= 0) return trimmed;
+  return trimmed.slice(0, idx);
+}
+
+function joinPathParts(dir: string, file: string): string {
+  const trimmed = dir.replace(/[/\\]+$/, "");
+  const sep = trimmed.includes("\\") ? "\\" : "/";
+  return `${trimmed}${sep}${file}`;
+}
+
+/** Default absolute path for Export project archive (sibling of the project folder). */
+export async function suggestProjectArchivePath(
+  projectId?: string,
+): Promise<string> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const id = projectId ?? store.activeProjectId;
+    if (!id) throw new Error("Open a project first.");
+    const project = store.projects.find((p) => p.id === id);
+    if (!project) throw new Error(`Unknown project id: ${id}`);
+    return joinPathParts(
+      parentDir(project.path),
+      suggestArchiveFilename(project.name),
+    );
+  }
+  return invoke<string>("suggest_project_archive_path", {
+    projectId: projectId ?? null,
+  });
+}
+
+/** Native save dialog for a project archive zip. */
+export async function pickArchiveSavePath(
+  defaultPath: string,
+): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return defaultPath;
+  }
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const selected = await save({
+    defaultPath,
+    title: "Export project archive",
+    filters: [{ name: "ZIP archive", extensions: ["zip"] }],
+  });
+  return typeof selected === "string" && selected.trim() ? selected : null;
+}
+
+/**
+ * Zip a project folder to a user-chosen `.zip` path (DIY backup; no OAuth).
+ * Omitting `projectId` uses the editor's active project.
+ */
+export async function exportProjectArchive(
+  destPath: string,
+  projectId?: string,
+): Promise<string> {
+  if (!isTauriRuntime()) {
+    const store = loadBrowser();
+    const id = projectId ?? store.activeProjectId;
+    if (!id) throw new Error("Open a project first.");
+    const project = store.projects.find((p) => p.id === id);
+    if (!project) throw new Error(`Unknown project id: ${id}`);
+    throw new Error(
+      `Export project archive is only available in the desktop app.\n${project.path}`,
+    );
+  }
+  return invoke<string>("export_project_archive", {
+    projectId: projectId ?? null,
+    destPath,
+  });
+}
+
 export async function fetchSettings(): Promise<AppSettings> {
   if (!isTauriRuntime()) {
     return normalizeSettings(loadBrowser().settings);

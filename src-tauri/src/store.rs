@@ -2587,6 +2587,226 @@ pub fn ensure_project_exports_dir(app: &AppHandle, project_id: String) -> Result
     Ok(dir.to_string_lossy().into_owned())
 }
 
+/// Suggested default path for a project archive zip (sibling of the project folder).
+pub fn suggest_project_archive_path(
+    app: &AppHandle,
+    project_id: String,
+) -> Result<String, String> {
+    let project = project_by_id(app, &project_id)?;
+    let root = PathBuf::from(&project.path);
+    if !root.is_dir() {
+        return Err(format!("Project folder not found:\n{}", project.path));
+    }
+    let parent = root
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| root.clone());
+    let filename = format!("{}-archive.zip", sanitize_filename(&project.name));
+    Ok(parent.join(filename).to_string_lossy().into_owned())
+}
+
+/// Zip `root` into `dest` (must end with `.zip`). Entries are rooted under `archive_root_name/`.
+/// Skips `dest` and a sibling `.tmp` if they fall inside `root` mid-write.
+fn zip_directory_to_file(
+    root: &Path,
+    dest: &Path,
+    archive_root_name: &str,
+) -> Result<PathBuf, String> {
+    if !root.is_dir() {
+        return Err(format!("Project folder not found:\n{}", root.display()));
+    }
+    let ext_ok = dest
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("zip"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err("Archive path must end with .zip".into());
+    }
+
+    if let Some(parent) = dest.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(|e| format!("create archive folder: {e}"))?;
+        }
+    }
+
+    let temp = {
+        let mut t = dest.to_path_buf();
+        let stem = dest
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("archive.zip");
+        t.set_file_name(format!("{stem}.tmp"));
+        t
+    };
+
+    let root_canon = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+
+    let file = fs::File::create(&temp).map_err(|e| format!("create archive temp: {e}"))?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    zip.add_directory(format!("{archive_root_name}/"), options)
+        .map_err(|e| format!("zip root folder: {e}"))?;
+
+    let mut skip: Vec<PathBuf> = vec![dest.to_path_buf(), temp.clone()];
+    if let Ok(c) = fs::canonicalize(&temp) {
+        skip.push(c);
+    }
+    if let Ok(c) = fs::canonicalize(dest) {
+        skip.push(c);
+    }
+
+    for entry in walkdir::WalkDir::new(root).follow_links(false).into_iter() {
+        let entry = entry.map_err(|e| format!("walk project folder: {e}"))?;
+        let path = entry.path();
+        let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if skip.iter().any(|s| s == path || s == &path_canon) {
+            continue;
+        }
+
+        let rel = match path.strip_prefix(&root_canon).or_else(|_| path.strip_prefix(root)) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if rel.as_os_str().is_empty() {
+            continue;
+        }
+
+        let name = format!(
+            "{}/{}",
+            archive_root_name,
+            rel.to_string_lossy().replace('\\', "/")
+        );
+
+        if entry.file_type().is_dir() {
+            zip.add_directory(format!("{name}/"), options)
+                .map_err(|e| format!("zip directory: {e}"))?;
+            continue;
+        }
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        zip.start_file(&name, options)
+            .map_err(|e| format!("zip start file: {e}"))?;
+        let mut src = fs::File::open(path).map_err(|e| format!("open for zip: {e}"))?;
+        std::io::copy(&mut src, &mut zip).map_err(|e| format!("zip copy: {e}"))?;
+    }
+
+    zip.finish().map_err(|e| format!("finish zip: {e}"))?;
+
+    if dest.exists() {
+        fs::remove_file(dest).map_err(|e| format!("replace existing archive: {e}"))?;
+    }
+    fs::rename(&temp, dest).map_err(|e| {
+        let _ = fs::remove_file(&temp);
+        format!("move archive into place: {e}")
+    })?;
+
+    Ok(dest.to_path_buf())
+}
+
+/// Zip the project folder to a user-chosen absolute `.zip` path (DIY backup; no OAuth).
+///
+/// Archive entries are rooted under `<project-name>/…`. If the destination sits
+/// inside the project tree, that file (and a sibling `.tmp`) are skipped while walking.
+pub fn export_project_archive(
+    app: &AppHandle,
+    project_id: String,
+    dest_path: String,
+) -> Result<String, String> {
+    let project = project_by_id(app, &project_id)?;
+    let root = PathBuf::from(&project.path);
+    let trimmed = dest_path.trim();
+    if trimmed.is_empty() {
+        return Err("Archive path is empty".into());
+    }
+    let dest = PathBuf::from(trimmed);
+    let archive_root_name = sanitize_filename(&project.name);
+    let written = zip_directory_to_file(&root, &dest, &archive_root_name)?;
+    Ok(written.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use super::{sanitize_filename, zip_directory_to_file};
+    use std::fs;
+    use std::io::Read;
+
+    #[test]
+    fn zips_project_contents_under_named_root() {
+        let dir = std::env::temp_dir().join(format!(
+            "gdd-archive-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(dir.join("docs")).unwrap();
+        fs::write(dir.join("gdd-studio.json"), b"{\"ok\":true}").unwrap();
+        fs::write(dir.join("docs").join("main.json"), b"{\"title\":\"Main\"}").unwrap();
+
+        let dest = dir.parent().unwrap().join(format!(
+            "{}-archive.zip",
+            sanitize_filename("Demo Game")
+        ));
+        let _ = fs::remove_file(&dest);
+
+        let written = zip_directory_to_file(&dir, &dest, &sanitize_filename("Demo Game")).unwrap();
+        assert_eq!(written, dest);
+        assert!(dest.is_file());
+
+        let file = fs::File::open(&dest).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let mut names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+        assert!(names.iter().any(|n| n == "Demo_Game/" || n == "Demo_Game"));
+        assert!(names.iter().any(|n| n == "Demo_Game/gdd-studio.json"));
+        assert!(names.iter().any(|n| n == "Demo_Game/docs/main.json"));
+
+        let mut marker = String::new();
+        archive
+            .by_name("Demo_Game/gdd-studio.json")
+            .unwrap()
+            .read_to_string(&mut marker)
+            .unwrap();
+        assert!(marker.contains("ok"));
+
+        let _ = fs::remove_file(&dest);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn skips_destination_when_saved_inside_project() {
+        let dir = std::env::temp_dir().join(format!(
+            "gdd-archive-inplace-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("note.txt"), b"hello").unwrap();
+        let dest = dir.join("Demo_Game-archive.zip");
+        let written = zip_directory_to_file(&dir, &dest, "Demo_Game").unwrap();
+        assert_eq!(written, dest);
+
+        let file = fs::File::open(&dest).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        for i in 0..archive.len() {
+            let name = archive.by_index(i).unwrap().name().to_string();
+            assert!(!name.ends_with(".zip"), "archive nested itself: {name}");
+            assert!(!name.ends_with(".zip.tmp"), "temp nested: {name}");
+        }
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
+
 /// Write a PDF the user chose via the save dialog (absolute path ending in `.pdf`).
 pub fn write_export_pdf(path: String, data_base64: String) -> Result<String, String> {
     let trimmed = path.trim();

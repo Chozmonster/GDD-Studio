@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import {
   checkForUpdates,
+  exportProjectArchive,
   fetchActiveProject,
   fetchPatchNotes,
   fetchSettings,
   installUpdate,
+  pickArchiveSavePath,
   revealProjectFolder,
   setAutomaticUpdates,
   setDisplayVariableNames,
   setPaperSize,
+  suggestProjectArchivePath,
 } from "../api";
 import {
   PAPER_SIZES,
@@ -187,6 +190,25 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
     }
   };
 
+  const exportArchive = async () => {
+    if (!activeProject) return;
+    setBusy(true);
+    try {
+      const defaultPath = await suggestProjectArchivePath(activeProject.id);
+      const chosen = await pickArchiveSavePath(defaultPath);
+      if (!chosen) {
+        setStatus("Archive export cancelled.");
+        return;
+      }
+      const written = await exportProjectArchive(chosen, activeProject.id);
+      setStatus(`Exported project archive to ${written}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const canInstall = updateIsInstallable(update);
 
   return (
@@ -203,9 +225,9 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
       <section className="options-section">
         <h3>Project</h3>
         <p className="muted tiny options-section-lead">
-          Projects live as ordinary folders on disk. Open the folder to back up
-          or copy it yourself (Dropbox, Drive, USB, etc.) — there is no in-app
-          cloud sync.
+          Projects live as ordinary folders on disk. Open the folder or export a
+          zip archive to back up or copy it yourself (Dropbox, Drive, USB,
+          etc.) — there is no in-app cloud sync.
         </p>
         <div className="options-actions">
           <button
@@ -217,6 +239,18 @@ export function OptionsPanel({ asWindow, onClose, project }: OptionsPanelProps) 
             }
           >
             Open project folder
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportArchive()}
+            disabled={busy || !activeProject}
+            title={
+              activeProject
+                ? `Save a zip of “${activeProject.name}”`
+                : "Open a project first"
+            }
+          >
+            Export project archive
           </button>
         </div>
         {activeProject ? (
