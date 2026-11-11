@@ -633,13 +633,16 @@ async function htmlToPdfBytes(
     const margin = PAGE_MARGIN_MM;
     const contentWidthMm = Math.max(1, size.widthMm - margin * 2);
 
+    // jsPDF's html → context2d path sets html2canvas.scale = width / windowWidth
+    // so CSS px map onto paper mm (fit-to-paper width). Do NOT pass
+    // html2canvas.scale yourself: Object.assign would overwrite that factor
+    // (e.g. scale: 2 ≈ 7× Letter content width → enormous pages).
     await pdf.html(doc.body, {
       margin: [margin, margin, margin, margin],
       width: contentWidthMm,
       windowWidth: layout.contentWidthPx,
       autoPaging: "text",
       html2canvas: {
-        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
