@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createProjectDocument,
   deleteProjectDocument,
+  listBacklinks,
   listDocuments,
 } from "../../api";
 import type { DocSummary } from "../../types";
@@ -14,8 +15,9 @@ type DocsSidebarProps = {
 };
 
 /**
- * Bottom left-rail pane: project documents (create / open / delete).
- * Independently scrollable; sits under Document map in a flex split.
+ * Bottom left-rail pane: project documents (create / open / delete) plus
+ * backlinks for the active document. Independently scrollable; sits under
+ * Document map in a flex split. Does not touch the map or variables panel.
  */
 export function DocsSidebar({
   projectId,
@@ -24,21 +26,26 @@ export function DocsSidebar({
   refreshKey = 0,
 }: DocsSidebarProps) {
   const [docs, setDocs] = useState<DocSummary[]>([]);
+  const [backlinks, setBacklinks] = useState<DocSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     try {
       const list = await listDocuments(projectId);
       setDocs(list);
+      if (activeDocId) {
+        setBacklinks(await listBacklinks(projectId, activeDocId));
+      } else {
+        setBacklinks([]);
+      }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, activeDocId]);
 
   useEffect(() => {
     void refresh();
@@ -103,6 +110,29 @@ export function DocsSidebar({
           </li>
         ))}
       </ul>
+
+      <header className="docs-sidebar-header backlinks-header">
+        <h3>Backlinks</h3>
+      </header>
+      {!loading && backlinks.length === 0 ? (
+        <p className="muted tiny docs-empty">No documents link here yet.</p>
+      ) : (
+        <ul className="docs-list backlinks-list" aria-label="Backlinks">
+          {backlinks.map((d) => (
+            <li key={d.id}>
+              <button
+                type="button"
+                className="doc-pick"
+                title={`Open ${d.title}`}
+                onClick={() => onSelect(d.id)}
+              >
+                ← {d.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <p className="muted tiny docs-hint">
         Type <code>[[Doc Title]]</code> to link across documents. Type{" "}
         <code>{"{{var}}"}</code> for a project variable.
