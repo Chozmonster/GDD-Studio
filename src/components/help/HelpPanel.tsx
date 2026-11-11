@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  HELP_APP,
   HELP_CHARTS,
+  HELP_DOCUMENT,
+  HELP_FLOWCHARTS,
+  HELP_INTRO,
   HELP_MOOD_BOARD,
   HELP_NAV,
+  HELP_OPTIONS,
   HELP_RGD_APP,
   HELP_RGD_OVERVIEW,
   HELP_RGD_SKILLS_LEAD,
@@ -11,7 +14,10 @@ import {
   HELP_WHITEBOARD,
   RGD_SKILL_HELP,
   RGD_STEP_HELP,
+  helpNavRootIdForSection,
   type HelpArticleContent,
+  type HelpControl,
+  type HelpNavNode,
   type HelpSectionId,
   type HelpTopic,
 } from "./helpContent";
@@ -25,15 +31,22 @@ type HelpPanelProps = {
 export function HelpPanel({
   open,
   onClose,
-  initialSection = "app",
+  initialSection = "intro",
 }: HelpPanelProps) {
   const titleId = useId();
   const [section, setSection] = useState<HelpSectionId>(initialSection);
+  const [activeNavId, setActiveNavId] = useState(
+    () => helpNavRootIdForSection(initialSection),
+  );
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setSection(initialSection);
+      setActiveNavId(helpNavRootIdForSection(initialSection));
+      setPendingAnchor(null);
       window.setTimeout(() => closeRef.current?.focus(), 0);
     }
   }, [open, initialSection]);
@@ -47,7 +60,26 @@ export function HelpPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open || !contentRef.current) return;
+    const root = contentRef.current;
+    if (!pendingAnchor) {
+      root.scrollTop = 0;
+      return;
+    }
+    const el = root.querySelector(`#help-${pendingAnchor}`);
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [open, section, pendingAnchor]);
+
   if (!open) return null;
+
+  const goNav = (node: HelpNavNode) => {
+    setActiveNavId(node.id);
+    setSection(node.section);
+    setPendingAnchor(node.anchor ?? null);
+  };
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -72,30 +104,66 @@ export function HelpPanel({
 
         <div className="help-panel-body">
           <nav className="help-nav" aria-label="Help topics">
-            {HELP_NAV.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={
-                  section === item.id ? "help-nav-item active" : "help-nav-item"
-                }
-                aria-current={section === item.id ? "page" : undefined}
-                onClick={() => setSection(item.id)}
-              >
-                {item.label}
-              </button>
+            {HELP_NAV.map((node) => (
+              <NavBranch
+                key={node.id}
+                node={node}
+                depth={0}
+                activeNavId={activeNavId}
+                onSelect={goNav}
+              />
             ))}
           </nav>
 
-          <div className="help-content" tabIndex={0}>
-            {section === "app" && <Article article={HELP_APP} />}
+          <div className="help-content" tabIndex={0} ref={contentRef}>
+            {section === "intro" && <Article article={HELP_INTRO} />}
+            {section === "document" && <Article article={HELP_DOCUMENT} />}
+            {section === "flowcharts" && <Article article={HELP_FLOWCHARTS} />}
             {section === "moodboard" && <Article article={HELP_MOOD_BOARD} />}
             {section === "charts" && <Article article={HELP_CHARTS} />}
             {section === "whiteboard" && <Article article={HELP_WHITEBOARD} />}
+            {section === "options" && <Article article={HELP_OPTIONS} />}
             {section === "rgd" && <RgdPage />}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function NavBranch({
+  node,
+  depth,
+  activeNavId,
+  onSelect,
+}: {
+  node: HelpNavNode;
+  depth: number;
+  activeNavId: string;
+  onSelect: (node: HelpNavNode) => void;
+}) {
+  const active = activeNavId === node.id;
+  return (
+    <div className="help-nav-branch">
+      <button
+        type="button"
+        className={active ? "help-nav-item active" : "help-nav-item"}
+        data-depth={depth}
+        style={{ paddingLeft: `${0.55 + depth * 0.75}rem` }}
+        aria-current={active ? "page" : undefined}
+        onClick={() => onSelect(node)}
+      >
+        {node.label}
+      </button>
+      {node.children?.map((child) => (
+        <NavBranch
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          activeNavId={activeNavId}
+          onSelect={onSelect}
+        />
+      ))}
     </div>
   );
 }
@@ -106,7 +174,7 @@ function Article({ article }: { article: HelpArticleContent }) {
       <h3>{article.title}</h3>
       {article.lead ? <p className="muted">{article.lead}</p> : null}
       {article.topics?.map((topic) => (
-        <TopicBlock key={topic.title} topic={topic} />
+        <TopicBlock key={topic.anchor ?? topic.title} topic={topic} />
       ))}
       {article.furtherReading && article.furtherReading.length > 0 ? (
         <>
@@ -127,9 +195,15 @@ function Article({ article }: { article: HelpArticleContent }) {
 
 function TopicBlock({ topic }: { topic: HelpTopic }) {
   return (
-    <section className="help-topic">
+    <section
+      className="help-topic"
+      id={topic.anchor ? `help-${topic.anchor}` : undefined}
+    >
       <h4 className="help-subhead">{topic.title}</h4>
       {topic.lead ? <p>{topic.lead}</p> : null}
+      {topic.controls && topic.controls.length > 0 ? (
+        <ControlList controls={topic.controls} />
+      ) : null}
       {topic.steps && topic.steps.length > 0 ? (
         <ol className="help-howto-list">
           {topic.steps.map((step) => (
@@ -149,16 +223,32 @@ function TopicBlock({ topic }: { topic: HelpTopic }) {
   );
 }
 
+function ControlList({ controls }: { controls: readonly HelpControl[] }) {
+  return (
+    <ul className="help-control-list">
+      {controls.map((c) => (
+        <li key={c.name}>
+          <span className="help-control-name">{c.name}</span>
+          <span className="help-control-does"> — {c.does}</span>
+          {c.example ? (
+            <span className="help-control-example muted"> {c.example}</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Single scrollable RGD Help page: intro + 7 steps + skills + using the app. */
 function RgdPage() {
   return (
     <article className="help-article">
-      <h3>{HELP_RGD_OVERVIEW.title}</h3>
+      <h3 id="help-rgd-overview">{HELP_RGD_OVERVIEW.title}</h3>
       {HELP_RGD_OVERVIEW.lead ? (
         <p className="muted">{HELP_RGD_OVERVIEW.lead}</p>
       ) : null}
       {HELP_RGD_OVERVIEW.topics?.map((topic) => (
-        <TopicBlock key={topic.title} topic={topic} />
+        <TopicBlock key={topic.anchor ?? topic.title} topic={topic} />
       ))}
 
       <section className="help-major-section" aria-labelledby="help-rgd-steps">
@@ -168,7 +258,7 @@ function RgdPage() {
         <p className="muted">{HELP_RGD_STEPS_LEAD}</p>
         <ol className="help-step-list">
           {RGD_STEP_HELP.map((s) => (
-            <li key={s.n}>
+            <li key={s.n} id={`help-rgd-step-${s.n}`}>
               <div className="help-step-card">
                 <span className="help-step-badge" aria-hidden>
                   {s.n}
@@ -222,7 +312,7 @@ function RgdPage() {
           {HELP_RGD_APP.title}
         </h4>
         {HELP_RGD_APP.topics?.map((topic) => (
-          <TopicBlock key={topic.title} topic={topic} />
+          <TopicBlock key={topic.anchor ?? topic.title} topic={topic} />
         ))}
         {HELP_RGD_APP.furtherReading &&
         HELP_RGD_APP.furtherReading.length > 0 ? (
