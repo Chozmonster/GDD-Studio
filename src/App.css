@@ -1484,6 +1484,47 @@ code {
   font-family: var(--font-ui);
   font-size: 0.72rem;
   color: #ddd;
+  line-height: 1.2;
+  max-width: 12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-edge-label-empty {
+  background: transparent;
+  border-style: dashed;
+  border-color: #666;
+  color: #999;
+  opacity: 0.85;
+}
+
+.flow-edge-label-placeholder {
+  font-style: italic;
+  color: #9a9a9a;
+}
+
+.flow-edge-label-editing {
+  overflow: visible;
+  max-width: none;
+  padding: 0.05rem 0.2rem;
+  background: #1f1f1f;
+  border-color: #7aa892;
+}
+
+.flow-edge-label-input {
+  display: block;
+  min-width: 4.5rem;
+  max-width: 14rem;
+  margin: 0;
+  padding: 0.1rem 0.25rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f0f0f0;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  line-height: 1.2;
 }
 
 .snap-guide-line {

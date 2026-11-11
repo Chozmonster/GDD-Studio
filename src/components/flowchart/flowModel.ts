@@ -23,6 +23,13 @@ export type FlowEdgeData = {
   startArrow: boolean;
   /** Arrow at the target (end) end of the connector. */
   endArrow: boolean;
+  /** Commit an inline edge-label edit (editor only; stripped on save). */
+  onChangeLabel?: (id: string, label: string) => void;
+  /**
+   * Bumped by the editor (toolbar / context menu) to open inline edit
+   * without a window.prompt. Ignored in embeds/previews.
+   */
+  startEditToken?: number;
 };
 
 export type FlowNode = Node<FlowNodeData, "flow">;

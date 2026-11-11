@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -17,10 +18,43 @@ type StubbedEdgeProps = EdgeProps & {
   data?: FlowEdgeData;
 };
 
+type StubbedEdgeInnerProps = StubbedEdgeProps & {
+  mode: "curve" | "step";
+};
+
 /** Dev-only waypoint overlay; keep false in shipped UI. */
 const DEBUG_WAYPOINTS = false;
 
-function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
+function StubbedEdgeInner({ mode, ...props }: StubbedEdgeInnerProps) {
+  const canEdit = typeof props.data?.onChangeLabel === "function";
+  const labelText =
+    typeof props.label === "string"
+      ? props.label
+      : props.label != null
+        ? String(props.label)
+        : "";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(labelText);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(labelText);
+  }, [labelText, editing]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  // Toolbar / context menu request inline edit via a bumped token.
+  const startEditToken = props.data?.startEditToken;
+  useEffect(() => {
+    if (!canEdit || !startEditToken) return;
+    setDraft(labelText);
+    setEditing(true);
+    // Only react to the token bump — not labelText changes while editing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startEditToken, canEdit]);
+
   const sourceSide = sideFromHandle(
     props.sourceHandleId,
     props.sourcePosition,
@@ -75,6 +109,29 @@ function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
     }
   }
 
+  const beginEdit = () => {
+    if (!canEdit) return;
+    setDraft(labelText);
+    setEditing(true);
+  };
+
+  const commit = () => {
+    if (!editing) return;
+    setEditing(false);
+    const next = draft.trim();
+    if (next !== labelText) {
+      props.data?.onChangeLabel?.(props.id, next);
+    }
+  };
+
+  const cancel = () => {
+    setDraft(labelText);
+    setEditing(false);
+  };
+
+  const showLabelChrome =
+    editing || Boolean(labelText) || (canEdit && Boolean(props.selected));
+
   return (
     <>
       <BaseEdge
@@ -86,15 +143,57 @@ function StubbedEdgeInner(props: StubbedEdgeProps, mode: "curve" | "step") {
         interactionWidth={24}
       />
       {DEBUG_WAYPOINTS ? <WaypointOverlay points={built.points} /> : null}
-      {props.label ? (
+      {showLabelChrome ? (
         <EdgeLabelRenderer>
           <div
-            className="flow-edge-label nodrag nopan"
+            className={
+              editing
+                ? "flow-edge-label flow-edge-label-editing nodrag nopan"
+                : labelText
+                  ? "flow-edge-label nodrag nopan"
+                  : "flow-edge-label flow-edge-label-empty nodrag nopan"
+            }
             style={{
               transform: `translate(-50%, -50%) translate(${built.labelX}px, ${built.labelY}px)`,
             }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              beginEdit();
+            }}
+            title={
+              canEdit && !editing
+                ? labelText
+                  ? "Double-click to edit label"
+                  : "Double-click to add label"
+                : undefined
+            }
           >
-            {props.label}
+            {editing ? (
+              <input
+                ref={inputRef}
+                className="flow-edge-label-input"
+                value={draft}
+                aria-label="Edge label"
+                placeholder="Label"
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commit();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancel();
+                  }
+                }}
+              />
+            ) : labelText ? (
+              labelText
+            ) : (
+              <span className="flow-edge-label-placeholder">Label</span>
+            )}
           </div>
         </EdgeLabelRenderer>
       ) : null}
@@ -121,9 +220,9 @@ function WaypointOverlay({ points }: { points: Pt[] }) {
 }
 
 export function StubCurveEdge(props: StubbedEdgeProps) {
-  return StubbedEdgeInner(props, "curve");
+  return <StubbedEdgeInner {...props} mode="curve" />;
 }
 
 export function StubStepEdge(props: StubbedEdgeProps) {
-  return StubbedEdgeInner(props, "step");
+  return <StubbedEdgeInner {...props} mode="step" />;
 }
