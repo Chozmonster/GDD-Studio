@@ -687,11 +687,16 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
         },
         {
           name: "Edge label",
-          does: "Edit the label on the selected connector.",
+          does: "Edit the label on the selected connector (prompt). Right-click a connector for the same action.",
+        },
+        {
+          name: "Duplicate",
+          does: "Clone the selected node subgraph (nodes plus connectors wholly inside the selection), offset on the canvas.",
+          example: "Ctrl/Cmd+D.",
         },
         {
           name: "Delete",
-          does: "Delete the current selection (also Backspace / Delete on the canvas).",
+          does: "Delete the current selection (also Backspace / Delete on the canvas). Removes connectors attached to deleted nodes.",
         },
         {
           name: "Save now",
@@ -717,6 +722,10 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
           name: "Color swatches",
           does: "Set fill on the selected node(s). Disabled when nothing is selected.",
         },
+        {
+          name: "Arrange (L/C/R · T/M/B · Dist H/V)",
+          does: "Align 2+ selected nodes, or distribute equal gaps across 3+ nodes.",
+        },
       ],
     },
     {
@@ -734,7 +743,8 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
         },
       ],
       tips: [
-        "Drag from a node’s N/E/S/W anchors to connect. Drag a connector end onto another node to reconnect.",
+        "Drag from a node’s N/E/S/W anchors to connect. Click an anchor to quick-add a connected sibling of the same type.",
+        "Drag a connector end onto another node to reconnect.",
         "Nodes snap to a grid so orthogonal connectors stay clean.",
       ],
     },
@@ -745,6 +755,8 @@ export const HELP_FLOWCHARTS: HelpArticleContent = {
         "Left-drag empty canvas = marquee select (nodes + connectors).",
         "Click selects; Shift+click adds/toggles; drag moves the selection; click empty clears.",
         "Pan with Space+drag or middle mouse; scroll/pinch to zoom.",
+        "Ctrl/Cmd+C / X / V / D = copy / cut / paste / duplicate the selected subgraph.",
+        "Right-click a node, connector, or empty pane for Duplicate / Copy / Cut / Delete / Edit label / Paste.",
       ],
     },
     {

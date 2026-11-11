@@ -3849,7 +3849,8 @@ code {
   font-style: italic;
 }
 
-.mood-ctx-menu {
+.mood-ctx-menu,
+.flowchart-ctx-menu {
   position: fixed;
   z-index: 50;
   min-width: 180px;
@@ -3864,19 +3865,22 @@ code {
   gap: 0.15rem;
 }
 
-.mood-ctx-menu button {
+.mood-ctx-menu button,
+.flowchart-ctx-menu button {
   text-align: left;
   font-size: 0.82rem;
   background: transparent;
   border-color: transparent;
 }
 
-.mood-ctx-menu button:hover:not(:disabled) {
+.mood-ctx-menu button:hover:not(:disabled),
+.flowchart-ctx-menu button:hover:not(:disabled) {
   background: var(--bg-row-active);
   border-color: transparent;
 }
 
-.mood-ctx-sep {
+.mood-ctx-sep,
+.flowchart-ctx-sep {
   border: none;
   border-top: 1px solid var(--line);
   margin: 0.2rem 0.15rem;
