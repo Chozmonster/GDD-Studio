@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/react";
 import { toPng } from "html-to-image";
+import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import {
   ensureProjectExportsDir,
@@ -16,6 +17,10 @@ import {
 
 /** Soft cap — very tall embeds are cropped so print pages stay usable. */
 const MAX_CAPTURE_HEIGHT_PX = 1800;
+/** Avoid oversized canvases on long docs (browser texture limits). */
+const MAX_PDF_CANVAS_EDGE_PX = 8192;
+/** Bitmap sharpness for paper fit — placement uses mm math, not this factor. */
+const PDF_RASTER_SCALE = 2;
 const EMBED_SELECTOR =
   '[data-type="flowchart-embed"], .flowchart-embed, [data-type="rgd-sheet-embed"], .rgd-sheet-card, .rgd-table-embed, .rgd-block, [data-type="mood-board-embed"], .mood-board-embed, [data-type="chart-embed"], .chart-embed, [data-type="whiteboard-embed"], .whiteboard-embed';
 
@@ -485,15 +490,20 @@ async function buildExportHtml(
   }
   body {
     font-family: "Iowan Old Style", Palatino, Georgia, serif;
-    color: #111;
-    background: #fff;
+    color: #111 !important;
+    background: #fff !important;
     line-height: 1.55;
     font-size: 12pt;
     width: ${layout.contentWidthPx}px;
     max-width: ${layout.contentWidthPx}px;
     box-sizing: border-box;
   }
-  h1,h2,h3 { font-family: "Segoe UI", Helvetica, sans-serif; }
+  /* Neutralize editor dark-theme classes that may appear in cloned TipTap HTML. */
+  article, article * {
+    color: inherit;
+    background-color: transparent;
+  }
+  h1,h2,h3 { font-family: "Segoe UI", Helvetica, sans-serif; color: #111; }
   img, video { max-width: 100%; height: auto; }
   audio { width: 100%; }
   .export-placeholder {
@@ -579,8 +589,13 @@ async function waitForExportDocument(doc: Document): Promise<void> {
 }
 
 /**
- * Render export HTML into an offscreen iframe and convert to PDF bytes with
- * the same paper size / margins as Print view.
+ * Rasterize the export document inside its iframe (so print CSS stays applied),
+ * then place the bitmap onto jsPDF pages with explicit mm fit-to-paper width.
+ *
+ * Avoids `pdf.html()` which clones the iframe `<body>` into the host document,
+ * drops `<head>` styles, and picks up the dark editor theme — and whose
+ * html2canvas.scale / width / windowWidth coupling has repeatedly oversized
+ * content.
  */
 async function htmlToPdfBytes(
   html: string,
@@ -623,6 +638,34 @@ async function htmlToPdfBytes(
     });
     await waitForExportDocument(doc);
 
+    const body = doc.body;
+    const contentHeightPx = Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      doc.documentElement.scrollHeight,
+      1,
+    );
+    iframe.style.height = `${contentHeightPx}px`;
+
+    // Bitmap scale is sharpness only; PDF page placement uses mm math below.
+    // May drop below 1 for very long docs so the canvas stays within browser limits.
+    let rasterScale = PDF_RASTER_SCALE;
+    const tallestEdgePx = Math.max(layout.contentWidthPx, contentHeightPx);
+    if (tallestEdgePx * rasterScale > MAX_PDF_CANVAS_EDGE_PX) {
+      rasterScale = MAX_PDF_CANVAS_EDGE_PX / tallestEdgePx;
+    }
+
+    const canvas = await html2canvas(body, {
+      scale: rasterScale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: layout.contentWidthPx,
+      windowWidth: layout.contentWidthPx,
+      height: contentHeightPx,
+      windowHeight: contentHeightPx,
+    });
+
     const pdf = new jsPDF({
       unit: "mm",
       format: [size.widthMm, size.heightMm],
@@ -632,22 +675,21 @@ async function htmlToPdfBytes(
 
     const margin = PAGE_MARGIN_MM;
     const contentWidthMm = Math.max(1, size.widthMm - margin * 2);
+    const contentHeightMm = Math.max(1, size.heightMm - margin * 2);
+    const imgWidthMm = contentWidthMm;
+    const imgHeightMm = (canvas.height * imgWidthMm) / Math.max(1, canvas.width);
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
 
-    // jsPDF's html → context2d path sets html2canvas.scale = width / windowWidth
-    // so CSS px map onto paper mm (fit-to-paper width). Do NOT pass
-    // html2canvas.scale yourself: Object.assign would overwrite that factor
-    // (e.g. scale: 2 ≈ 7× Letter content width → enormous pages).
-    await pdf.html(doc.body, {
-      margin: [margin, margin, margin, margin],
-      width: contentWidthMm,
-      windowWidth: layout.contentWidthPx,
-      autoPaging: "text",
-      html2canvas: {
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      },
-    });
+    let heightLeft = imgHeightMm;
+    let y = margin;
+    pdf.addImage(imgData, "JPEG", margin, y, imgWidthMm, imgHeightMm);
+    heightLeft -= contentHeightMm;
+    while (heightLeft > 0.5) {
+      y = margin - (imgHeightMm - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", margin, y, imgWidthMm, imgHeightMm);
+      heightLeft -= contentHeightMm;
+    }
 
     return new Uint8Array(pdf.output("arraybuffer"));
   } finally {
