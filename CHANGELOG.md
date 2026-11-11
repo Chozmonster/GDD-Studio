@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Options / launcher **Export project archive** — zip the current project folder via a save dialog (default `<project-name>-archive.zip` beside the project folder). DIY backup path; no cloud OAuth.
+- PDF export CI smoke (`npm run test:pdf-smoke`) locks paper-fit width + light print theme so v0.1.22/23-class regressions cannot return silently.
+- Tall document embeds (above ~1800px) split into multiple print images with a status warning instead of a silent crop.
 
 ## [0.1.24] - 2026-11-11
 

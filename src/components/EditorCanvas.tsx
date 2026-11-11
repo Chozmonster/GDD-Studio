@@ -947,7 +947,15 @@ export function EditorCanvas({
         setStatus("PDF export cancelled");
         return;
       }
-      setStatus(`Saved PDF: ${result.path}`);
+      if (result.warnings.length > 0) {
+        setStatus(
+          `Saved PDF: ${result.path} — ${result.warnings.length} tall embed${
+            result.warnings.length === 1 ? "" : "s"
+          } split for print (not cropped)`,
+        );
+      } else {
+        setStatus(`Saved PDF: ${result.path}`);
+      }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
     }

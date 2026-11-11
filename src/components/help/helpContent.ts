@@ -572,7 +572,7 @@ export const HELP_DOCUMENT: HelpArticleContent = {
           name: "PDF",
           does: "Export a real .pdf via a save dialog. Defaults to the project’s exports/ folder and the document title as filename.",
           example:
-            "Uses Options paper size. Flowchart, RGD, Mood Board, Graph, and Whiteboard embeds rasterize in place; images export normally; video may show one frame.",
+            "Uses Options paper size (fit-to-paper width, light print theme). Tool embeds rasterize in place; tall systems maps split into multiple images instead of silent crop; video may show one frame.",
         },
         {
           name: "Continuous",
