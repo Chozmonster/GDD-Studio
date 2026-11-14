@@ -2337,7 +2337,7 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &st
             obj.flow = sanitize_whiteboard_stroke_alpha(obj.flow.take());
         }
         "line" | "rect" | "ellipse" => {
-            obj.kind = kind;
+            obj.kind = kind.clone();
             obj.mode = None;
             obj.points = None;
             obj.brush = None;
