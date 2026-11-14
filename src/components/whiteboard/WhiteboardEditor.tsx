@@ -473,6 +473,20 @@ export function WhiteboardEditor({
   });
   const previewSoft = brush === "soft";
   const previewHighlight = brush === "highlighter";
+  const textSizeContext =
+    tool === "text" ||
+    [...selectedIds].some((id) => {
+      const obj = doc.objects.find((o) => o.id === id);
+      return obj?.kind === "text";
+    });
+  // Brush tools / shapes share stroke width; text context highlights Text size.
+  const brushSizeContext =
+    tool === "pen" ||
+    tool === "eraser" ||
+    tool === "line" ||
+    tool === "rect" ||
+    tool === "ellipse" ||
+    (!textSizeContext && tool === "select");
 
   return (
     <div className="flowchart-shell whiteboard-shell">
@@ -600,8 +614,14 @@ export function WhiteboardEditor({
                 />
               ))}
             </div>
-            <label className="whiteboard-inline-field whiteboard-width-field">
-              <span className="muted tiny">Width</span>
+            <label
+              className={
+                brushSizeContext
+                  ? "whiteboard-inline-field whiteboard-width-field is-context-active"
+                  : "whiteboard-inline-field whiteboard-width-field"
+              }
+            >
+              <span className="muted tiny">Brush size</span>
               <div className="whiteboard-width-controls">
                 <input
                   type="range"
@@ -610,7 +630,7 @@ export function WhiteboardEditor({
                   step={1}
                   value={strokeWidth}
                   onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                  aria-label="Stroke width"
+                  aria-label="Brush size"
                 />
                 <span
                   className={
@@ -638,8 +658,14 @@ export function WhiteboardEditor({
                 </span>
               </div>
             </label>
-            <label className="whiteboard-inline-field">
-              <span className="muted tiny">Size</span>
+            <label
+              className={
+                textSizeContext
+                  ? "whiteboard-inline-field is-context-active"
+                  : "whiteboard-inline-field"
+              }
+            >
+              <span className="muted tiny">Text size</span>
               <div className="whiteboard-width-controls">
                 <input
                   type="range"
@@ -805,28 +831,29 @@ export function WhiteboardEditor({
             </p>
           </div>
 
-          <WhiteboardLayersPanel doc={doc} onCommit={commitDocument} />
-
-          <WhiteboardSurface
-            objects={doc.objects}
-            layers={doc.layers}
-            activeLayerId={doc.activeLayerId}
-            viewport={doc.viewport}
-            tool={tool}
-            selectMode={selectMode}
-            color={color}
-            fill={fill}
-            strokeWidth={strokeWidth}
-            brush={brush}
-            strokeOpacity={strokeOpacity}
-            strokeFlow={strokeFlow}
-            fontSize={fontSize}
-            selectedIds={selectedIds}
-            onViewportChange={commitViewport}
-            onSelectIds={setSelectedIds}
-            onCommitObjects={commitObjects}
-            onBeforeMutate={recordHistory}
-          />
+          <div className="whiteboard-stage">
+            <WhiteboardSurface
+              objects={doc.objects}
+              layers={doc.layers}
+              activeLayerId={doc.activeLayerId}
+              viewport={doc.viewport}
+              tool={tool}
+              selectMode={selectMode}
+              color={color}
+              fill={fill}
+              strokeWidth={strokeWidth}
+              brush={brush}
+              strokeOpacity={strokeOpacity}
+              strokeFlow={strokeFlow}
+              fontSize={fontSize}
+              selectedIds={selectedIds}
+              onViewportChange={commitViewport}
+              onSelectIds={setSelectedIds}
+              onCommitObjects={commitObjects}
+              onBeforeMutate={recordHistory}
+            />
+            <WhiteboardLayersPanel doc={doc} onCommit={commitDocument} />
+          </div>
         </div>
       </SplitPane>
     </div>

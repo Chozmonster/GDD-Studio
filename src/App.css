@@ -4574,6 +4574,11 @@ input.charts-formula-var-value {
   min-width: 11rem;
 }
 
+.whiteboard-inline-field.is-context-active > .muted.tiny {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
 .whiteboard-width-controls {
   display: flex;
   align-items: center;
@@ -4727,14 +4732,45 @@ input.charts-formula-var-value {
   flex: 1 1 12rem;
 }
 
+.whiteboard-stage {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.whiteboard-stage .whiteboard-surface {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .whiteboard-layers-panel {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  flex: 0 0 20rem;
+  width: 20rem;
+  max-width: 100%;
+  min-height: 0;
   padding: 0.45rem 0.55rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg-panel);
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .whiteboard-stage {
+    flex-direction: column;
+  }
+
+  .whiteboard-layers-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: 12rem;
+  }
 }
 
 .whiteboard-layers-header {
@@ -4766,7 +4802,9 @@ input.charts-formula-var-value {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  max-height: 9.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
 }
 

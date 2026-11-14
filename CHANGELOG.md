@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Whiteboard **layers** panel moved to the **right** of the canvas so drawing tools stay in one horizontal toolbar row.
+- Whiteboard size controls use clear labels: **Brush size** (stroke width) and **Text size** (font), with context emphasis when the matching tool/selection is active.
+
 ## [0.1.26] - 2026-11-13
 
 Whiteboard drawing upgrade: layers, brushes, select/transform, canvas text, and palette picker UX (#67, #68, #70, #71, #72).

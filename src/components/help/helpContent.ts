@@ -1012,15 +1012,15 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
         { name: "Line / Rectangle / Ellipse", does: "Basic shape tools." },
         {
           name: "Type",
-          does: "Click empty paper to place text; click existing text (or double-click with Select) to edit. Escape or Ctrl/Cmd+Enter commits; empty text is discarded. Stroke colour and Size control the text.",
+          does: "Click empty paper to place text; click existing text (or double-click with Select) to edit. Escape or Ctrl/Cmd+Enter commits; empty text is discarded. Stroke colour and Text size control the text.",
         },
         {
-          name: "Width",
-          does: "Stroke width slider with a live brush preview (size, colour, opacity/flow, soft/highlighter look).",
+          name: "Brush size",
+          does: "Stroke width slider with a live brush preview (size, colour, opacity/flow, soft/highlighter look). Label emphasizes when a brush/shape tool is active.",
         },
         {
-          name: "Size",
-          does: "Font size for new/edited canvas text (also scales when you transform a text object).",
+          name: "Text size",
+          does: "Font size for new/edited canvas text (also scales when you transform a text object). Label emphasizes when the Type tool is active or a text object is selected.",
         },
         {
           name: "Opacity / Flow",
@@ -1050,7 +1050,7 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
     {
       title: "Layers",
       anchor: "whiteboard-layers",
-      lead: "Named paint stack under the tool bar. New ink always goes on the active layer. Undo/Redo covers layer edits.",
+      lead: "Named paint stack on the right of the canvas so drawing tools stay in one row. New ink always goes on the active layer. Undo/Redo covers layer edits.",
       controls: [
         { name: "Add layer", does: "Create a new top layer and make it active (max 32)." },
         {
