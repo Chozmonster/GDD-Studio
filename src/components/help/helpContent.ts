@@ -1021,14 +1021,41 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
       ],
     },
     {
+      title: "Layers",
+      anchor: "whiteboard-layers",
+      lead: "Named paint stack under the tool bar. New ink always goes on the active layer. Undo/Redo covers layer edits.",
+      controls: [
+        { name: "Add layer", does: "Create a new top layer and make it active (max 32)." },
+        {
+          name: "Active row",
+          does: "Click the dot or focus the name to target that layer for new strokes.",
+        },
+        { name: "Name", does: "Rename the layer inline." },
+        {
+          name: "Show / Hide",
+          does: "Toggle visibility. Hidden layers omit ink from the editor, embeds, and PDF.",
+        },
+        {
+          name: "Lock / Unlock",
+          does: "Locked layers block select, move, erase, and drawing onto them.",
+        },
+        { name: "Opacity", does: "0–100% multiply opacity for the whole layer group." },
+        { name: "Move up / down", does: "Reorder the stack (up = toward top / front)." },
+        {
+          name: "Delete layer",
+          does: "Remove a layer (keeps at least one). Its ink moves to the neighbor below.",
+        },
+      ],
+    },
+    {
       title: "Document embeds",
       anchor: "whiteboard-embeds",
       steps: [
         "Document toolbar → Whiteboard inserts a live reference by board id.",
         "Embeds show only the board image, centered and fitted (like flowchart embeds — no title chrome; double-click opens the board).",
-        "Resizable + text alignment; PDF/print captures them as images.",
+        "Resizable + text alignment; PDF/print captures them as images. Hidden layers are omitted.",
       ],
-      note: "Boards persist under project/whiteboards/*.json. Out of scope for this MVP: multiplayer, tilt, OCR, infinite-canvas polish, importing Mood Board images as layers.",
+      note: "Boards persist under project/whiteboards/*.json. Still not mini-Miro: no multiplayer, OCR, stickies/frames. Drawing upgrade continues with brushes, select/transform, and canvas text.",
     },
   ],
 };

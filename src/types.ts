@@ -103,10 +103,24 @@ export type WhiteboardPoint = {
   pressure?: number;
 };
 
+/** Named paint stack entry. Index 0 = bottom; last = top. */
+export type WhiteboardLayer = {
+  id: string;
+  name: string;
+  /** When false, layer ink is omitted from editor, embeds, and PDF. */
+  visible: boolean;
+  /** When true, ink cannot be selected, moved, erased, or drawn onto. */
+  locked: boolean;
+  /** 0–1 multiply opacity for the whole layer group. */
+  opacity: number;
+};
+
 /** Freehand stroke (pen ink or eraser brush that punches holes). */
 export type WhiteboardPathObject = {
   id: string;
   kind: "path";
+  /** Owning layer id (migrated onto a default layer for legacy boards). */
+  layerId: string;
   mode: "pen" | "eraser";
   points: WhiteboardPoint[];
   color: string;
@@ -117,6 +131,8 @@ export type WhiteboardPathObject = {
 export type WhiteboardShapeObject = {
   id: string;
   kind: "line" | "rect" | "ellipse";
+  /** Owning layer id (migrated onto a default layer for legacy boards). */
+  layerId: string;
   x1: number;
   y1: number;
   x2: number;
@@ -152,11 +168,16 @@ export type WhiteboardSummary = {
 /** Project-persisted whiteboard (named library entry). */
 export type WhiteboardDocument = {
   format: "gdd-studio-whiteboard";
-  version: 1;
+  /** 1 = pre-layers MVP; 2 = layers (normalize always writes 2). */
+  version: 1 | 2;
   id: string;
   name: string;
   /** Designer note — shown under live document embeds. */
   description: string;
+  /** Paint stack; index 0 draws first (bottom). Always ≥1 after normalize. */
+  layers: WhiteboardLayer[];
+  /** Layer that receives new ink. */
+  activeLayerId: string;
   objects: WhiteboardObject[];
   viewport: WhiteboardViewport;
   /** Optional Mood Board palette tile used for stroke/fill swatches. */

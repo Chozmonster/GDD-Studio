@@ -1,5 +1,6 @@
 import type {
   WhiteboardDocument,
+  WhiteboardLayer,
   WhiteboardObject,
   WhiteboardPaletteRef,
   WhiteboardPathObject,
@@ -20,20 +21,41 @@ export const FALLBACK_SWATCHES = [
   "#FFFFFF",
 ] as const;
 
+export const WHITEBOARD_DOC_VERSION = 2 as const;
+export const DEFAULT_LAYER_NAME = "Layer 1";
+export const MAX_LAYERS = 32;
+
 const MAX_OBJECTS = 2_000;
 const MAX_PATH_POINTS = 4_000;
 const MAX_DESCRIPTION = 2_000;
+const MAX_LAYER_NAME = 64;
+
+export function createWhiteboardLayer(
+  name = DEFAULT_LAYER_NAME,
+  id?: string,
+): WhiteboardLayer {
+  return {
+    id: id ?? newEntityId("layer"),
+    name: name.trim().slice(0, MAX_LAYER_NAME) || DEFAULT_LAYER_NAME,
+    visible: true,
+    locked: false,
+    opacity: 1,
+  };
+}
 
 export function emptyWhiteboardDocument(
   id = "main",
   name = "Main",
 ): WhiteboardDocument {
+  const layer = createWhiteboardLayer(DEFAULT_LAYER_NAME);
   return {
     format: "gdd-studio-whiteboard",
-    version: 1,
+    version: WHITEBOARD_DOC_VERSION,
     id,
     name: name || (id === "main" ? "Main" : id),
     description: "",
+    layers: [layer],
+    activeLayerId: layer.id,
     objects: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     paletteRef: null,
@@ -137,7 +159,35 @@ function sanitizePoint(p: unknown): WhiteboardPoint | null {
   return out;
 }
 
-function sanitizePath(obj: Partial<WhiteboardPathObject>, index: number): WhiteboardPathObject | null {
+function sanitizeOpacity(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
+}
+
+function sanitizeLayer(raw: unknown, index: number): WhiteboardLayer | null {
+  if (!raw || typeof raw !== "object") return null;
+  const layer = raw as Partial<WhiteboardLayer>;
+  const id = String(layer.id || "").trim();
+  if (!id || id.length > 64) return null;
+  const name =
+    String(layer.name ?? "")
+      .trim()
+      .slice(0, MAX_LAYER_NAME) || `Layer ${index + 1}`;
+  return {
+    id,
+    name,
+    visible: layer.visible !== false,
+    locked: layer.locked === true,
+    opacity: sanitizeOpacity(layer.opacity),
+  };
+}
+
+function sanitizePath(
+  obj: Partial<WhiteboardPathObject>,
+  index: number,
+  fallbackLayerId: string,
+): WhiteboardPathObject | null {
   const id = String(obj.id || `path-${index + 1}`);
   const pointsRaw = Array.isArray(obj.points) ? obj.points : [];
   const points: WhiteboardPoint[] = [];
@@ -147,9 +197,11 @@ function sanitizePath(obj: Partial<WhiteboardPathObject>, index: number): Whiteb
     if (points.length >= MAX_PATH_POINTS) break;
   }
   if (points.length < 1) return null;
+  const layerId = String(obj.layerId || "").trim() || fallbackLayerId;
   return {
     id,
     kind: "path",
+    layerId,
     mode: obj.mode === "eraser" ? "eraser" : "pen",
     points,
     color: sanitizeColor(obj.color, DEFAULT_STROKE_COLOR),
@@ -160,6 +212,7 @@ function sanitizePath(obj: Partial<WhiteboardPathObject>, index: number): Whiteb
 function sanitizeShape(
   obj: Partial<WhiteboardShapeObject>,
   index: number,
+  fallbackLayerId: string,
 ): WhiteboardShapeObject | null {
   const kind = obj.kind;
   if (kind !== "line" && kind !== "rect" && kind !== "ellipse") return null;
@@ -177,9 +230,11 @@ function sanitizeShape(
     fillRaw === null || fillRaw === undefined || fillRaw === ""
       ? null
       : sanitizeColor(fillRaw, DEFAULT_STROKE_COLOR);
+  const layerId = String(obj.layerId || "").trim() || fallbackLayerId;
   return {
     id: String(obj.id || `shape-${index + 1}`),
     kind,
+    layerId,
     x1,
     y1,
     x2,
@@ -190,11 +245,17 @@ function sanitizeShape(
   };
 }
 
-function sanitizeObject(raw: unknown, index: number): WhiteboardObject | null {
+function sanitizeObject(
+  raw: unknown,
+  index: number,
+  fallbackLayerId: string,
+): WhiteboardObject | null {
   if (!raw || typeof raw !== "object") return null;
   const kind = (raw as WhiteboardObject).kind;
-  if (kind === "path") return sanitizePath(raw as WhiteboardPathObject, index);
-  return sanitizeShape(raw as WhiteboardShapeObject, index);
+  if (kind === "path") {
+    return sanitizePath(raw as WhiteboardPathObject, index, fallbackLayerId);
+  }
+  return sanitizeShape(raw as WhiteboardShapeObject, index, fallbackLayerId);
 }
 
 function sanitizeViewport(raw: unknown): WhiteboardViewport {
@@ -219,18 +280,45 @@ function sanitizePaletteRef(raw: unknown): WhiteboardPaletteRef | null {
   return { moodBoardId, itemId };
 }
 
+/**
+ * Normalize + migrate. Legacy boards (no `layers`) get a single default layer;
+ * objects without `layerId` are attached to it. Always writes version 2.
+ */
 export function normalizeWhiteboard(doc: WhiteboardDocument): WhiteboardDocument {
+  const rawLayers = Array.isArray(doc.layers) ? doc.layers : [];
+  const layers: WhiteboardLayer[] = [];
+  const seenLayerIds = new Set<string>();
+  for (let i = 0; i < rawLayers.length; i++) {
+    const next = sanitizeLayer(rawLayers[i], i);
+    if (!next || seenLayerIds.has(next.id)) continue;
+    seenLayerIds.add(next.id);
+    layers.push(next);
+    if (layers.length >= MAX_LAYERS) break;
+  }
+  if (layers.length === 0) {
+    layers.push(createWhiteboardLayer(DEFAULT_LAYER_NAME));
+  }
+
+  const fallbackLayerId = layers[0].id;
+  const layerIds = new Set(layers.map((l) => l.id));
+  let activeLayerId = String(doc.activeLayerId ?? "").trim();
+  if (!layerIds.has(activeLayerId)) activeLayerId = fallbackLayerId;
+
   const objects: WhiteboardObject[] = [];
   const rawObjects = Array.isArray(doc.objects) ? doc.objects : [];
   for (let i = 0; i < rawObjects.length; i++) {
-    const next = sanitizeObject(rawObjects[i], i);
-    if (next) objects.push(next);
+    const next = sanitizeObject(rawObjects[i], i, fallbackLayerId);
+    if (!next) continue;
+    if (!layerIds.has(next.layerId)) {
+      next.layerId = fallbackLayerId;
+    }
+    objects.push(next);
     if (objects.length >= MAX_OBJECTS) break;
   }
 
   return {
     format: "gdd-studio-whiteboard",
-    version: 1,
+    version: WHITEBOARD_DOC_VERSION,
     id: doc.id || "main",
     name:
       doc.name?.trim() ||
@@ -238,10 +326,144 @@ export function normalizeWhiteboard(doc: WhiteboardDocument): WhiteboardDocument
     description: String(doc.description ?? "")
       .trim()
       .slice(0, MAX_DESCRIPTION),
+    layers,
+    activeLayerId,
     objects,
     viewport: sanitizeViewport(doc.viewport),
     paletteRef: sanitizePaletteRef(doc.paletteRef),
   };
+}
+
+export function findLayer(
+  layers: WhiteboardLayer[],
+  layerId: string,
+): WhiteboardLayer | undefined {
+  return layers.find((l) => l.id === layerId);
+}
+
+export function layerIsDrawable(layer: WhiteboardLayer | undefined): boolean {
+  return Boolean(layer && layer.visible && !layer.locked);
+}
+
+/** Objects that paint / contribute to embeds (visible layers only). */
+export function visibleObjects(
+  objects: WhiteboardObject[],
+  layers: WhiteboardLayer[],
+): WhiteboardObject[] {
+  const visibleIds = new Set(
+    layers.filter((l) => l.visible).map((l) => l.id),
+  );
+  return objects.filter((o) => visibleIds.has(o.layerId));
+}
+
+/**
+ * Objects that can be hit for select / erase (visible + unlocked), in paint
+ * order (bottom→top) so `hitTestTop` prefers upper layers.
+ */
+export function interactiveObjects(
+  objects: WhiteboardObject[],
+  layers: WhiteboardLayer[],
+  opts?: { layerId?: string },
+): WhiteboardObject[] {
+  const out: WhiteboardObject[] = [];
+  for (const layer of layers) {
+    if (!layer.visible || layer.locked) continue;
+    if (opts?.layerId && layer.id !== opts.layerId) continue;
+    for (const obj of objects) {
+      if (obj.layerId === layer.id) out.push(obj);
+    }
+  }
+  return out;
+}
+
+/**
+ * Paint groups bottom→top. Hidden layers omitted.
+ * Within a layer, object array order is preserved.
+ */
+export function paintLayerGroups(
+  objects: WhiteboardObject[],
+  layers: WhiteboardLayer[],
+): { layer: WhiteboardLayer; objects: WhiteboardObject[] }[] {
+  return layers
+    .filter((l) => l.visible)
+    .map((layer) => ({
+      layer,
+      objects: objects.filter((o) => o.layerId === layer.id),
+    }));
+}
+
+export function addWhiteboardLayer(
+  doc: WhiteboardDocument,
+  name?: string,
+): WhiteboardDocument {
+  if (doc.layers.length >= MAX_LAYERS) return doc;
+  const n = doc.layers.length + 1;
+  const layer = createWhiteboardLayer(name?.trim() || `Layer ${n}`);
+  return {
+    ...doc,
+    layers: [...doc.layers, layer],
+    activeLayerId: layer.id,
+  };
+}
+
+/**
+ * Delete a layer (min 1). Survivors keep ink: objects move to the neighbor
+ * below, or the new top layer if the deleted one was bottom.
+ */
+export function removeWhiteboardLayer(
+  doc: WhiteboardDocument,
+  layerId: string,
+): WhiteboardDocument {
+  if (doc.layers.length <= 1) return doc;
+  const index = doc.layers.findIndex((l) => l.id === layerId);
+  if (index < 0) return doc;
+  const fallback =
+    doc.layers[index - 1] ?? doc.layers[index + 1] ?? doc.layers[0];
+  const layers = doc.layers.filter((l) => l.id !== layerId);
+  const objects = doc.objects.map((o) =>
+    o.layerId === layerId ? { ...o, layerId: fallback.id } : o,
+  );
+  const activeLayerId =
+    doc.activeLayerId === layerId ? fallback.id : doc.activeLayerId;
+  return { ...doc, layers, objects, activeLayerId };
+}
+
+export function reorderWhiteboardLayer(
+  doc: WhiteboardDocument,
+  layerId: string,
+  direction: "up" | "down",
+): WhiteboardDocument {
+  const index = doc.layers.findIndex((l) => l.id === layerId);
+  if (index < 0) return doc;
+  // UI "up" = toward top of stack = higher index.
+  const target = direction === "up" ? index + 1 : index - 1;
+  if (target < 0 || target >= doc.layers.length) return doc;
+  const layers = [...doc.layers];
+  const [item] = layers.splice(index, 1);
+  layers.splice(target, 0, item);
+  return { ...doc, layers };
+}
+
+export function updateWhiteboardLayer(
+  doc: WhiteboardDocument,
+  layerId: string,
+  patch: Partial<
+    Pick<WhiteboardLayer, "name" | "visible" | "locked" | "opacity">
+  >,
+): WhiteboardDocument {
+  const layers = doc.layers.map((l) => {
+    if (l.id !== layerId) return l;
+    const next: WhiteboardLayer = { ...l };
+    if (patch.name !== undefined) {
+      next.name =
+        patch.name.trim().slice(0, MAX_LAYER_NAME) || l.name;
+    }
+    if (patch.visible !== undefined) next.visible = patch.visible;
+    if (patch.locked !== undefined) next.locked = patch.locked;
+    if (patch.opacity !== undefined) next.opacity = sanitizeOpacity(patch.opacity);
+    return next;
+  });
+  return { ...doc, layers };
 }
 
 export function pathToSvgD(points: WhiteboardPoint[]): string {
