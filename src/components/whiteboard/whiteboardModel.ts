@@ -7,6 +7,7 @@ import type {
   WhiteboardPathObject,
   WhiteboardPoint,
   WhiteboardShapeObject,
+  WhiteboardTextObject,
   WhiteboardViewport,
 } from "../../types";
 
@@ -17,6 +18,8 @@ export const DEFAULT_STROKE_OPACITY = 1;
 export const DEFAULT_STROKE_FLOW = 1;
 /** Sensible starting opacity when switching to highlighter. */
 export const HIGHLIGHTER_DEFAULT_OPACITY = 0.4;
+export const DEFAULT_FONT_SIZE = 24;
+export const MAX_TEXT_CHARS = 2_000;
 export const FALLBACK_SWATCHES = [
   "#1A1A1A",
   "#C0392B",
@@ -287,6 +290,44 @@ function sanitizeShape(
   };
 }
 
+function sanitizeFontSize(raw: unknown, fallback = DEFAULT_FONT_SIZE): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(128, Math.max(8, Math.round(n * 10) / 10));
+}
+
+function sanitizeTextObject(
+  obj: Partial<WhiteboardTextObject>,
+  index: number,
+  fallbackLayerId: string,
+): WhiteboardTextObject | null {
+  const x = Number(obj.x);
+  const y = Number(obj.y);
+  if (![x, y].every((n) => Number.isFinite(n))) return null;
+  const text = String(obj.text ?? "")
+    .replace(/\r\n/g, "\n")
+    .slice(0, MAX_TEXT_CHARS);
+  if (!text.trim()) return null;
+  const layerId = String(obj.layerId || "").trim() || fallbackLayerId;
+  const out: WhiteboardTextObject = {
+    id: String(obj.id || `text-${index + 1}`),
+    kind: "text",
+    layerId,
+    x,
+    y,
+    text,
+    color: sanitizeColor(obj.color, DEFAULT_STROKE_COLOR),
+    fontSize: sanitizeFontSize(obj.fontSize),
+  };
+  const rot = Number(obj.rotation);
+  if (Number.isFinite(rot) && Math.abs(rot) > 1e-6) {
+    // Keep in (-π, π]
+    let r = ((rot + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    if (Math.abs(r) > 1e-6) out.rotation = Math.round(r * 1000) / 1000;
+  }
+  return out;
+}
+
 function sanitizeObject(
   raw: unknown,
   index: number,
@@ -297,7 +338,30 @@ function sanitizeObject(
   if (kind === "path") {
     return sanitizePath(raw as WhiteboardPathObject, index, fallbackLayerId);
   }
+  if (kind === "text") {
+    return sanitizeTextObject(raw as WhiteboardTextObject, index, fallbackLayerId);
+  }
   return sanitizeShape(raw as WhiteboardShapeObject, index, fallbackLayerId);
+}
+
+/** Approximate unrotated text block size (no DOM measure). */
+export function estimateTextSize(obj: WhiteboardTextObject): {
+  w: number;
+  h: number;
+} {
+  const lines = obj.text.split("\n");
+  const maxLen = Math.max(1, ...lines.map((l) => l.length));
+  const w = Math.max(obj.fontSize * 0.5, maxLen * obj.fontSize * 0.62);
+  const h = Math.max(obj.fontSize, lines.length * obj.fontSize * 1.25);
+  return { w, h };
+}
+
+export function textBlockCenter(obj: WhiteboardTextObject): {
+  x: number;
+  y: number;
+} {
+  const { w, h } = estimateTextSize(obj);
+  return { x: obj.x + w / 2, y: obj.y + h / 2 };
 }
 
 function sanitizeViewport(raw: unknown): WhiteboardViewport {
@@ -620,6 +684,43 @@ export function objectBounds(obj: WhiteboardObject): {
       h: Math.max(0, maxY - minY) + pad * 2,
     };
   }
+  if (obj.kind === "text") {
+    const { w, h } = estimateTextSize(obj);
+    const rot = obj.rotation ?? 0;
+    if (Math.abs(rot) < 1e-6) {
+      return { x: obj.x, y: obj.y, w, h };
+    }
+    const cx = obj.x + w / 2;
+    const cy = obj.y + h / 2;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const corners = [
+      { x: obj.x, y: obj.y },
+      { x: obj.x + w, y: obj.y },
+      { x: obj.x + w, y: obj.y + h },
+      { x: obj.x, y: obj.y + h },
+    ].map((p) => {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+    });
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of corners) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    return {
+      x: minX,
+      y: minY,
+      w: Math.max(0, maxX - minX),
+      h: Math.max(0, maxY - minY),
+    };
+  }
   const b = shapeBounds(obj);
   const pad = obj.width / 2;
   return {
@@ -759,6 +860,11 @@ export function hitTestObject(
     return false;
   }
 
+  if (obj.kind === "text") {
+    const b = objectBounds(obj);
+    return distToSolidRect(x, y, b.x, b.y, b.w, b.h) <= pad;
+  }
+
   if (obj.kind === "line") {
     return distToSegment(x, y, obj.x1, obj.y1, obj.x2, obj.y2) <= obj.width / 2 + pad;
   }
@@ -805,6 +911,9 @@ export function translateObject(
         ...(p.pressure !== undefined ? { pressure: p.pressure } : {}),
       })),
     };
+  }
+  if (obj.kind === "text") {
+    return { ...obj, x: obj.x + dx, y: obj.y + dy };
   }
   return {
     ...obj,
@@ -913,6 +1022,10 @@ function mapObjectPoints(
       }),
     };
   }
+  if (obj.kind === "text") {
+    const next = mapPoint(obj.x, obj.y);
+    return { ...obj, x: next.x, y: next.y };
+  }
   const a = mapPoint(obj.x1, obj.y1);
   const b = mapPoint(obj.x2, obj.y2);
   return { ...obj, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
@@ -928,20 +1041,36 @@ export function scaleObjectAround(
 ): WhiteboardObject {
   const safeSx = Number.isFinite(sx) && Math.abs(sx) > 1e-4 ? sx : Math.sign(sx) || 1e-4;
   const safeSy = Number.isFinite(sy) && Math.abs(sy) > 1e-4 ? sy : Math.sign(sy) || 1e-4;
+  const scaleFactor = Math.sqrt(Math.abs(safeSx * safeSy));
+  if (obj.kind === "text") {
+    const { w, h } = estimateTextSize(obj);
+    const cx = obj.x + w / 2;
+    const cy = obj.y + h / 2;
+    const newCenter = {
+      x: originX + (cx - originX) * safeSx,
+      y: originY + (cy - originY) * safeSy,
+    };
+    const nextFont = sanitizeFontSize(obj.fontSize * scaleFactor);
+    const next: WhiteboardTextObject = { ...obj, fontSize: nextFont };
+    const nextSize = estimateTextSize(next);
+    return {
+      ...next,
+      x: newCenter.x - nextSize.w / 2,
+      y: newCenter.y - nextSize.h / 2,
+    };
+  }
   const mapped = mapObjectPoints(obj, (x, y) => ({
     x: originX + (x - originX) * safeSx,
     y: originY + (y - originY) * safeSy,
   }));
-  if (mapped.kind === "path") {
+  if (mapped.kind === "path" || mapped.kind === "line" || mapped.kind === "rect" || mapped.kind === "ellipse") {
     return {
       ...mapped,
-      width: Math.max(0.5, mapped.width * Math.sqrt(Math.abs(safeSx * safeSy))),
+      width: Math.max(0.5, mapped.width * scaleFactor),
     };
   }
-  return {
-    ...mapped,
-    width: Math.max(0.5, mapped.width * Math.sqrt(Math.abs(safeSx * safeSy))),
-  };
+  // Text is handled above; keep exhaustiveness.
+  return mapped;
 }
 
 /** Rotate object about an origin (radians, baked into geometry). */
@@ -953,14 +1082,32 @@ export function rotateObjectAround(
 ): WhiteboardObject {
   const c = Math.cos(radians);
   const s = Math.sin(radians);
-  return mapObjectPoints(obj, (x, y) => {
+  const mapPoint = (x: number, y: number) => {
     const dx = x - originX;
     const dy = y - originY;
     return {
       x: originX + dx * c - dy * s,
       y: originY + dx * s + dy * c,
     };
-  });
+  };
+  if (obj.kind === "text") {
+    const { w, h } = estimateTextSize(obj);
+    const localCenter = { x: obj.x + w / 2, y: obj.y + h / 2 };
+    const newCenter = mapPoint(localCenter.x, localCenter.y);
+    const nextRot = (obj.rotation ?? 0) + radians;
+    const out: WhiteboardTextObject = {
+      ...obj,
+      x: newCenter.x - w / 2,
+      y: newCenter.y - h / 2,
+    };
+    if (Math.abs(nextRot) > 1e-6) {
+      out.rotation = Math.round(nextRot * 1000) / 1000;
+    } else {
+      delete out.rotation;
+    }
+    return out;
+  }
+  return mapObjectPoints(obj, mapPoint);
 }
 
 /** Opposite corner of a scale handle (scale origin). */
@@ -1045,7 +1192,9 @@ export function duplicateObjects(
           ? "line"
           : moved.kind === "rect"
             ? "rect"
-            : "ellipse";
+            : moved.kind === "text"
+              ? "text"
+              : "ellipse";
     return { ...moved, id: newEntityId(prefix) };
   });
 }

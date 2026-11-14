@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
-import type { WhiteboardObject, WhiteboardPathObject } from "../../types";
+import type {
+  WhiteboardObject,
+  WhiteboardPathObject,
+  WhiteboardTextObject,
+} from "../../types";
 import {
   DEFAULT_BRUSH,
   pathHasVariableWidth,
@@ -8,11 +12,13 @@ import {
   pathToVariableWidthOutline,
   shapeBounds,
   softBrushBlur,
+  textBlockCenter,
 } from "./whiteboardModel";
 
 /** Shared SVG ink for editor surface + embeds/PDF preview. */
 export function renderWhiteboardObject(obj: WhiteboardObject, key: string) {
   if (obj.kind === "path") return renderPath(obj, key);
+  if (obj.kind === "text") return renderText(obj, key);
   if (obj.kind === "line") {
     return (
       <line
@@ -53,6 +59,40 @@ export function renderWhiteboardObject(obj: WhiteboardObject, key: string) {
       stroke={obj.color}
       strokeWidth={obj.width}
     />
+  );
+}
+
+function renderText(obj: WhiteboardTextObject, key: string) {
+  const lines = obj.text.split("\n");
+  const rot = obj.rotation ?? 0;
+  const center = textBlockCenter(obj);
+  const transform =
+    Math.abs(rot) > 1e-6
+      ? `rotate(${(rot * 180) / Math.PI} ${center.x} ${center.y})`
+      : undefined;
+  // Top-left anchor: first baseline ≈ y + 0.85×fontSize (matches estimateTextSize).
+  const baselineY = obj.y + obj.fontSize * 0.85;
+  return (
+    <text
+      key={key}
+      x={obj.x}
+      y={baselineY}
+      fill={obj.color}
+      fontSize={obj.fontSize}
+      fontFamily="ui-sans-serif, system-ui, sans-serif"
+      transform={transform}
+      style={{ whiteSpace: "pre" } as CSSProperties}
+    >
+      {lines.map((line, i) => (
+        <tspan
+          key={`${key}-l${i}`}
+          x={obj.x}
+          dy={i === 0 ? 0 : obj.fontSize * 1.25}
+        >
+          {line.length === 0 ? "\u00a0" : line}
+        </tspan>
+      ))}
+    </text>
   );
 }
 

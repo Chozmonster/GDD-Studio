@@ -4870,6 +4870,7 @@ input.charts-formula-var-value {
 }
 
 .whiteboard-surface-world {
+  position: relative;
   width: 4000px;
   height: 3000px;
   will-change: transform;
@@ -4878,6 +4879,22 @@ input.charts-formula-var-value {
 .whiteboard-surface-svg {
   display: block;
   background: transparent;
+}
+
+.whiteboard-text-editor {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed rgba(37, 99, 235, 0.85);
+  border-radius: 2px;
+  background: rgba(247, 244, 236, 0.92);
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.25;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .whiteboard-surface-hint {

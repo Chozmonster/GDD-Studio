@@ -1007,18 +1007,26 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
         },
         {
           name: "Eraser",
-          does: "Removes ink on the active unlocked layer that the brush overlaps — strokes, lines, and filled or hollow shapes. Locked/hidden layers are skipped.",
+          does: "Removes ink on the active unlocked layer that the brush overlaps — strokes, lines, filled or hollow shapes, and text. Locked/hidden layers are skipped.",
         },
         { name: "Line / Rectangle / Ellipse", does: "Basic shape tools." },
+        {
+          name: "Type",
+          does: "Click empty paper to place text; click existing text (or double-click with Select) to edit. Escape or Ctrl/Cmd+Enter commits; empty text is discarded. Stroke colour and Size control the text.",
+        },
         {
           name: "Width",
           does: "Stroke width slider with a live brush preview (size, colour, opacity/flow, soft/highlighter look).",
         },
         {
+          name: "Size",
+          does: "Font size for new/edited canvas text (also scales when you transform a text object).",
+        },
+        {
           name: "Opacity / Flow",
           does: "Stroke opacity and flow (ink density). Effective alpha is opacity × flow; both persist on freehand strokes.",
         },
-        { name: "Stroke / Fill", does: "Colour pickers for stroke and fill." },
+        { name: "Stroke / Fill", does: "Colour pickers for stroke and fill (stroke also colours canvas text)." },
         { name: "No fill", does: "Clear fill so shapes are stroke-only." },
       ],
       tips: [
@@ -1074,7 +1082,7 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
         "Embeds show only the board image, centered and fitted (like flowchart embeds — no title chrome; double-click opens the board).",
         "Resizable + text alignment; PDF/print captures them as images. Hidden layers are omitted.",
       ],
-      note: "Boards persist under project/whiteboards/*.json. Still not mini-Miro: no multiplayer, OCR, stickies/frames. Drawing upgrade continues with brushes, select/transform, and canvas text.",
+      note: "Boards persist under project/whiteboards/*.json. Still not mini-Miro: no multiplayer, OCR, stickies/frames.",
     },
   ],
 };

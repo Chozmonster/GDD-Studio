@@ -2081,6 +2081,18 @@ pub struct WhiteboardObject {
     pub x2: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub y2: Option<f64>,
+    /// Text object top-left (world units).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f64>,
+    /// Text rotation in radians about the block center.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f64>,
     #[serde(default)]
     pub color: String,
     #[serde(default = "default_whiteboard_width")]
@@ -2274,6 +2286,14 @@ fn sanitize_whiteboard_layers(doc: &mut WhiteboardDocument) -> String {
     fallback_id
 }
 
+fn sanitize_whiteboard_font_size(raw: Option<f64>) -> f64 {
+    let n = raw.unwrap_or(24.0);
+    if !n.is_finite() {
+        return 24.0;
+    }
+    (n.clamp(8.0, 128.0) * 10.0).round() / 10.0
+}
+
 fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &str) -> bool {
     if validate_entity_id(&obj.id, "whiteboard object").is_err() {
         return false;
@@ -2306,18 +2326,28 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &st
             obj.y1 = None;
             obj.x2 = None;
             obj.y2 = None;
+            obj.x = None;
+            obj.y = None;
+            obj.text = None;
+            obj.font_size = None;
+            obj.rotation = None;
             obj.fill = None;
             obj.brush = sanitize_whiteboard_brush(obj.brush.take());
             obj.opacity = sanitize_whiteboard_stroke_alpha(obj.opacity.take());
             obj.flow = sanitize_whiteboard_stroke_alpha(obj.flow.take());
         }
         "line" | "rect" | "ellipse" => {
-            obj.kind = kind;
+            obj.kind = kind.clone();
             obj.mode = None;
             obj.points = None;
             obj.brush = None;
             obj.opacity = None;
             obj.flow = None;
+            obj.x = None;
+            obj.y = None;
+            obj.text = None;
+            obj.font_size = None;
+            obj.rotation = None;
             let x1 = sanitize_finite(obj.x1);
             let y1 = sanitize_finite(obj.y1);
             let x2 = sanitize_finite(obj.x2);
@@ -2338,6 +2368,53 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &st
                 };
             }
         }
+        "text" => {
+            obj.kind = "text".into();
+            obj.mode = None;
+            obj.points = None;
+            obj.brush = None;
+            obj.opacity = None;
+            obj.flow = None;
+            obj.x1 = None;
+            obj.y1 = None;
+            obj.x2 = None;
+            obj.y2 = None;
+            obj.fill = None;
+            let x = sanitize_finite(obj.x);
+            let y = sanitize_finite(obj.y);
+            if x.is_none() || y.is_none() {
+                return false;
+            }
+            obj.x = x;
+            obj.y = y;
+            let text = obj
+                .text
+                .take()
+                .unwrap_or_default()
+                .replace("\r\n", "\n")
+                .chars()
+                .take(2_000)
+                .collect::<String>();
+            if text.trim().is_empty() {
+                return false;
+            }
+            obj.text = Some(text);
+            obj.font_size = Some(sanitize_whiteboard_font_size(obj.font_size.take()));
+            if let Some(rot) = obj.rotation.take() {
+                if rot.is_finite() && rot.abs() > 1e-6 {
+                    // Keep in (-π, π]
+                    let two_pi = std::f64::consts::PI * 2.0;
+                    let mut r = ((rot + std::f64::consts::PI) % two_pi + two_pi) % two_pi
+                        - std::f64::consts::PI;
+                    if r.abs() > 1e-6 {
+                        r = (r * 1000.0).round() / 1000.0;
+                        obj.rotation = Some(r);
+                    }
+                }
+            }
+            // Width unused for text; keep a sane default for schema compatibility.
+            obj.width = sanitize_whiteboard_width(obj.width);
+        }
         _ => return false,
     }
     obj.layer_id = obj.layer_id.trim().to_string();
@@ -2346,7 +2423,9 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &st
         obj.layer_id = fallback_layer_id.to_string();
     }
     obj.color = sanitize_whiteboard_color(&obj.color, "#1A1A1A");
-    obj.width = sanitize_whiteboard_width(obj.width);
+    if kind != "text" {
+        obj.width = sanitize_whiteboard_width(obj.width);
+    }
     true
 }
 
