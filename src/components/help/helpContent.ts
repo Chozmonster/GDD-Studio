@@ -985,7 +985,18 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
       anchor: "whiteboard-tools",
       lead: "Toolbar icons use hover tooltips. Chrome stays dark; the paper is light.",
       controls: [
-        { name: "Select", does: "Move or delete strokes and shapes (Delete / Backspace)." },
+        {
+          name: "Select",
+          does: "Click to select; Shift+click toggles multi-select. Drag empty canvas for marquee or lasso. Corner handles scale (Shift = uniform); top handle rotates. Move by dragging ink. Locked/hidden layers are skipped.",
+        },
+        {
+          name: "Marquee / Lasso",
+          does: "Select-mode gestures for empty-canvas drag. Shift+drag adds to the current selection.",
+        },
+        {
+          name: "Duplicate",
+          does: "Copies the current unlocked selection (Ctrl/Cmd+D or toolbar). Offset slightly so copies are visible.",
+        },
         {
           name: "Pen",
           does: "Freehand ink. Pen tablet / stylus uses Pointer Events pressure around the brush size; mouse stays constant width. Variable-width ink persists into embeds and PDF.",
