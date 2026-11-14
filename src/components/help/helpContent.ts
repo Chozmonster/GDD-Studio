@@ -991,13 +991,21 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
           does: "Freehand ink. Pen tablet / stylus uses Pointer Events pressure around the brush size; mouse stays constant width. Variable-width ink persists into embeds and PDF.",
         },
         {
+          name: "Hard / Soft / Highlighter",
+          does: "Brush styles for the Pen tool. Soft feathers the edge; Highlighter is a translucent multiply wash (defaults opacity to 40% when you switch to it from opaque).",
+        },
+        {
           name: "Eraser",
-          does: "Removes any ink the brush overlaps — strokes, lines, and filled or hollow shapes (click inside a shape works).",
+          does: "Removes ink on the active unlocked layer that the brush overlaps — strokes, lines, and filled or hollow shapes. Locked/hidden layers are skipped.",
         },
         { name: "Line / Rectangle / Ellipse", does: "Basic shape tools." },
         {
           name: "Width",
-          does: "Stroke width slider with a live brush-size preview dot.",
+          does: "Stroke width slider with a live brush preview (size, colour, opacity/flow, soft/highlighter look).",
+        },
+        {
+          name: "Opacity / Flow",
+          does: "Stroke opacity and flow (ink density). Effective alpha is opacity × flow; both persist on freehand strokes.",
         },
         { name: "Stroke / Fill", does: "Colour pickers for stroke and fill." },
         { name: "No fill", does: "Clear fill so shapes are stroke-only." },

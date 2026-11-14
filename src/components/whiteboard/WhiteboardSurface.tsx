@@ -7,14 +7,19 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import type {
+  WhiteboardBrush,
   WhiteboardLayer,
   WhiteboardObject,
+  WhiteboardPathObject,
   WhiteboardPoint,
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
 import { renderWhiteboardObject } from "./whiteboardInk";
 import {
+  DEFAULT_BRUSH,
+  DEFAULT_STROKE_FLOW,
+  DEFAULT_STROKE_OPACITY,
   findLayer,
   hitTestTop,
   interactiveObjects,
@@ -37,6 +42,9 @@ type WhiteboardSurfaceProps = {
   color: string;
   fill: string | null;
   strokeWidth: number;
+  brush: WhiteboardBrush;
+  strokeOpacity: number;
+  strokeFlow: number;
   selectedIds: ReadonlySet<string>;
   onViewportChange: (next: WhiteboardViewport) => void;
   onSelectIds: (ids: Set<string>) => void;
@@ -44,6 +52,31 @@ type WhiteboardSurfaceProps = {
   /** Called before a mutating gesture so the parent can push undo history. */
   onBeforeMutate: () => void;
 };
+
+function buildPenPath(args: {
+  id: string;
+  layerId: string;
+  points: WhiteboardPoint[];
+  color: string;
+  width: number;
+  brush: WhiteboardBrush;
+  opacity: number;
+  flow: number;
+}): WhiteboardPathObject {
+  const path: WhiteboardPathObject = {
+    id: args.id,
+    kind: "path",
+    layerId: args.layerId,
+    mode: "pen",
+    points: args.points,
+    color: args.color,
+    width: args.width,
+  };
+  if (args.brush !== DEFAULT_BRUSH) path.brush = args.brush;
+  if (args.opacity !== DEFAULT_STROKE_OPACITY) path.opacity = args.opacity;
+  if (args.flow !== DEFAULT_STROKE_FLOW) path.flow = args.flow;
+  return path;
+}
 
 type DragMode =
   | { type: "pan"; startX: number; startY: number; origin: WhiteboardViewport }
@@ -109,6 +142,9 @@ export function WhiteboardSurface({
   color,
   fill,
   strokeWidth,
+  brush,
+  strokeOpacity,
+  strokeFlow,
   selectedIds,
   onViewportChange,
   onSelectIds,
@@ -251,15 +287,18 @@ export function WhiteboardSurface({
       const id = newEntityId("path");
       const points = [world];
       dragRef.current = { type: "draw-path", id, mode: "pen", points };
-      setDraft({
-        id,
-        kind: "path",
-        layerId: activeLayerId,
-        mode: "pen",
-        points,
-        color,
-        width: strokeWidth,
-      });
+      setDraft(
+        buildPenPath({
+          id,
+          layerId: activeLayerId,
+          points,
+          color,
+          width: strokeWidth,
+          brush,
+          opacity: strokeOpacity,
+          flow: strokeFlow,
+        }),
+      );
       return;
     }
 
@@ -314,28 +353,34 @@ export function WhiteboardSurface({
           Math.abs((world.pressure ?? 0.5) - last.pressure) > 0.08
         ) {
           last.pressure = world.pressure;
-          setDraft({
-            id: drag.id,
-            kind: "path",
-            layerId: activeLayerId,
-            mode: drag.mode,
-            points: [...drag.points],
-            color,
-            width: strokeWidth,
-          });
+          setDraft(
+            buildPenPath({
+              id: drag.id,
+              layerId: activeLayerId,
+              points: [...drag.points],
+              color,
+              width: strokeWidth,
+              brush,
+              opacity: strokeOpacity,
+              flow: strokeFlow,
+            }),
+          );
         }
         return;
       }
       drag.points.push(world);
-      setDraft({
-        id: drag.id,
-        kind: "path",
-        layerId: activeLayerId,
-        mode: drag.mode,
-        points: [...drag.points],
-        color,
-        width: strokeWidth,
-      });
+      setDraft(
+        buildPenPath({
+          id: drag.id,
+          layerId: activeLayerId,
+          points: [...drag.points],
+          color,
+          width: strokeWidth,
+          brush,
+          opacity: strokeOpacity,
+          flow: strokeFlow,
+        }),
+      );
       return;
     }
     if (drag.type === "draw-shape") {
@@ -402,15 +447,16 @@ export function WhiteboardSurface({
       if (drag.points.length >= 1) {
         onCommitObjects([
           ...objects,
-          {
+          buildPenPath({
             id: drag.id,
-            kind: "path",
             layerId: activeLayerId,
-            mode: drag.mode,
             points: drag.points,
             color,
             width: strokeWidth,
-          },
+            brush,
+            opacity: strokeOpacity,
+            flow: strokeFlow,
+          }),
         ]);
       }
       setDraft(null);

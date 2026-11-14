@@ -1,4 +1,5 @@
 import type {
+  WhiteboardBrush,
   WhiteboardDocument,
   WhiteboardLayer,
   WhiteboardObject,
@@ -11,6 +12,11 @@ import type {
 
 export const DEFAULT_STROKE_COLOR = "#1A1A1A";
 export const DEFAULT_STROKE_WIDTH = 3;
+export const DEFAULT_BRUSH: WhiteboardBrush = "hard";
+export const DEFAULT_STROKE_OPACITY = 1;
+export const DEFAULT_STROKE_FLOW = 1;
+/** Sensible starting opacity when switching to highlighter. */
+export const HIGHLIGHTER_DEFAULT_OPACITY = 0.4;
 export const FALLBACK_SWATCHES = [
   "#1A1A1A",
   "#C0392B",
@@ -165,6 +171,33 @@ function sanitizeOpacity(raw: unknown): number {
   return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
 }
 
+/** Stroke opacity/flow: keep a faint minimum so ink stays visible when set. */
+export function sanitizeStrokeAlpha(
+  raw: unknown,
+  fallback = DEFAULT_STROKE_OPACITY,
+): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0.05, Math.round(n * 100) / 100));
+}
+
+export function sanitizeBrush(raw: unknown): WhiteboardBrush {
+  if (raw === "soft" || raw === "highlighter" || raw === "hard") return raw;
+  return DEFAULT_BRUSH;
+}
+
+/** Combined stroke alpha from opacity × flow. */
+export function pathStrokeAlpha(obj: Pick<WhiteboardPathObject, "opacity" | "flow">): number {
+  const opacity = obj.opacity ?? DEFAULT_STROKE_OPACITY;
+  const flow = obj.flow ?? DEFAULT_STROKE_FLOW;
+  return Math.min(1, Math.max(0, opacity * flow));
+}
+
+/** Soft-brush blur radius in world units (scales with stroke width). */
+export function softBrushBlur(width: number): number {
+  return Math.max(0.75, sanitizeWidth(width) * 0.45);
+}
+
 function sanitizeLayer(raw: unknown, index: number): WhiteboardLayer | null {
   if (!raw || typeof raw !== "object") return null;
   const layer = raw as Partial<WhiteboardLayer>;
@@ -198,7 +231,8 @@ function sanitizePath(
   }
   if (points.length < 1) return null;
   const layerId = String(obj.layerId || "").trim() || fallbackLayerId;
-  return {
+  const brush = sanitizeBrush(obj.brush);
+  const out: WhiteboardPathObject = {
     id,
     kind: "path",
     layerId,
@@ -207,6 +241,14 @@ function sanitizePath(
     color: sanitizeColor(obj.color, DEFAULT_STROKE_COLOR),
     width: sanitizeWidth(obj.width),
   };
+  if (brush !== DEFAULT_BRUSH) out.brush = brush;
+  if (obj.opacity !== undefined) {
+    out.opacity = sanitizeStrokeAlpha(obj.opacity);
+  }
+  if (obj.flow !== undefined) {
+    out.flow = sanitizeStrokeAlpha(obj.flow, DEFAULT_STROKE_FLOW);
+  }
+  return out;
 }
 
 function sanitizeShape(
@@ -567,7 +609,10 @@ export function objectBounds(obj: WhiteboardObject): {
       maxX = Math.max(maxX, p.x);
       maxY = Math.max(maxY, p.y);
     }
-    const pad = pathMaxStrokeWidth(obj.points, obj.width) / 2;
+    let pad = pathMaxStrokeWidth(obj.points, obj.width) / 2;
+    if ((obj.brush ?? DEFAULT_BRUSH) === "soft") {
+      pad += softBrushBlur(obj.width) * 2;
+    }
     return {
       x: minX - pad,
       y: minY - pad,
