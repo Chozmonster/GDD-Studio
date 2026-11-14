@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Whiteboard **layers**: named stack with active layer for new ink, show/hide, lock, opacity, reorder, and delete (ink moves to a neighbor). Legacy boards without layers migrate to a single default layer on load. Hidden layers omit ink from embeds/PDF; Help covers the controls.
 - Whiteboard **brushes**: hard / soft / highlighter styles with opacity + flow controls (pressure kept). Soft feathers edges; highlighter uses multiply alpha. Toolbar preview reflects size, colour, alpha, and style. Eraser still respects the active layer.
 
+### Changed
+
+- Whiteboard Mood Board palette picker shows each palette’s **name** plus a **row of colour chips**, instead of a bare dropdown of opaque labels.
+
 ## [0.1.25] - 2026-11-11
 
 Recommendation pack: docs honesty, wiki backlinks, PDF trust, project archive, flowchart edit-speed + inline edge labels, Graph layout polish.
