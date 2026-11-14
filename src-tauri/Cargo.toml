@@ -1,6 +1,6 @@
 [package]
 name = "gdd-studio"
-version = "0.1.25"
+version = "0.1.26"
 description = "GDD Studio — local-first game design documentation desktop app"
 authors = ["GDD Studio"]
 edition = "2021"

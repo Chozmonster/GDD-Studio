@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-11-13
+
+Whiteboard drawing upgrade: layers, brushes, select/transform, canvas text, and palette picker UX (#67, #68, #70, #71, #72).
+
 ### Added
 
 - Whiteboard **layers**: named stack with active layer for new ink, show/hide, lock, opacity, reorder, and delete (ink moves to a neighbor). Legacy boards without layers migrate to a single default layer on load. Hidden layers omit ink from embeds/PDF; Help covers the controls.
@@ -17,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Whiteboard Mood Board palette picker shows each palette’s **name** plus a **row of colour chips**, instead of a bare dropdown of opaque labels.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.25] - 2026-11-11
 
