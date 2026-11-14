@@ -12,6 +12,7 @@ import type {
   WhiteboardObject,
   WhiteboardPathObject,
   WhiteboardPoint,
+  WhiteboardSelectMode,
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
@@ -21,16 +22,27 @@ import {
   DEFAULT_STROKE_FLOW,
   DEFAULT_STROKE_OPACITY,
   findLayer,
+  hitTestRotateHandle,
+  hitTestScaleHandle,
   hitTestTop,
   interactiveObjects,
   layerIsDrawable,
   newEntityId,
+  objectsInsideLasso,
   objectsIntersectBrush,
+  objectsIntersectingRect,
   objectBounds,
   paintLayerGroups,
+  rotateHandlePosition,
+  rotateObjectAround,
   sanitizePressure,
-  shapeBounds,
+  scaleHandleOrigin,
+  scaleHandlePosition,
+  scaleObjectAround,
+  type ScaleHandle,
   translateObject,
+  unionBounds,
+  type WorldBounds,
 } from "./whiteboardModel";
 
 type WhiteboardSurfaceProps = {
@@ -39,6 +51,7 @@ type WhiteboardSurfaceProps = {
   activeLayerId: string;
   viewport: WhiteboardViewport;
   tool: WhiteboardTool;
+  selectMode: WhiteboardSelectMode;
   color: string;
   fill: string | null;
   strokeWidth: number;
@@ -101,6 +114,34 @@ type DragMode =
       originals: WhiteboardObject[];
       ids: string[];
     }
+  | {
+      type: "marquee";
+      start: WhiteboardPoint;
+      current: WhiteboardPoint;
+      additive: boolean;
+    }
+  | {
+      type: "lasso";
+      points: WhiteboardPoint[];
+      additive: boolean;
+    }
+  | {
+      type: "scale";
+      handle: ScaleHandle;
+      origin: { x: number; y: number };
+      startBounds: WorldBounds;
+      startWorld: WhiteboardPoint;
+      originals: WhiteboardObject[];
+      ids: string[];
+      uniform: boolean;
+    }
+  | {
+      type: "rotate";
+      center: { x: number; y: number };
+      startAngle: number;
+      originals: WhiteboardObject[];
+      ids: string[];
+    }
   | { type: "erase-stroke"; removed: Set<string> }
   | null;
 
@@ -131,7 +172,7 @@ function pointerWorldPoint(
 }
 
 /**
- * Interactive light-paper surface: pen / eraser / shapes / select-move + pan-zoom.
+ * Interactive light-paper surface: pen / eraser / shapes / select-transform + pan-zoom.
  */
 export function WhiteboardSurface({
   objects,
@@ -139,6 +180,7 @@ export function WhiteboardSurface({
   activeLayerId,
   viewport,
   tool,
+  selectMode,
   color,
   fill,
   strokeWidth,
@@ -158,10 +200,16 @@ export function WhiteboardSurface({
   const [liveObjects, setLiveObjects] = useState<WhiteboardObject[] | null>(
     null,
   );
+  const [marqueeRect, setMarqueeRect] = useState<WorldBounds | null>(null);
+  const [lassoPoints, setLassoPoints] = useState<WhiteboardPoint[] | null>(
+    null,
+  );
 
   const displayObjects = liveObjects ?? objects;
   const activeLayer = findLayer(layers, activeLayerId);
   const canDraw = layerIsDrawable(activeLayer);
+  const selectedObjects = displayObjects.filter((o) => selectedIds.has(o.id));
+  const selectionBox = unionBounds(selectedObjects);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -223,37 +271,99 @@ export function WhiteboardSurface({
 
     if (tool === "select") {
       const selectable = interactiveObjects(objects, layers);
+      const selectedLive = selectable.filter((o) => selectedIds.has(o.id));
+      const box = unionBounds(selectedLive);
+
+      if (box) {
+        const scaleHandle = hitTestScaleHandle(
+          box,
+          world.x,
+          world.y,
+          viewport.zoom,
+        );
+        if (scaleHandle) {
+          onBeforeMutate();
+          dragRef.current = {
+            type: "scale",
+            handle: scaleHandle,
+            origin: scaleHandleOrigin(box, scaleHandle),
+            startBounds: box,
+            startWorld: world,
+            originals: objects.filter((o) => selectedIds.has(o.id)),
+            ids: [...selectedIds],
+            uniform: e.shiftKey,
+          };
+          setLiveObjects(objects);
+          return;
+        }
+        if (hitTestRotateHandle(box, world.x, world.y, viewport.zoom)) {
+          onBeforeMutate();
+          dragRef.current = {
+            type: "rotate",
+            center: {
+              x: box.x + box.w / 2,
+              y: box.y + box.h / 2,
+            },
+            startAngle: Math.atan2(
+              world.y - (box.y + box.h / 2),
+              world.x - (box.x + box.w / 2),
+            ),
+            originals: objects.filter((o) => selectedIds.has(o.id)),
+            ids: [...selectedIds],
+          };
+          setLiveObjects(objects);
+          return;
+        }
+      }
+
       const hit = hitTestTop(selectable, world.x, world.y);
-      let ids: string[];
-      if (e.shiftKey && hit) {
-        const next = new Set(selectedIds);
-        if (next.has(hit.id)) next.delete(hit.id);
-        else next.add(hit.id);
-        onSelectIds(next);
-        ids = [...next];
-      } else if (hit) {
-        if (!selectedIds.has(hit.id)) {
+      if (hit) {
+        let ids: string[];
+        if (e.shiftKey) {
+          const next = new Set(selectedIds);
+          if (next.has(hit.id)) next.delete(hit.id);
+          else next.add(hit.id);
+          onSelectIds(next);
+          ids = [...next];
+        } else if (!selectedIds.has(hit.id)) {
           onSelectIds(new Set([hit.id]));
           ids = [hit.id];
         } else {
           ids = [...selectedIds];
         }
-      } else {
-        onSelectIds(new Set());
-        ids = [];
+        const movableIds = ids.filter((id) =>
+          selectable.some((o) => o.id === id),
+        );
+        if (movableIds.length > 0) {
+          onBeforeMutate();
+          dragRef.current = {
+            type: "move",
+            startWorld: world,
+            originals: objects.filter((o) => movableIds.includes(o.id)),
+            ids: movableIds,
+          };
+          setLiveObjects(objects);
+        }
+        return;
       }
-      const movableIds = ids.filter((id) =>
-        selectable.some((o) => o.id === id),
-      );
-      if (movableIds.length > 0 && hit) {
-        onBeforeMutate();
+
+      // Empty canvas → marquee or lasso (Shift keeps prior selection).
+      if (!e.shiftKey) onSelectIds(new Set());
+      if (selectMode === "lasso") {
         dragRef.current = {
-          type: "move",
-          startWorld: world,
-          originals: objects.filter((o) => movableIds.includes(o.id)),
-          ids: movableIds,
+          type: "lasso",
+          points: [world],
+          additive: e.shiftKey,
         };
-        setLiveObjects(objects);
+        setLassoPoints([world]);
+      } else {
+        dragRef.current = {
+          type: "marquee",
+          start: world,
+          current: world,
+          additive: e.shiftKey,
+        };
+        setMarqueeRect({ x: world.x, y: world.y, w: 0, h: 0 });
       }
       return;
     }
@@ -411,6 +521,77 @@ export function WhiteboardSurface({
       );
       return;
     }
+    if (drag.type === "marquee") {
+      drag.current = world;
+      setMarqueeRect({
+        x: Math.min(drag.start.x, world.x),
+        y: Math.min(drag.start.y, world.y),
+        w: Math.abs(world.x - drag.start.x),
+        h: Math.abs(world.y - drag.start.y),
+      });
+      return;
+    }
+    if (drag.type === "lasso") {
+      const last = drag.points[drag.points.length - 1];
+      if (
+        !last ||
+        Math.hypot(world.x - last.x, world.y - last.y) >= 2 / viewport.zoom
+      ) {
+        drag.points.push(world);
+        setLassoPoints([...drag.points]);
+      }
+      return;
+    }
+    if (drag.type === "scale") {
+      const startHandle = scaleHandlePosition(drag.startBounds, drag.handle);
+      const startDx = drag.startWorld.x - drag.origin.x;
+      const startDy = drag.startWorld.y - drag.origin.y;
+      const curDx = world.x - drag.origin.x;
+      const curDy = world.y - drag.origin.y;
+      let sx =
+        Math.abs(startDx) < 1e-6 ? 1 : curDx / startDx;
+      let sy =
+        Math.abs(startDy) < 1e-6 ? 1 : curDy / startDy;
+      if (drag.uniform || e.shiftKey) {
+        const fromStart = Math.hypot(
+          startHandle.x - drag.origin.x,
+          startHandle.y - drag.origin.y,
+        );
+        const fromCur = Math.hypot(curDx, curDy);
+        const s = fromStart < 1e-6 ? 1 : fromCur / fromStart;
+        sx = s;
+        sy = s;
+      }
+      sx = Math.max(0.05, Math.min(20, Math.abs(sx))) * Math.sign(sx || 1);
+      sy = Math.max(0.05, Math.min(20, Math.abs(sy))) * Math.sign(sy || 1);
+      const scaled = new Map(
+        drag.originals.map((o) => [
+          o.id,
+          scaleObjectAround(o, drag.origin.x, drag.origin.y, sx, sy),
+        ]),
+      );
+      setLiveObjects(
+        objects.map((o) => (scaled.has(o.id) ? scaled.get(o.id)! : o)),
+      );
+      return;
+    }
+    if (drag.type === "rotate") {
+      const angle = Math.atan2(
+        world.y - drag.center.y,
+        world.x - drag.center.x,
+      );
+      const delta = angle - drag.startAngle;
+      const rotated = new Map(
+        drag.originals.map((o) => [
+          o.id,
+          rotateObjectAround(o, drag.center.x, drag.center.y, delta),
+        ]),
+      );
+      setLiveObjects(
+        objects.map((o) => (rotated.has(o.id) ? rotated.get(o.id)! : o)),
+      );
+      return;
+    }
     if (drag.type === "erase-stroke") {
       const brushRadius = Math.max(2, strokeWidth / 2);
       const erasable = interactiveObjects(objects, layers, {
@@ -440,6 +621,45 @@ export function WhiteboardSurface({
     }
     if (!drag || drag.type === "pan") {
       setDraft(null);
+      setLiveObjects(null);
+      setMarqueeRect(null);
+      setLassoPoints(null);
+      return;
+    }
+    if (drag.type === "marquee") {
+      const selectable = interactiveObjects(objects, layers);
+      const rect: WorldBounds = {
+        x: Math.min(drag.start.x, drag.current.x),
+        y: Math.min(drag.start.y, drag.current.y),
+        w: Math.abs(drag.current.x - drag.start.x),
+        h: Math.abs(drag.current.y - drag.start.y),
+      };
+      const hits = objectsIntersectingRect(selectable, rect);
+      if (drag.additive) {
+        const next = new Set(selectedIds);
+        for (const obj of hits) next.add(obj.id);
+        onSelectIds(next);
+      } else {
+        onSelectIds(new Set(hits.map((o) => o.id)));
+      }
+      setMarqueeRect(null);
+      return;
+    }
+    if (drag.type === "lasso") {
+      const selectable = interactiveObjects(objects, layers);
+      const hits = objectsInsideLasso(selectable, drag.points);
+      if (drag.additive) {
+        const next = new Set(selectedIds);
+        for (const obj of hits) next.add(obj.id);
+        onSelectIds(next);
+      } else {
+        onSelectIds(new Set(hits.map((o) => o.id)));
+      }
+      setLassoPoints(null);
+      return;
+    }
+    if (drag.type === "scale" || drag.type === "rotate") {
+      if (liveObjects) onCommitObjects(liveObjects);
       setLiveObjects(null);
       return;
     }
@@ -589,28 +809,7 @@ export function WhiteboardSurface({
           {[...selectedIds].map((id) => {
             const obj = displayObjects.find((o) => o.id === id);
             if (!obj) return null;
-            const b =
-              obj.kind === "path"
-                ? (() => {
-                    const bounds = objectBounds(obj);
-                    const pad = 2;
-                    return {
-                      x: bounds.x - pad,
-                      y: bounds.y - pad,
-                      w: bounds.w + pad * 2,
-                      h: bounds.h + pad * 2,
-                    };
-                  })()
-                : (() => {
-                    const s = shapeBounds(obj);
-                    const pad = obj.width / 2 + 2;
-                    return {
-                      x: s.x - pad,
-                      y: s.y - pad,
-                      w: s.w + pad * 2,
-                      h: s.h + pad * 2,
-                    };
-                  })();
+            const b = objectBounds(obj);
             return (
               <rect
                 key={`sel-${id}`}
@@ -626,11 +825,79 @@ export function WhiteboardSurface({
               />
             );
           })}
+          {selectionBox && tool === "select" ? (
+            <g className="whiteboard-selection-transform" pointerEvents="none">
+              <rect
+                x={selectionBox.x}
+                y={selectionBox.y}
+                width={Math.max(1, selectionBox.w)}
+                height={Math.max(1, selectionBox.h)}
+                fill="none"
+                stroke="#2563EB"
+                strokeWidth={1.25 / viewport.zoom}
+              />
+              <line
+                x1={selectionBox.x + selectionBox.w / 2}
+                y1={selectionBox.y}
+                x2={rotateHandlePosition(selectionBox, viewport.zoom).x}
+                y2={rotateHandlePosition(selectionBox, viewport.zoom).y}
+                stroke="#2563EB"
+                strokeWidth={1 / viewport.zoom}
+              />
+              <circle
+                cx={rotateHandlePosition(selectionBox, viewport.zoom).x}
+                cy={rotateHandlePosition(selectionBox, viewport.zoom).y}
+                r={5 / viewport.zoom}
+                fill="#F8FAFC"
+                stroke="#2563EB"
+                strokeWidth={1.25 / viewport.zoom}
+              />
+              {(["nw", "ne", "sw", "se"] as ScaleHandle[]).map((handle) => {
+                const p = scaleHandlePosition(selectionBox, handle);
+                const s = 7 / viewport.zoom;
+                return (
+                  <rect
+                    key={handle}
+                    x={p.x - s / 2}
+                    y={p.y - s / 2}
+                    width={s}
+                    height={s}
+                    fill="#F8FAFC"
+                    stroke="#2563EB"
+                    strokeWidth={1.25 / viewport.zoom}
+                  />
+                );
+              })}
+            </g>
+          ) : null}
+          {marqueeRect ? (
+            <rect
+              x={marqueeRect.x}
+              y={marqueeRect.y}
+              width={Math.max(0, marqueeRect.w)}
+              height={Math.max(0, marqueeRect.h)}
+              fill="rgba(37, 99, 235, 0.12)"
+              stroke="#2563EB"
+              strokeWidth={1 / viewport.zoom}
+              strokeDasharray={`${4 / viewport.zoom} ${3 / viewport.zoom}`}
+              pointerEvents="none"
+            />
+          ) : null}
+          {lassoPoints && lassoPoints.length > 0 ? (
+            <polyline
+              points={lassoPoints.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="rgba(37, 99, 235, 0.08)"
+              stroke="#2563EB"
+              strokeWidth={1.25 / viewport.zoom}
+              strokeDasharray={`${4 / viewport.zoom} ${3 / viewport.zoom}`}
+              pointerEvents="none"
+            />
+          ) : null}
         </svg>
       </div>
       <p className="muted tiny whiteboard-surface-hint" data-export-ignore>
-        Space/Alt+drag or middle-mouse pan · wheel zoom · Delete removes
-        selection
+        Space/Alt+drag or middle-mouse pan · wheel zoom · marquee/lasso select ·
+        handles scale/rotate · Delete removes · Ctrl/Cmd+D duplicates
       </p>
     </div>
   );

@@ -92,6 +92,9 @@ export type WhiteboardTool =
   | "rect"
   | "ellipse";
 
+/** Empty-drag selection gesture while the Select tool is active. */
+export type WhiteboardSelectMode = "marquee" | "lasso";
+
 export type WhiteboardPoint = {
   x: number;
   y: number;

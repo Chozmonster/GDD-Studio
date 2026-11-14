@@ -815,6 +815,241 @@ export function translateObject(
   };
 }
 
+export type WorldBounds = { x: number; y: number; w: number; h: number };
+
+export type ScaleHandle = "nw" | "ne" | "sw" | "se";
+
+/** Union AABB of objects, or null when empty. */
+export function unionBounds(objects: WhiteboardObject[]): WorldBounds | null {
+  if (objects.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const obj of objects) {
+    const b = objectBounds(obj);
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(0, maxX - minX),
+    h: Math.max(0, maxY - minY),
+  };
+}
+
+export function boundsIntersect(a: WorldBounds, b: WorldBounds): boolean {
+  return !(
+    a.x + a.w < b.x ||
+    b.x + b.w < a.x ||
+    a.y + a.h < b.y ||
+    b.y + b.h < a.y
+  );
+}
+
+export function pointInPolygon(
+  x: number,
+  y: number,
+  poly: WhiteboardPoint[],
+): boolean {
+  if (poly.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x;
+    const yi = poly[i].y;
+    const xj = poly[j].x;
+    const yj = poly[j].y;
+    const intersect =
+      yi > y !== yj > y &&
+      x < ((xj - xi) * (y - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** Selectable objects whose bounds intersect the marquee rect. */
+export function objectsIntersectingRect(
+  objects: WhiteboardObject[],
+  rect: WorldBounds,
+): WhiteboardObject[] {
+  const normalized: WorldBounds = {
+    x: Math.min(rect.x, rect.x + rect.w),
+    y: Math.min(rect.y, rect.y + rect.h),
+    w: Math.abs(rect.w),
+    h: Math.abs(rect.h),
+  };
+  return objects.filter((obj) => boundsIntersect(objectBounds(obj), normalized));
+}
+
+/** Selectable objects whose bounds center lies inside the lasso polygon. */
+export function objectsInsideLasso(
+  objects: WhiteboardObject[],
+  poly: WhiteboardPoint[],
+): WhiteboardObject[] {
+  if (poly.length < 3) return [];
+  return objects.filter((obj) => {
+    const b = objectBounds(obj);
+    return pointInPolygon(b.x + b.w / 2, b.y + b.h / 2, poly);
+  });
+}
+
+function mapObjectPoints(
+  obj: WhiteboardObject,
+  mapPoint: (x: number, y: number) => { x: number; y: number },
+): WhiteboardObject {
+  if (obj.kind === "path") {
+    return {
+      ...obj,
+      points: obj.points.map((p) => {
+        const next = mapPoint(p.x, p.y);
+        return {
+          x: next.x,
+          y: next.y,
+          ...(p.pressure !== undefined ? { pressure: p.pressure } : {}),
+        };
+      }),
+    };
+  }
+  const a = mapPoint(obj.x1, obj.y1);
+  const b = mapPoint(obj.x2, obj.y2);
+  return { ...obj, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+}
+
+/** Scale object about an origin (baked into geometry). */
+export function scaleObjectAround(
+  obj: WhiteboardObject,
+  originX: number,
+  originY: number,
+  sx: number,
+  sy: number,
+): WhiteboardObject {
+  const safeSx = Number.isFinite(sx) && Math.abs(sx) > 1e-4 ? sx : Math.sign(sx) || 1e-4;
+  const safeSy = Number.isFinite(sy) && Math.abs(sy) > 1e-4 ? sy : Math.sign(sy) || 1e-4;
+  const mapped = mapObjectPoints(obj, (x, y) => ({
+    x: originX + (x - originX) * safeSx,
+    y: originY + (y - originY) * safeSy,
+  }));
+  if (mapped.kind === "path") {
+    return {
+      ...mapped,
+      width: Math.max(0.5, mapped.width * Math.sqrt(Math.abs(safeSx * safeSy))),
+    };
+  }
+  return {
+    ...mapped,
+    width: Math.max(0.5, mapped.width * Math.sqrt(Math.abs(safeSx * safeSy))),
+  };
+}
+
+/** Rotate object about an origin (radians, baked into geometry). */
+export function rotateObjectAround(
+  obj: WhiteboardObject,
+  originX: number,
+  originY: number,
+  radians: number,
+): WhiteboardObject {
+  const c = Math.cos(radians);
+  const s = Math.sin(radians);
+  return mapObjectPoints(obj, (x, y) => {
+    const dx = x - originX;
+    const dy = y - originY;
+    return {
+      x: originX + dx * c - dy * s,
+      y: originY + dx * s + dy * c,
+    };
+  });
+}
+
+/** Opposite corner of a scale handle (scale origin). */
+export function scaleHandleOrigin(
+  bounds: WorldBounds,
+  handle: ScaleHandle,
+): { x: number; y: number } {
+  switch (handle) {
+    case "nw":
+      return { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
+    case "ne":
+      return { x: bounds.x, y: bounds.y + bounds.h };
+    case "sw":
+      return { x: bounds.x + bounds.w, y: bounds.y };
+    case "se":
+      return { x: bounds.x, y: bounds.y };
+  }
+}
+
+export function scaleHandlePosition(
+  bounds: WorldBounds,
+  handle: ScaleHandle,
+): { x: number; y: number } {
+  switch (handle) {
+    case "nw":
+      return { x: bounds.x, y: bounds.y };
+    case "ne":
+      return { x: bounds.x + bounds.w, y: bounds.y };
+    case "sw":
+      return { x: bounds.x, y: bounds.y + bounds.h };
+    case "se":
+      return { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
+  }
+}
+
+/** Rotate handle sits above the top-center of the selection box. */
+export function rotateHandlePosition(
+  bounds: WorldBounds,
+  zoom: number,
+): { x: number; y: number } {
+  const lift = 22 / Math.max(0.25, zoom);
+  return { x: bounds.x + bounds.w / 2, y: bounds.y - lift };
+}
+
+export function hitTestScaleHandle(
+  bounds: WorldBounds,
+  x: number,
+  y: number,
+  zoom: number,
+): ScaleHandle | null {
+  const tol = 8 / Math.max(0.25, zoom);
+  for (const handle of ["nw", "ne", "sw", "se"] as ScaleHandle[]) {
+    const p = scaleHandlePosition(bounds, handle);
+    if (Math.hypot(x - p.x, y - p.y) <= tol) return handle;
+  }
+  return null;
+}
+
+export function hitTestRotateHandle(
+  bounds: WorldBounds,
+  x: number,
+  y: number,
+  zoom: number,
+): boolean {
+  const p = rotateHandlePosition(bounds, zoom);
+  const tol = 10 / Math.max(0.25, zoom);
+  return Math.hypot(x - p.x, y - p.y) <= tol;
+}
+
+/** Duplicate objects with new ids, offset in world space. */
+export function duplicateObjects(
+  objects: WhiteboardObject[],
+  dx = 16,
+  dy = 16,
+): WhiteboardObject[] {
+  return objects.map((obj) => {
+    const moved = translateObject(obj, dx, dy);
+    const prefix =
+      moved.kind === "path"
+        ? "path"
+        : moved.kind === "line"
+          ? "line"
+          : moved.kind === "rect"
+            ? "rect"
+            : "ellipse";
+    return { ...moved, id: newEntityId(prefix) };
+  });
+}
+
 /**
  * True when a circular brush centered at (x, y) overlaps object ink.
  * `radius` is the brush radius in world units (half the Width slider size).

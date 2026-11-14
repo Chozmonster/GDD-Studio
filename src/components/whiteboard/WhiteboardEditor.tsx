@@ -1,12 +1,15 @@
 import {
   Circle,
+  Copy,
   Eraser,
   Highlighter,
+  Lasso,
   Minus,
   MousePointer2,
   Paintbrush,
   Pencil,
   Square,
+  SquareDashed,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -33,6 +36,7 @@ import type {
   WhiteboardDocument,
   WhiteboardObject,
   WhiteboardPaletteRef,
+  WhiteboardSelectMode,
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
@@ -49,10 +53,12 @@ import {
   DEFAULT_STROKE_FLOW,
   DEFAULT_STROKE_OPACITY,
   DEFAULT_STROKE_WIDTH,
+  duplicateObjects,
   emptyWhiteboardDocument,
   FALLBACK_SWATCHES,
   findLayer,
   HIGHLIGHTER_DEFAULT_OPACITY,
+  interactiveObjects,
   layerIsDrawable,
   normalizeWhiteboard,
   pathStrokeAlpha,
@@ -91,6 +97,8 @@ export function WhiteboardEditor({
   );
   const [status, setStatus] = useState("Loading…");
   const [tool, setTool] = useState<WhiteboardTool>("pen");
+  const [selectMode, setSelectMode] =
+    useState<WhiteboardSelectMode>("marquee");
   const [color, setColor] = useState(DEFAULT_STROKE_COLOR);
   const [fill, setFill] = useState<string | null>(null);
   const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
@@ -289,6 +297,24 @@ export function WhiteboardEditor({
     };
   }, [project.id, boardId, clearHistory]);
 
+  const duplicateSelection = useCallback(() => {
+    const current = docRef.current;
+    const editable = interactiveObjects(current.objects, current.layers);
+    const selected = editable.filter((o) => selectedIds.has(o.id));
+    if (selected.length === 0) {
+      setStatus("Nothing to duplicate — select unlocked ink first");
+      return;
+    }
+    recordHistory();
+    const copies = duplicateObjects(selected);
+    schedulePersist({
+      ...current,
+      objects: [...current.objects, ...copies],
+    });
+    setSelectedIds(new Set(copies.map((o) => o.id)));
+    setStatus(`Duplicated ${copies.length} object${copies.length === 1 ? "" : "s"}`);
+  }, [recordHistory, schedulePersist, selectedIds]);
+
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
@@ -303,21 +329,42 @@ export function WhiteboardEditor({
         handleRedo();
         return;
       }
+      const typing =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement;
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         selectedIds.size > 0 &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement) &&
-        !(e.target instanceof HTMLSelectElement)
+        !typing
       ) {
         e.preventDefault();
-        recordHistory();
-        const nextObjects = docRef.current.objects.filter(
-          (o) => !selectedIds.has(o.id),
+        const current = docRef.current;
+        const editableIds = new Set(
+          interactiveObjects(current.objects, current.layers).map((o) => o.id),
         );
-        schedulePersist({ ...docRef.current, objects: nextObjects });
+        const removeIds = [...selectedIds].filter((id) => editableIds.has(id));
+        if (removeIds.length === 0) {
+          setStatus("Selection is on locked/hidden layers");
+          return;
+        }
+        recordHistory();
+        const remove = new Set(removeIds);
+        schedulePersist({
+          ...current,
+          objects: current.objects.filter((o) => !remove.has(o.id)),
+        });
         setSelectedIds(new Set());
         setStatus("Deleted selection");
+        return;
+      }
+      if (
+        (e.key === "d" || e.key === "D") &&
+        (e.metaKey || e.ctrlKey) &&
+        !typing
+      ) {
+        e.preventDefault();
+        duplicateSelection();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -331,6 +378,7 @@ export function WhiteboardEditor({
     selectedIds,
     recordHistory,
     schedulePersist,
+    duplicateSelection,
   ]);
 
   useEffect(() => {
@@ -486,6 +534,47 @@ export function WhiteboardEditor({
                   onClick={() => setTool(t.id)}
                 />
               ))}
+            </div>
+            <div
+              className="whiteboard-tool-group"
+              role="group"
+              aria-label="Select mode"
+            >
+              <ToolbarIconButton
+                label="Marquee select"
+                icon={SquareDashed}
+                pressed={tool === "select" && selectMode === "marquee"}
+                className={
+                  tool === "select" && selectMode === "marquee"
+                    ? "whiteboard-tool-btn is-active"
+                    : "whiteboard-tool-btn"
+                }
+                onClick={() => {
+                  setSelectMode("marquee");
+                  setTool("select");
+                }}
+              />
+              <ToolbarIconButton
+                label="Lasso select"
+                icon={Lasso}
+                pressed={tool === "select" && selectMode === "lasso"}
+                className={
+                  tool === "select" && selectMode === "lasso"
+                    ? "whiteboard-tool-btn is-active"
+                    : "whiteboard-tool-btn"
+                }
+                onClick={() => {
+                  setSelectMode("lasso");
+                  setTool("select");
+                }}
+              />
+              <ToolbarIconButton
+                label="Duplicate selection (Ctrl/Cmd+D)"
+                icon={Copy}
+                className="whiteboard-tool-btn"
+                disabled={selectedIds.size === 0}
+                onClick={duplicateSelection}
+              />
             </div>
             <div
               className="whiteboard-tool-group"
@@ -668,6 +757,7 @@ export function WhiteboardEditor({
             activeLayerId={doc.activeLayerId}
             viewport={doc.viewport}
             tool={tool}
+            selectMode={selectMode}
             color={color}
             fill={fill}
             strokeWidth={strokeWidth}
