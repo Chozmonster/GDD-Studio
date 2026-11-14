@@ -7,7 +7,12 @@ export type MoodPaletteOption = {
   key: string;
   moodBoardId: string;
   itemId: string;
-  /** Human label: board name + short hex preview. */
+  /**
+   * Readable display name (Mood Board name; disambiguated when a board has
+   * several palette tiles).
+   */
+  name: string;
+  /** Accessible / legacy label (name + short hex preview). */
   label: string;
   hexes: string[];
   createdAt: number;
@@ -32,6 +37,7 @@ export async function listProjectMoodPalettes(
       const hexes = parsePaletteHexes(item.comment ?? "");
       if (!hexes || hexes.length === 0) continue;
       const preview = hexes.slice(0, 3).join(" ");
+      const name = summary.name.trim() || summary.id;
       out.push({
         key: paletteOptionKey({
           moodBoardId: summary.id,
@@ -39,13 +45,32 @@ export async function listProjectMoodPalettes(
         }),
         moodBoardId: summary.id,
         itemId: item.id,
-        label: `${summary.name} · ${preview}${hexes.length > 3 ? "…" : ""}`,
+        name,
+        label: `${name} · ${preview}${hexes.length > 3 ? "…" : ""}`,
         hexes,
         createdAt: item.createdAt || 0,
       });
     }
   }
-  out.sort((a, b) => b.createdAt - a.createdAt || a.label.localeCompare(b.label));
+  // Disambiguate multiple palette tiles from the same board.
+  const nameCounts = new Map<string, number>();
+  for (const opt of out) {
+    nameCounts.set(opt.name, (nameCounts.get(opt.name) ?? 0) + 1);
+  }
+  const nameSeen = new Map<string, number>();
+  for (const opt of out) {
+    const total = nameCounts.get(opt.name) ?? 1;
+    if (total <= 1) continue;
+    const n = (nameSeen.get(opt.name) ?? 0) + 1;
+    nameSeen.set(opt.name, n);
+    const tip = opt.hexes[0] ?? `#${n}`;
+    opt.name = `${opt.name} · ${tip}`;
+    opt.label = `${opt.name} · ${opt.hexes.slice(0, 3).join(" ")}${
+      opt.hexes.length > 3 ? "…" : ""
+    }`;
+  }
+
+  out.sort((a, b) => b.createdAt - a.createdAt || a.name.localeCompare(b.name));
   return out;
 }
 

@@ -612,28 +612,63 @@ export function WhiteboardEditor({
           </div>
 
           <div className="whiteboard-palette-row">
-            <label className="whiteboard-inline-field">
-              <span className="muted tiny">Mood Board palette</span>
-              <select
-                value={activePaletteKey}
-                onChange={(e) => onPaletteSelect(e.target.value)}
-                aria-label="Colour palette for swatches"
-              >
-                {palettes.length === 0 ? (
-                  <option value="">No Mood Board palettes yet</option>
-                ) : (
-                  palettes.map((p) => (
-                    <option key={p.key} value={p.key}>
-                      {p.label}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
+            <div className="whiteboard-palette-picker">
+              <span className="muted tiny" id="wb-palette-picker-label">
+                Mood Board palette
+              </span>
+              {palettes.length === 0 ? (
+                <p className="muted tiny whiteboard-palette-empty">
+                  No Mood Board palettes yet — create one via Mood Board → Create
+                  colour palette.
+                </p>
+              ) : (
+                <div
+                  className="whiteboard-palette-options"
+                  role="listbox"
+                  aria-labelledby="wb-palette-picker-label"
+                  aria-label="Colour palette for swatches"
+                >
+                  {palettes.map((p) => {
+                    const selected = p.key === activePaletteKey;
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={
+                          selected
+                            ? "whiteboard-palette-option is-active"
+                            : "whiteboard-palette-option"
+                        }
+                        title={p.label}
+                        onClick={() => onPaletteSelect(p.key)}
+                      >
+                        <span className="whiteboard-palette-option-name">
+                          {p.name}
+                        </span>
+                        <span
+                          className="whiteboard-palette-option-swatches"
+                          aria-hidden
+                        >
+                          {p.hexes.map((hex) => (
+                            <span
+                              key={`${p.key}-${hex}`}
+                              className="whiteboard-palette-option-chip"
+                              style={{ background: hex }}
+                            />
+                          ))}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <div
               className="whiteboard-swatches"
               role="listbox"
-              aria-label="Colour swatches"
+              aria-label="Active palette swatches"
             >
               {swatches.map((hex) => (
                 <button
@@ -655,8 +690,8 @@ export function WhiteboardEditor({
               ))}
             </div>
             <p className="muted tiny whiteboard-swatch-hint">
-              Swatches from Mood Board “Create colour palette”. Click = stroke,
-              Shift+click = fill.
+              Pick a named Mood Board palette above. Active swatches: click =
+              stroke, Shift+click = fill.
             </p>
           </div>
 

@@ -1020,11 +1020,11 @@ export const HELP_WHITEBOARD: HelpArticleContent = {
       controls: [
         {
           name: "Mood Board palette",
-          does: "Choose which Mood Board palette feeds the swatches when several exist (defaults to the newest).",
+          does: "Pick which Mood Board palette feeds stroke/fill swatches. Each option shows the board name and a row of that palette’s colour chips (defaults to the newest).",
         },
         {
           name: "Swatches",
-          does: "Click for stroke colour; Shift+click for fill. Hex source of truth stays on the Mood Board palette tile.",
+          does: "Active-palette chips: click for stroke colour; Shift+click for fill. Hex source of truth stays on the Mood Board palette tile.",
         },
       ],
     },
