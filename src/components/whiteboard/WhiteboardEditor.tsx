@@ -10,6 +10,7 @@ import {
   Pencil,
   Square,
   SquareDashed,
+  Type,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -49,6 +50,7 @@ import { WhiteboardSurface } from "./WhiteboardSurface";
 import {
   cloneWhiteboard,
   DEFAULT_BRUSH,
+  DEFAULT_FONT_SIZE,
   DEFAULT_STROKE_COLOR,
   DEFAULT_STROKE_FLOW,
   DEFAULT_STROKE_OPACITY,
@@ -83,6 +85,7 @@ const TOOLS: { id: WhiteboardTool; label: string; icon: LucideIcon }[] = [
   { id: "line", label: "Line", icon: Minus },
   { id: "rect", label: "Rectangle", icon: Square },
   { id: "ellipse", label: "Ellipse", icon: Circle },
+  { id: "text", label: "Type", icon: Type },
 ];
 
 export function WhiteboardEditor({
@@ -105,6 +108,7 @@ export function WhiteboardEditor({
   const [brush, setBrush] = useState<WhiteboardBrush>(DEFAULT_BRUSH);
   const [strokeOpacity, setStrokeOpacity] = useState(DEFAULT_STROKE_OPACITY);
   const [strokeFlow, setStrokeFlow] = useState(DEFAULT_STROKE_FLOW);
+  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [palettes, setPalettes] = useState<MoodPaletteOption[]>([]);
   const [activePaletteKey, setActivePaletteKey] = useState<string>("");
@@ -635,6 +639,23 @@ export function WhiteboardEditor({
               </div>
             </label>
             <label className="whiteboard-inline-field">
+              <span className="muted tiny">Size</span>
+              <div className="whiteboard-width-controls">
+                <input
+                  type="range"
+                  min={8}
+                  max={96}
+                  step={1}
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                  aria-label="Text size"
+                />
+                <span className="muted tiny whiteboard-brush-preview-label">
+                  {fontSize}px
+                </span>
+              </div>
+            </label>
+            <label className="whiteboard-inline-field">
               <span className="muted tiny">Opacity</span>
               <div className="whiteboard-width-controls">
                 <input
@@ -799,6 +820,7 @@ export function WhiteboardEditor({
             brush={brush}
             strokeOpacity={strokeOpacity}
             strokeFlow={strokeFlow}
+            fontSize={fontSize}
             selectedIds={selectedIds}
             onViewportChange={commitViewport}
             onSelectIds={setSelectedIds}

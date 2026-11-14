@@ -90,7 +90,8 @@ export type WhiteboardTool =
   | "eraser"
   | "line"
   | "rect"
-  | "ellipse";
+  | "ellipse"
+  | "text";
 
 /** Empty-drag selection gesture while the Select tool is active. */
 export type WhiteboardSelectMode = "marquee" | "lasso";
@@ -160,7 +161,26 @@ export type WhiteboardShapeObject = {
   fill?: string | null;
 };
 
-export type WhiteboardObject = WhiteboardPathObject | WhiteboardShapeObject;
+/** Canvas text object (top-left anchor; optional baked rotation). */
+export type WhiteboardTextObject = {
+  id: string;
+  kind: "text";
+  /** Owning layer id (migrated onto a default layer for legacy boards). */
+  layerId: string;
+  /** Top-left of the text block in world units. */
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  fontSize: number;
+  /** Rotation in radians about the text block center; omitted → 0. */
+  rotation?: number;
+};
+
+export type WhiteboardObject =
+  | WhiteboardPathObject
+  | WhiteboardShapeObject
+  | WhiteboardTextObject;
 
 export type WhiteboardViewport = {
   x: number;

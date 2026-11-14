@@ -13,20 +13,24 @@ import type {
   WhiteboardPathObject,
   WhiteboardPoint,
   WhiteboardSelectMode,
+  WhiteboardTextObject,
   WhiteboardTool,
   WhiteboardViewport,
 } from "../../types";
 import { renderWhiteboardObject } from "./whiteboardInk";
 import {
   DEFAULT_BRUSH,
+  DEFAULT_FONT_SIZE,
   DEFAULT_STROKE_FLOW,
   DEFAULT_STROKE_OPACITY,
+  estimateTextSize,
   findLayer,
   hitTestRotateHandle,
   hitTestScaleHandle,
   hitTestTop,
   interactiveObjects,
   layerIsDrawable,
+  MAX_TEXT_CHARS,
   newEntityId,
   objectsInsideLasso,
   objectsIntersectBrush,
@@ -58,12 +62,26 @@ type WhiteboardSurfaceProps = {
   brush: WhiteboardBrush;
   strokeOpacity: number;
   strokeFlow: number;
+  fontSize: number;
   selectedIds: ReadonlySet<string>;
   onViewportChange: (next: WhiteboardViewport) => void;
   onSelectIds: (ids: Set<string>) => void;
   onCommitObjects: (next: WhiteboardObject[]) => void;
   /** Called before a mutating gesture so the parent can push undo history. */
   onBeforeMutate: () => void;
+};
+
+type TextEditSession = {
+  id: string;
+  layerId: string;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  fontSize: number;
+  rotation?: number;
+  isNew: boolean;
+  originalText: string;
 };
 
 function buildPenPath(args: {
@@ -172,7 +190,7 @@ function pointerWorldPoint(
 }
 
 /**
- * Interactive light-paper surface: pen / eraser / shapes / select-transform + pan-zoom.
+ * Interactive light-paper surface: pen / eraser / shapes / text / select-transform + pan-zoom.
  */
 export function WhiteboardSurface({
   objects,
@@ -187,6 +205,7 @@ export function WhiteboardSurface({
   brush,
   strokeOpacity,
   strokeFlow,
+  fontSize,
   selectedIds,
   onViewportChange,
   onSelectIds,
@@ -196,6 +215,9 @@ export function WhiteboardSurface({
   const rootRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragMode>(null);
   const spaceDown = useRef(false);
+  const lastTextClick = useRef<{ id: string; at: number } | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textEditRef = useRef<TextEditSession | null>(null);
   const [draft, setDraft] = useState<WhiteboardObject | null>(null);
   const [liveObjects, setLiveObjects] = useState<WhiteboardObject[] | null>(
     null,
@@ -204,6 +226,8 @@ export function WhiteboardSurface({
   const [lassoPoints, setLassoPoints] = useState<WhiteboardPoint[] | null>(
     null,
   );
+  const [textEdit, setTextEdit] = useState<TextEditSession | null>(null);
+  textEditRef.current = textEdit;
 
   const displayObjects = liveObjects ?? objects;
   const activeLayer = findLayer(layers, activeLayerId);
@@ -211,9 +235,85 @@ export function WhiteboardSurface({
   const selectedObjects = displayObjects.filter((o) => selectedIds.has(o.id));
   const selectionBox = unionBounds(selectedObjects);
 
+  /** Commit + clear the active text session at most once. */
+  const finishTextEdit = useCallback(() => {
+    const session = textEditRef.current;
+    if (!session) return;
+    textEditRef.current = null;
+    setTextEdit(null);
+
+    const cleaned = session.text.replace(/\r\n/g, "\n").slice(0, MAX_TEXT_CHARS);
+    const trimmed = cleaned.trim();
+    if (session.isNew) {
+      if (!trimmed) return;
+      const obj: WhiteboardTextObject = {
+        id: session.id,
+        kind: "text",
+        layerId: session.layerId,
+        x: session.x,
+        y: session.y,
+        text: cleaned,
+        color: session.color,
+        fontSize: session.fontSize,
+      };
+      if (session.rotation !== undefined && Math.abs(session.rotation) > 1e-6) {
+        obj.rotation = session.rotation;
+      }
+      onBeforeMutate();
+      onCommitObjects([...objects, obj]);
+      onSelectIds(new Set([obj.id]));
+      return;
+    }
+    if (!trimmed) {
+      onBeforeMutate();
+      onCommitObjects(objects.filter((o) => o.id !== session.id));
+      onSelectIds(new Set());
+      return;
+    }
+    const existing = objects.find((o) => o.id === session.id);
+    if (
+      existing &&
+      existing.kind === "text" &&
+      existing.text === cleaned &&
+      existing.color === session.color &&
+      existing.fontSize === session.fontSize
+    ) {
+      return;
+    }
+    onBeforeMutate();
+    onCommitObjects(
+      objects.map((o) => {
+        if (o.id !== session.id || o.kind !== "text") return o;
+        return {
+          ...o,
+          text: cleaned,
+          color: session.color,
+          fontSize: session.fontSize,
+        };
+      }),
+    );
+  }, [objects, onBeforeMutate, onCommitObjects, onSelectIds]);
+
+  const beginTextEdit = useCallback(
+    (session: TextEditSession) => {
+      textEditRef.current = session;
+      setTextEdit(session);
+      onSelectIds(new Set([session.id]));
+      requestAnimationFrame(() => {
+        const el = textAreaRef.current;
+        if (!el) return;
+        el.focus();
+        el.select();
+      });
+    },
+    [onSelectIds],
+  );
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") spaceDown.current = true;
+      if (e.code === "Space" && !(e.target instanceof HTMLTextAreaElement)) {
+        spaceDown.current = true;
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") spaceDown.current = false;
@@ -225,6 +325,26 @@ export function WhiteboardSurface({
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+
+  // Keep in-progress edit colours/sizes in sync with toolbar while typing.
+  useEffect(() => {
+    if (!textEditRef.current) return;
+    setTextEdit((prev) =>
+      prev
+        ? {
+            ...prev,
+            color,
+            fontSize: Number.isFinite(fontSize) ? fontSize : DEFAULT_FONT_SIZE,
+          }
+        : prev,
+    );
+  }, [color, fontSize]);
+
+  // Leaving draw tools while editing commits the session.
+  useEffect(() => {
+    if (tool === "text" || tool === "select") return;
+    if (textEditRef.current) finishTextEdit();
+  }, [tool, finishTextEdit]);
 
   const onWheel = useCallback(
     (e: ReactWheelEvent<HTMLDivElement>) => {
@@ -250,6 +370,14 @@ export function WhiteboardSurface({
   const beginPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
     const el = rootRef.current;
     if (!el) return;
+
+    // Finish text edit when clicking away from the textarea.
+    if (textEditRef.current && e.target instanceof Node) {
+      const area = textAreaRef.current;
+      if (area && area.contains(e.target as Node)) return;
+      finishTextEdit();
+    }
+
     const isPan =
       e.button === 1 ||
       (e.button === 0 && (spaceDown.current || e.altKey));
@@ -265,9 +393,47 @@ export function WhiteboardSurface({
       return;
     }
     if (e.button !== 0) return;
+
+    const world = pointerWorldPoint(e, el, viewport);
+
+    if (tool === "text") {
+      if (!canDraw) return;
+      e.preventDefault();
+      const selectable = interactiveObjects(objects, layers, {
+        layerId: activeLayerId,
+      });
+      const hit = hitTestTop(selectable, world.x, world.y);
+      if (hit && hit.kind === "text") {
+        beginTextEdit({
+          id: hit.id,
+          layerId: hit.layerId,
+          x: hit.x,
+          y: hit.y,
+          text: hit.text,
+          color: hit.color,
+          fontSize: hit.fontSize,
+          rotation: hit.rotation,
+          isNew: false,
+          originalText: hit.text,
+        });
+        return;
+      }
+      beginTextEdit({
+        id: newEntityId("text"),
+        layerId: activeLayerId,
+        x: world.x,
+        y: world.y,
+        text: "Text",
+        color,
+        fontSize: Number.isFinite(fontSize) ? fontSize : DEFAULT_FONT_SIZE,
+        isNew: true,
+        originalText: "",
+      });
+      return;
+    }
+
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
-    const world = pointerWorldPoint(e, el, viewport);
 
     if (tool === "select") {
       const selectable = interactiveObjects(objects, layers);
@@ -318,6 +484,36 @@ export function WhiteboardSurface({
 
       const hit = hitTestTop(selectable, world.x, world.y);
       if (hit) {
+        // Double-click text → edit.
+        const now = Date.now();
+        const prev = lastTextClick.current;
+        if (
+          hit.kind === "text" &&
+          prev &&
+          prev.id === hit.id &&
+          now - prev.at < 400
+        ) {
+          lastTextClick.current = null;
+          beginTextEdit({
+            id: hit.id,
+            layerId: hit.layerId,
+            x: hit.x,
+            y: hit.y,
+            text: hit.text,
+            color: hit.color,
+            fontSize: hit.fontSize,
+            rotation: hit.rotation,
+            isNew: false,
+            originalText: hit.text,
+          });
+          return;
+        }
+        if (hit.kind === "text") {
+          lastTextClick.current = { id: hit.id, at: now };
+        } else {
+          lastTextClick.current = null;
+        }
+
         let ids: string[];
         if (e.shiftKey) {
           const next = new Set(selectedIds);
@@ -725,7 +921,23 @@ export function WhiteboardSurface({
         ? "grab"
         : tool === "eraser"
           ? "cell"
-          : "crosshair";
+          : tool === "text"
+            ? "text"
+            : "crosshair";
+
+  const editSize = textEdit
+    ? estimateTextSize({
+        id: textEdit.id,
+        kind: "text",
+        layerId: textEdit.layerId,
+        x: textEdit.x,
+        y: textEdit.y,
+        text: textEdit.text || " ",
+        color: textEdit.color,
+        fontSize: textEdit.fontSize,
+        rotation: textEdit.rotation,
+      })
+    : null;
 
   return (
     <div
@@ -794,7 +1006,9 @@ export function WhiteboardSurface({
                   opacity={layer.opacity}
                 >
                   {layerObjects.map((obj) =>
-                    renderWhiteboardObject(obj, obj.id),
+                    textEdit && textEdit.id === obj.id
+                      ? null
+                      : renderWhiteboardObject(obj, obj.id),
                   )}
                   {draft && draft.layerId === layer.id
                     ? renderWhiteboardObject(draft, `draft-${draft.id}`)
@@ -894,10 +1108,56 @@ export function WhiteboardSurface({
             />
           ) : null}
         </svg>
+        {textEdit && editSize ? (
+          <textarea
+            ref={textAreaRef}
+            className="whiteboard-text-editor"
+            value={textEdit.text}
+            aria-label="Edit canvas text"
+            spellCheck={false}
+            style={{
+              left: textEdit.x,
+              top: textEdit.y,
+              width: Math.max(editSize.w + textEdit.fontSize, 80),
+              minHeight: Math.max(editSize.h, textEdit.fontSize * 1.4),
+              fontSize: textEdit.fontSize,
+              color: textEdit.color,
+              transform:
+                textEdit.rotation !== undefined &&
+                Math.abs(textEdit.rotation) > 1e-6
+                  ? `rotate(${textEdit.rotation}rad)`
+                  : undefined,
+              transformOrigin: "top left",
+            }}
+            onChange={(ev) =>
+              setTextEdit((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      text: ev.target.value.slice(0, MAX_TEXT_CHARS),
+                    }
+                  : prev,
+              )
+            }
+            onPointerDown={(ev) => ev.stopPropagation()}
+            onKeyDown={(ev) => {
+              if (ev.key === "Escape") {
+                ev.preventDefault();
+                finishTextEdit();
+              }
+              // Ctrl/Cmd+Enter commits; plain Enter inserts newline.
+              if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+                ev.preventDefault();
+                finishTextEdit();
+              }
+            }}
+          />
+        ) : null}
       </div>
       <p className="muted tiny whiteboard-surface-hint" data-export-ignore>
         Space/Alt+drag or middle-mouse pan · wheel zoom · marquee/lasso select ·
-        handles scale/rotate · Delete removes · Ctrl/Cmd+D duplicates
+        handles scale/rotate · Type tool for text · Delete removes · Ctrl/Cmd+D
+        duplicates
       </p>
     </div>
   );
