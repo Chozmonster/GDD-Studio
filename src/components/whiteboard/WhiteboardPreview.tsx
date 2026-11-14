@@ -1,7 +1,12 @@
 import type { CSSProperties } from "react";
 import type { WhiteboardDocument, WhiteboardObject } from "../../types";
 import { renderWhiteboardObject } from "./whiteboardInk";
-import { contentBounds, objectBounds } from "./whiteboardModel";
+import {
+  contentBounds,
+  objectBounds,
+  paintLayerGroups,
+  visibleObjects,
+} from "./whiteboardModel";
 
 type WhiteboardPreviewProps = {
   document: WhiteboardDocument;
@@ -52,7 +57,8 @@ function fitViewBox(
 /**
  * Shared SVG renderer for Whiteboard tab + live document embeds.
  * Compact/embed mode fits content centered in the frame (flowchart fitView
- * spirit): viewBox padded + `xMidYMid meet`, no pan.
+ * spirit): viewBox padded + `xMidYMid meet`, no pan. Hidden layers omitted;
+ * layer opacity applied per group.
  */
 export function WhiteboardPreview({
   document,
@@ -61,8 +67,9 @@ export function WhiteboardPreview({
   selectedIds,
   draft = null,
 }: WhiteboardPreviewProps) {
-  const objects = document.objects;
-  const rawBounds = contentBounds(draft ? [...objects, draft] : objects);
+  const layers = document.layers ?? [];
+  const painted = visibleObjects(document.objects, layers);
+  const rawBounds = contentBounds(draft ? [...painted, draft] : painted);
   const bounds = compact
     ? fitViewBox(rawBounds, EMBED_FIT_PADDING_RATIO)
     : rawBounds;
@@ -103,18 +110,30 @@ export function WhiteboardPreview({
             height={bounds.h}
             fill="#F7F4EC"
           />
-          {objects.map((obj) => renderWhiteboardObject(obj, obj.id))}
-          {draft
-            ? renderWhiteboardObject(draft, `draft-${draft.id}`)
-            : null}
+          {paintLayerGroups(document.objects, layers).map(
+            ({ layer, objects: layerObjects }) => (
+              <g
+                key={layer.id}
+                className="whiteboard-layer-group"
+                opacity={layer.opacity}
+              >
+                {layerObjects.map((obj) =>
+                  renderWhiteboardObject(obj, obj.id),
+                )}
+                {draft && draft.layerId === layer.id
+                  ? renderWhiteboardObject(draft, `draft-${draft.id}`)
+                  : null}
+              </g>
+            ),
+          )}
         </g>
         {selectedIds && selectedIds.size > 0
-          ? objects
+          ? painted
               .filter((o) => selectedIds.has(o.id))
               .map((o) => selectionOutline(o))
           : null}
       </svg>
-      {objects.length === 0 && !draft ? (
+      {painted.length === 0 && !draft ? (
         <p className="muted tiny whiteboard-preview-empty">Empty board</p>
       ) : null}
     </div>

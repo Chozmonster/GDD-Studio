@@ -198,6 +198,8 @@ const MAX_CHART_DESCRIPTION_CHARS: usize = 2_000;
 const MAX_WHITEBOARD_OBJECTS: usize = 2_000;
 const MAX_WHITEBOARD_PATH_POINTS: usize = 4_000;
 const MAX_WHITEBOARD_DESCRIPTION_CHARS: usize = 2_000;
+const MAX_WHITEBOARD_LAYERS: usize = 32;
+const MAX_WHITEBOARD_LAYER_NAME_CHARS: usize = 64;
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<T, String> {
     if !path.exists() {
@@ -2039,9 +2041,34 @@ fn default_whiteboard_zoom() -> f64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WhiteboardLayer {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default)]
+    pub locked: bool,
+    #[serde(default = "default_whiteboard_layer_opacity")]
+    pub opacity: f64,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_whiteboard_layer_opacity() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WhiteboardObject {
     pub id: String,
     pub kind: String,
+    /// Owning layer id. Empty on legacy boards — filled during sanitize.
+    #[serde(default)]
+    pub layer_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2077,6 +2104,11 @@ pub struct WhiteboardDocument {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    /// Paint stack; index 0 = bottom. Migrated for legacy boards.
+    #[serde(default)]
+    pub layers: Vec<WhiteboardLayer>,
+    #[serde(default)]
+    pub active_layer_id: String,
     #[serde(default)]
     pub objects: Vec<WhiteboardObject>,
     #[serde(default)]
@@ -2108,10 +2140,22 @@ fn whiteboard_path(project: &ProjectRecord, whiteboard_id: &str) -> Result<PathB
     Ok(path)
 }
 
+fn default_whiteboard_layer() -> WhiteboardLayer {
+    WhiteboardLayer {
+        id: "layer-main".into(),
+        name: "Layer 1".into(),
+        visible: true,
+        locked: false,
+        opacity: 1.0,
+    }
+}
+
 fn empty_whiteboard(id: &str) -> WhiteboardDocument {
+    let layer = default_whiteboard_layer();
+    let active_layer_id = layer.id.clone();
     WhiteboardDocument {
         format: "gdd-studio-whiteboard".into(),
-        version: 1,
+        version: 2,
         id: id.into(),
         name: if id == "main" {
             "Main".into()
@@ -2119,6 +2163,8 @@ fn empty_whiteboard(id: &str) -> WhiteboardDocument {
             id.into()
         },
         description: String::new(),
+        layers: vec![layer],
+        active_layer_id,
         objects: Vec::new(),
         viewport: WhiteboardViewport::default(),
         palette_ref: None,
@@ -2152,7 +2198,51 @@ fn sanitize_finite(n: Option<f64>) -> Option<f64> {
     n.filter(|v| v.is_finite())
 }
 
-fn sanitize_whiteboard_object(obj: &mut WhiteboardObject) -> bool {
+fn sanitize_whiteboard_layer_opacity(opacity: f64) -> f64 {
+    if !opacity.is_finite() {
+        return 1.0;
+    }
+    (opacity.clamp(0.0, 1.0) * 100.0).round() / 100.0
+}
+
+fn sanitize_whiteboard_layers(doc: &mut WhiteboardDocument) -> String {
+    let mut cleaned = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (index, mut layer) in doc.layers.drain(..).enumerate() {
+        layer.id = layer.id.trim().to_string();
+        if layer.id.is_empty() || validate_entity_id(&layer.id, "whiteboard layer").is_err() {
+            continue;
+        }
+        if !seen.insert(layer.id.clone()) {
+            continue;
+        }
+        let name = layer.name.trim().chars().take(MAX_WHITEBOARD_LAYER_NAME_CHARS).collect::<String>();
+        layer.name = if name.is_empty() {
+            format!("Layer {}", index + 1)
+        } else {
+            name
+        };
+        layer.opacity = sanitize_whiteboard_layer_opacity(layer.opacity);
+        cleaned.push(layer);
+        if cleaned.len() >= MAX_WHITEBOARD_LAYERS {
+            break;
+        }
+    }
+    if cleaned.is_empty() {
+        cleaned.push(default_whiteboard_layer());
+    }
+    let fallback_id = cleaned[0].id.clone();
+    let active = doc.active_layer_id.trim().to_string();
+    doc.active_layer_id = if cleaned.iter().any(|l| l.id == active) {
+        active
+    } else {
+        fallback_id.clone()
+    };
+    doc.layers = cleaned;
+    fallback_id
+}
+
+fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &str) -> bool {
     if validate_entity_id(&obj.id, "whiteboard object").is_err() {
         return false;
     }
@@ -2212,6 +2302,11 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject) -> bool {
         }
         _ => return false,
     }
+    obj.layer_id = obj.layer_id.trim().to_string();
+    if obj.layer_id.is_empty() || validate_entity_id(&obj.layer_id, "whiteboard layer").is_err()
+    {
+        obj.layer_id = fallback_layer_id.to_string();
+    }
     obj.color = sanitize_whiteboard_color(&obj.color, "#1A1A1A");
     obj.width = sanitize_whiteboard_width(obj.width);
     true
@@ -2219,15 +2314,25 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject) -> bool {
 
 fn sanitize_whiteboard_doc(doc: &mut WhiteboardDocument) {
     doc.format = "gdd-studio-whiteboard".into();
-    doc.version = 1;
+    doc.version = 2;
     doc.description = doc
         .description
         .trim()
         .chars()
         .take(MAX_WHITEBOARD_DESCRIPTION_CHARS)
         .collect();
-    doc.objects
-        .retain_mut(|obj| sanitize_whiteboard_object(obj));
+    let fallback_layer_id = sanitize_whiteboard_layers(doc);
+    let layer_ids: std::collections::HashSet<String> =
+        doc.layers.iter().map(|l| l.id.clone()).collect();
+    doc.objects.retain_mut(|obj| {
+        if !sanitize_whiteboard_object(obj, &fallback_layer_id) {
+            return false;
+        }
+        if !layer_ids.contains(&obj.layer_id) {
+            obj.layer_id = fallback_layer_id.clone();
+        }
+        true
+    });
     if doc.objects.len() > MAX_WHITEBOARD_OBJECTS {
         doc.objects.truncate(MAX_WHITEBOARD_OBJECTS);
     }

@@ -4638,6 +4638,137 @@ input.charts-formula-var-value {
   flex: 1 1 12rem;
 }
 
+.whiteboard-layers-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.whiteboard-layers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.whiteboard-layers-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+
+.whiteboard-layers-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.whiteboard-layers-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 9.5rem;
+  overflow: auto;
+}
+
+.whiteboard-layer-row {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(4.5rem, 1fr) repeat(2, 1.7rem) 4.2rem repeat(3, 1.7rem);
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.25rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.whiteboard-layer-row.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.whiteboard-layer-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.whiteboard-layer-active-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.whiteboard-layer-row.is-active .whiteboard-layer-active-dot {
+  background: var(--accent);
+}
+
+.whiteboard-layer-name {
+  min-width: 0;
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  padding: 0.2rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.whiteboard-layer-icon-btn.toolbar-icon-btn,
+.whiteboard-layer-icon-btn {
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0.2rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ink);
+}
+
+.whiteboard-layer-icon-btn:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--bg-input);
+}
+
+.whiteboard-layer-icon-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.whiteboard-layer-opacity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.whiteboard-layer-opacity input[type="range"] {
+  width: 100%;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.whiteboard-layers-hint {
+  margin: 0;
+}
+
 .whiteboard-surface {
   position: relative;
   flex: 1 1 auto;

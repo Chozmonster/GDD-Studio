@@ -7,6 +7,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import type {
+  WhiteboardLayer,
   WhiteboardObject,
   WhiteboardPoint,
   WhiteboardTool,
@@ -14,10 +15,14 @@ import type {
 } from "../../types";
 import { renderWhiteboardObject } from "./whiteboardInk";
 import {
+  findLayer,
   hitTestTop,
+  interactiveObjects,
+  layerIsDrawable,
   newEntityId,
   objectsIntersectBrush,
   objectBounds,
+  paintLayerGroups,
   sanitizePressure,
   shapeBounds,
   translateObject,
@@ -25,6 +30,8 @@ import {
 
 type WhiteboardSurfaceProps = {
   objects: WhiteboardObject[];
+  layers: WhiteboardLayer[];
+  activeLayerId: string;
   viewport: WhiteboardViewport;
   tool: WhiteboardTool;
   color: string;
@@ -95,6 +102,8 @@ function pointerWorldPoint(
  */
 export function WhiteboardSurface({
   objects,
+  layers,
+  activeLayerId,
   viewport,
   tool,
   color,
@@ -115,6 +124,8 @@ export function WhiteboardSurface({
   );
 
   const displayObjects = liveObjects ?? objects;
+  const activeLayer = findLayer(layers, activeLayerId);
+  const canDraw = layerIsDrawable(activeLayer);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -175,7 +186,8 @@ export function WhiteboardSurface({
     const world = pointerWorldPoint(e, el, viewport);
 
     if (tool === "select") {
-      const hit = hitTestTop(objects, world.x, world.y);
+      const selectable = interactiveObjects(objects, layers);
+      const hit = hitTestTop(selectable, world.x, world.y);
       let ids: string[];
       if (e.shiftKey && hit) {
         const next = new Set(selectedIds);
@@ -194,13 +206,16 @@ export function WhiteboardSurface({
         onSelectIds(new Set());
         ids = [];
       }
-      if (ids.length > 0 && hit) {
+      const movableIds = ids.filter((id) =>
+        selectable.some((o) => o.id === id),
+      );
+      if (movableIds.length > 0 && hit) {
         onBeforeMutate();
         dragRef.current = {
           type: "move",
           startWorld: world,
-          originals: objects.filter((o) => ids.includes(o.id)),
-          ids,
+          originals: objects.filter((o) => movableIds.includes(o.id)),
+          ids: movableIds,
         };
         setLiveObjects(objects);
       }
@@ -208,12 +223,16 @@ export function WhiteboardSurface({
     }
 
     if (tool === "eraser") {
-      // Brush eraser: remove whole objects the brush overlaps (object delete).
-      // Width slider is brush diameter; hit-test uses radius in world units.
+      // Brush eraser: remove whole objects on editable layers the brush hits.
+      // Locked / hidden layers are skipped; width slider is brush diameter.
+      if (!canDraw) return;
       onBeforeMutate();
       const brushRadius = Math.max(2, strokeWidth / 2);
+      const erasable = interactiveObjects(objects, layers, {
+        layerId: activeLayerId,
+      });
       const removed = new Set<string>();
-      for (const obj of objects) {
+      for (const obj of erasable) {
         if (objectsIntersectBrush(obj, world.x, world.y, brushRadius)) {
           removed.add(obj.id);
         }
@@ -225,6 +244,8 @@ export function WhiteboardSurface({
       return;
     }
 
+    if (!canDraw) return;
+
     onBeforeMutate();
     if (tool === "pen") {
       const id = newEntityId("path");
@@ -233,6 +254,7 @@ export function WhiteboardSurface({
       setDraft({
         id,
         kind: "path",
+        layerId: activeLayerId,
         mode: "pen",
         points,
         color,
@@ -255,6 +277,7 @@ export function WhiteboardSurface({
       setDraft({
         id,
         kind: tool,
+        layerId: activeLayerId,
         x1: world.x,
         y1: world.y,
         x2: world.x,
@@ -294,6 +317,7 @@ export function WhiteboardSurface({
           setDraft({
             id: drag.id,
             kind: "path",
+            layerId: activeLayerId,
             mode: drag.mode,
             points: [...drag.points],
             color,
@@ -306,6 +330,7 @@ export function WhiteboardSurface({
       setDraft({
         id: drag.id,
         kind: "path",
+        layerId: activeLayerId,
         mode: drag.mode,
         points: [...drag.points],
         color,
@@ -319,6 +344,7 @@ export function WhiteboardSurface({
       setDraft({
         id: drag.id,
         kind: drag.kind,
+        layerId: activeLayerId,
         x1: drag.x1,
         y1: drag.y1,
         x2: drag.x2,
@@ -342,8 +368,11 @@ export function WhiteboardSurface({
     }
     if (drag.type === "erase-stroke") {
       const brushRadius = Math.max(2, strokeWidth / 2);
+      const erasable = interactiveObjects(objects, layers, {
+        layerId: activeLayerId,
+      });
       let changed = false;
-      for (const obj of objects) {
+      for (const obj of erasable) {
         if (drag.removed.has(obj.id)) continue;
         if (objectsIntersectBrush(obj, world.x, world.y, brushRadius)) {
           drag.removed.add(obj.id);
@@ -376,6 +405,7 @@ export function WhiteboardSurface({
           {
             id: drag.id,
             kind: "path",
+            layerId: activeLayerId,
             mode: drag.mode,
             points: drag.points,
             color,
@@ -395,6 +425,7 @@ export function WhiteboardSurface({
           {
             id: drag.id,
             kind: drag.kind,
+            layerId: activeLayerId,
             x1: drag.x1,
             y1: drag.y1,
             x2: drag.x2,
@@ -489,10 +520,25 @@ export function WhiteboardSurface({
           />
           <g style={{ isolation: "isolate" }}>
             <rect x={0} y={0} width={4000} height={3000} fill="#F7F4EC" />
-            {displayObjects.map((obj) =>
-              renderWhiteboardObject(obj, obj.id),
+            {paintLayerGroups(displayObjects, layers).map(
+              ({ layer, objects: layerObjects }) => (
+                <g
+                  key={layer.id}
+                  className="whiteboard-layer-group"
+                  opacity={layer.opacity}
+                >
+                  {layerObjects.map((obj) =>
+                    renderWhiteboardObject(obj, obj.id),
+                  )}
+                  {draft && draft.layerId === layer.id
+                    ? renderWhiteboardObject(draft, `draft-${draft.id}`)
+                    : null}
+                </g>
+              ),
             )}
-            {draft ? renderWhiteboardObject(draft, `draft-${draft.id}`) : null}
+            {draft && !layers.some((l) => l.id === draft.layerId && l.visible)
+              ? renderWhiteboardObject(draft, `draft-${draft.id}`)
+              : null}
           </g>
           {[...selectedIds].map((id) => {
             const obj = displayObjects.find((o) => o.id === id);

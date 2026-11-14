@@ -36,6 +36,7 @@ import type {
 import { ToolbarIconButton } from "../editor/ToolbarIconButton";
 import { UndoRedoButtons } from "../editor/UndoRedoButtons";
 import { SplitPane } from "../SplitPane";
+import { WhiteboardLayersPanel } from "./WhiteboardLayersPanel";
 import { WhiteboardSidebar } from "./WhiteboardSidebar";
 import { WhiteboardSurface } from "./WhiteboardSurface";
 import {
@@ -44,6 +45,8 @@ import {
   DEFAULT_STROKE_WIDTH,
   emptyWhiteboardDocument,
   FALLBACK_SWATCHES,
+  findLayer,
+  layerIsDrawable,
   normalizeWhiteboard,
 } from "./whiteboardModel";
 
@@ -328,6 +331,28 @@ export function WhiteboardEditor({
     schedulePersist({ ...docRef.current, [key]: value });
   };
 
+  const commitDocument = (
+    next: WhiteboardDocument,
+    historyOpts?: PushHistoryOptions,
+  ) => {
+    recordHistory(historyOpts);
+    const normalized = normalizeWhiteboard(next);
+    // Drop selection of ink that became hidden/locked.
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const nextIds = new Set<string>();
+      for (const id of prev) {
+        const obj = normalized.objects.find((o) => o.id === id);
+        if (!obj) continue;
+        if (layerIsDrawable(findLayer(normalized.layers, obj.layerId))) {
+          nextIds.add(id);
+        }
+      }
+      return nextIds;
+    });
+    schedulePersist(normalized);
+  };
+
   const commitObjects = (next: WhiteboardObject[]) => {
     schedulePersist({ ...docRef.current, objects: next });
   };
@@ -539,8 +564,12 @@ export function WhiteboardEditor({
             </p>
           </div>
 
+          <WhiteboardLayersPanel doc={doc} onCommit={commitDocument} />
+
           <WhiteboardSurface
             objects={doc.objects}
+            layers={doc.layers}
+            activeLayerId={doc.activeLayerId}
             viewport={doc.viewport}
             tool={tool}
             color={color}
