@@ -1,8 +1,10 @@
 import {
   Circle,
   Eraser,
+  Highlighter,
   Minus,
   MousePointer2,
+  Paintbrush,
   Pencil,
   Square,
   type LucideIcon,
@@ -27,6 +29,7 @@ import {
 } from "../../lib/whiteboardPalettes";
 import type {
   ProjectRecord,
+  WhiteboardBrush,
   WhiteboardDocument,
   WhiteboardObject,
   WhiteboardPaletteRef,
@@ -41,14 +44,25 @@ import { WhiteboardSidebar } from "./WhiteboardSidebar";
 import { WhiteboardSurface } from "./WhiteboardSurface";
 import {
   cloneWhiteboard,
+  DEFAULT_BRUSH,
   DEFAULT_STROKE_COLOR,
+  DEFAULT_STROKE_FLOW,
+  DEFAULT_STROKE_OPACITY,
   DEFAULT_STROKE_WIDTH,
   emptyWhiteboardDocument,
   FALLBACK_SWATCHES,
   findLayer,
+  HIGHLIGHTER_DEFAULT_OPACITY,
   layerIsDrawable,
   normalizeWhiteboard,
+  pathStrokeAlpha,
 } from "./whiteboardModel";
+
+const BRUSHES: { id: WhiteboardBrush; label: string; icon: LucideIcon }[] = [
+  { id: "hard", label: "Hard brush", icon: Pencil },
+  { id: "soft", label: "Soft brush", icon: Paintbrush },
+  { id: "highlighter", label: "Highlighter", icon: Highlighter },
+];
 
 type WhiteboardEditorProps = {
   project: ProjectRecord;
@@ -80,6 +94,9 @@ export function WhiteboardEditor({
   const [color, setColor] = useState(DEFAULT_STROKE_COLOR);
   const [fill, setFill] = useState<string | null>(null);
   const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
+  const [brush, setBrush] = useState<WhiteboardBrush>(DEFAULT_BRUSH);
+  const [strokeOpacity, setStrokeOpacity] = useState(DEFAULT_STROKE_OPACITY);
+  const [strokeFlow, setStrokeFlow] = useState(DEFAULT_STROKE_FLOW);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [palettes, setPalettes] = useState<MoodPaletteOption[]>([]);
   const [activePaletteKey, setActivePaletteKey] = useState<string>("");
@@ -387,6 +404,24 @@ export function WhiteboardEditor({
     if (picked?.hexes[0]) setColor(picked.hexes[0]);
   };
 
+  const selectBrush = (next: WhiteboardBrush) => {
+    setBrush(next);
+    setTool("pen");
+    if (next === "highlighter" && strokeOpacity >= 0.95) {
+      setStrokeOpacity(HIGHLIGHTER_DEFAULT_OPACITY);
+    } else if (next !== "highlighter" && strokeOpacity === HIGHLIGHTER_DEFAULT_OPACITY) {
+      setStrokeOpacity(DEFAULT_STROKE_OPACITY);
+    }
+  };
+
+  const previewColor = /^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#1A1A1A";
+  const previewAlpha = pathStrokeAlpha({
+    opacity: strokeOpacity,
+    flow: strokeFlow,
+  });
+  const previewSoft = brush === "soft";
+  const previewHighlight = brush === "highlighter";
+
   return (
     <div className="flowchart-shell whiteboard-shell">
       <SplitPane
@@ -452,6 +487,26 @@ export function WhiteboardEditor({
                 />
               ))}
             </div>
+            <div
+              className="whiteboard-tool-group"
+              role="group"
+              aria-label="Brush style"
+            >
+              {BRUSHES.map((b) => (
+                <ToolbarIconButton
+                  key={b.id}
+                  label={b.label}
+                  icon={b.icon}
+                  pressed={tool === "pen" && brush === b.id}
+                  className={
+                    tool === "pen" && brush === b.id
+                      ? "whiteboard-tool-btn is-active"
+                      : "whiteboard-tool-btn"
+                  }
+                  onClick={() => selectBrush(b.id)}
+                />
+              ))}
+            </div>
             <label className="whiteboard-inline-field whiteboard-width-field">
               <span className="muted tiny">Width</span>
               <div className="whiteboard-width-controls">
@@ -465,8 +520,14 @@ export function WhiteboardEditor({
                   aria-label="Stroke width"
                 />
                 <span
-                  className="whiteboard-brush-preview"
-                  title={`Brush size ${strokeWidth}px`}
+                  className={
+                    previewSoft
+                      ? "whiteboard-brush-preview is-soft"
+                      : previewHighlight
+                        ? "whiteboard-brush-preview is-highlighter"
+                        : "whiteboard-brush-preview"
+                  }
+                  title={`Brush ${strokeWidth}px · ${Math.round(previewAlpha * 100)}%`}
                   aria-hidden
                 >
                   <span
@@ -474,9 +535,8 @@ export function WhiteboardEditor({
                     style={{
                       width: strokeWidth,
                       height: strokeWidth,
-                      background: /^#[0-9A-Fa-f]{6}$/.test(color)
-                        ? color
-                        : "#1A1A1A",
+                      background: previewColor,
+                      opacity: previewAlpha,
                     }}
                   />
                 </span>
@@ -486,10 +546,46 @@ export function WhiteboardEditor({
               </div>
             </label>
             <label className="whiteboard-inline-field">
+              <span className="muted tiny">Opacity</span>
+              <div className="whiteboard-width-controls">
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={Math.round(strokeOpacity * 100)}
+                  onChange={(e) =>
+                    setStrokeOpacity(Number(e.target.value) / 100)
+                  }
+                  aria-label="Stroke opacity"
+                />
+                <span className="muted tiny whiteboard-brush-preview-label">
+                  {Math.round(strokeOpacity * 100)}%
+                </span>
+              </div>
+            </label>
+            <label className="whiteboard-inline-field">
+              <span className="muted tiny">Flow</span>
+              <div className="whiteboard-width-controls">
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={Math.round(strokeFlow * 100)}
+                  onChange={(e) => setStrokeFlow(Number(e.target.value) / 100)}
+                  aria-label="Stroke flow"
+                />
+                <span className="muted tiny whiteboard-brush-preview-label">
+                  {Math.round(strokeFlow * 100)}%
+                </span>
+              </div>
+            </label>
+            <label className="whiteboard-inline-field">
               <span className="muted tiny">Stroke</span>
               <input
                 type="color"
-                value={/^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#1A1A1A"}
+                value={previewColor}
                 onChange={(e) => setColor(e.target.value.toUpperCase())}
                 aria-label="Stroke color"
               />
@@ -575,6 +671,9 @@ export function WhiteboardEditor({
             color={color}
             fill={fill}
             strokeWidth={strokeWidth}
+            brush={brush}
+            strokeOpacity={strokeOpacity}
+            strokeFlow={strokeFlow}
             selectedIds={selectedIds}
             onViewportChange={commitViewport}
             onSelectIds={setSelectedIds}

@@ -2087,6 +2087,15 @@ pub struct WhiteboardObject {
     pub width: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill: Option<String>,
+    /// Freehand brush: hard | soft | highlighter (paths only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brush: Option<String>,
+    /// Stroke opacity 0–1 (paths).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f64>,
+    /// Stroke flow 0–1 (paths); multiplies with opacity when rendering.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow: Option<f64>,
 }
 
 fn default_whiteboard_width() -> f64 {
@@ -2205,6 +2214,29 @@ fn sanitize_whiteboard_layer_opacity(opacity: f64) -> f64 {
     (opacity.clamp(0.0, 1.0) * 100.0).round() / 100.0
 }
 
+fn sanitize_whiteboard_stroke_alpha(raw: Option<f64>) -> Option<f64> {
+    let Some(n) = raw else {
+        return None;
+    };
+    if !n.is_finite() {
+        return None;
+    }
+    Some(((n.clamp(0.05, 1.0)) * 100.0).round() / 100.0)
+}
+
+fn sanitize_whiteboard_brush(raw: Option<String>) -> Option<String> {
+    match raw
+        .as_deref()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("soft") => Some("soft".into()),
+        Some("highlighter") => Some("highlighter".into()),
+        Some("hard") | None => None, // hard is the default — omit
+        Some(_) => None,
+    }
+}
+
 fn sanitize_whiteboard_layers(doc: &mut WhiteboardDocument) -> String {
     let mut cleaned = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -2275,11 +2307,17 @@ fn sanitize_whiteboard_object(obj: &mut WhiteboardObject, fallback_layer_id: &st
             obj.x2 = None;
             obj.y2 = None;
             obj.fill = None;
+            obj.brush = sanitize_whiteboard_brush(obj.brush.take());
+            obj.opacity = sanitize_whiteboard_stroke_alpha(obj.opacity.take());
+            obj.flow = sanitize_whiteboard_stroke_alpha(obj.flow.take());
         }
         "line" | "rect" | "ellipse" => {
             obj.kind = kind;
             obj.mode = None;
             obj.points = None;
+            obj.brush = None;
+            obj.opacity = None;
+            obj.flow = None;
             let x1 = sanitize_finite(obj.x1);
             let y1 = sanitize_finite(obj.y1);
             let x2 = sanitize_finite(obj.x2);

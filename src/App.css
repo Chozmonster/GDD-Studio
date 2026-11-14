@@ -4592,12 +4592,29 @@ input.charts-formula-var-value {
   background: #f7f4ec;
 }
 
+.whiteboard-brush-preview.is-highlighter {
+  background:
+    linear-gradient(45deg, #ece7dc 25%, transparent 25%) -2px 0 / 8px 8px,
+    linear-gradient(-45deg, #ece7dc 25%, transparent 25%) -2px 0 / 8px 8px,
+    #f7f4ec;
+}
+
 .whiteboard-brush-preview-dot {
   display: block;
   border-radius: 50%;
   max-width: 1.35rem;
   max-height: 1.35rem;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.whiteboard-brush-preview.is-soft .whiteboard-brush-preview-dot {
+  filter: blur(1.6px);
+  box-shadow: none;
+}
+
+.whiteboard-brush-preview.is-highlighter .whiteboard-brush-preview-dot {
+  border-radius: 3px;
+  mix-blend-mode: multiply;
 }
 
 .whiteboard-brush-preview-label {

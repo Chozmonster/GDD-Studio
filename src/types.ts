@@ -115,6 +115,14 @@ export type WhiteboardLayer = {
   opacity: number;
 };
 
+/**
+ * Freehand brush style for pen strokes.
+ * - hard: solid ink (legacy default)
+ * - soft: feathered edge (SVG blur)
+ * - highlighter: translucent multiply wash
+ */
+export type WhiteboardBrush = "hard" | "soft" | "highlighter";
+
 /** Freehand stroke (pen ink or eraser brush that punches holes). */
 export type WhiteboardPathObject = {
   id: string;
@@ -125,6 +133,12 @@ export type WhiteboardPathObject = {
   points: WhiteboardPoint[];
   color: string;
   width: number;
+  /** Brush style; omitted on legacy paths → hard. */
+  brush?: WhiteboardBrush;
+  /** Stroke opacity 0–1; omitted → 1. Combined with `flow` when rendering. */
+  opacity?: number;
+  /** Flow 0–1 (ink density); omitted → 1. Multiplies with opacity. */
+  flow?: number;
 };
 
 /** Basic shape stroke on the doodle board. */
