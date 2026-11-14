@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.27] - 2026-11-13
+
+Whiteboard layout polish: layers panel on the right; Brush size / Text size labels (#74).
+
 ### Changed
 
 - Whiteboard **layers** panel moved to the **right** of the canvas so drawing tools stay in one horizontal toolbar row.
 - Whiteboard size controls use clear labels: **Brush size** (stroke width) and **Text size** (font), with context emphasis when the matching tool/selection is active.
+
+### Notes for installers
+
+Prefer the **portable zip** (`gdd-studio-v*-windows-*-portable.zip`): unzip and run `gdd-studio.exe`. NSIS/MSI installers are optional. Updater artifacts (`latest.json` + signatures) ship alongside.
 
 ## [0.1.26] - 2026-11-13
 
